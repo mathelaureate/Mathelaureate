@@ -2048,6 +2048,8 @@ function AdminPage() {
   const [newSubtopicName, setNewSubtopicName] = useState('')
   const [dragTopicIndex, setDragTopicIndex] = useState(null)
   const [dragSubtopicIndex, setDragSubtopicIndex] = useState(null)
+  const [isDeletingTopic, setIsDeletingTopic] = useState(false)
+  const [isDeletingSubtopic, setIsDeletingSubtopic] = useState(false)
   const [storedItemsTab, setStoredItemsTab] = useState('lesson')
   const [dragRecordIndex, setDragRecordIndex] = useState(null)
   const [editingRecordId, setEditingRecordId] = useState('')
@@ -2395,6 +2397,130 @@ function AdminPage() {
     })
     persistCurricula(updated).catch((error) => setDataError(error?.message || 'Unable to reorder subtopics.'))
     setDragSubtopicIndex(null)
+  }
+
+  async function deleteSelectedTopic() {
+    if (!selectedCurriculum || !unitId) return
+    const units = selectedCurriculum.units || []
+    if (units.length <= 1) {
+      setDataError('At least one topic must remain in a course.')
+      return
+    }
+    const unitToDelete = units.find((unit) => unit.id === unitId)
+    if (!unitToDelete) return
+    const confirmed = window.confirm(
+      `Delete topic "${unitToDelete.name}" and all its subtopics/content items? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setIsDeletingTopic(true)
+    setDataError('')
+    try {
+      const updatedCurricula = curricula.map((curriculum) => {
+        if (curriculum.id !== curriculumId) return curriculum
+        return {
+          ...curriculum,
+          units: curriculum.units.filter((unit) => unit.id !== unitId),
+        }
+      })
+      await persistCurricula(updatedCurricula)
+
+      const nextCurriculum = updatedCurricula.find((curriculum) => curriculum.id === curriculumId)
+      const fallbackUnit = nextCurriculum?.units?.[0]
+      const fallbackSubunit = fallbackUnit?.subunits?.[0] || ''
+      setUnitId(fallbackUnit?.id || '')
+      setSubunit(fallbackSubunit)
+
+      const nextLockedUnits = (paywallConfig.lockedUnits?.[curriculumId] || []).filter((lockedUnitId) => lockedUnitId !== unitId)
+      const unitPrefix = `${unitId}::`
+      const nextLockedSubunits = (paywallConfig.lockedSubunits?.[curriculumId] || []).filter(
+        (lockKey) => !String(lockKey).startsWith(unitPrefix),
+      )
+      const nextPaywallConfig = {
+        ...paywallConfig,
+        lockedUnits: {
+          ...paywallConfig.lockedUnits,
+          [curriculumId]: nextLockedUnits,
+        },
+        lockedSubunits: {
+          ...paywallConfig.lockedSubunits,
+          [curriculumId]: nextLockedSubunits,
+        },
+      }
+      await persistPaywall(nextPaywallConfig)
+
+      if (paywallCourseId === curriculumId) {
+        setPaywallUnitId(fallbackUnit?.id || '')
+        setPaywallSubunit(fallbackSubunit)
+      }
+
+      const recordsToDelete = records.filter((item) => item.curriculumId === curriculumId && item.unitId === unitId)
+      await Promise.all(recordsToDelete.map((item) => deleteDoc(doc(db, 'courseContentItems', item.id))))
+      persistRecords(records.filter((item) => !(item.curriculumId === curriculumId && item.unitId === unitId)))
+    } catch (error) {
+      setDataError(error?.message || 'Unable to delete topic.')
+    } finally {
+      setIsDeletingTopic(false)
+    }
+  }
+
+  async function deleteSelectedSubtopic() {
+    if (!selectedCurriculum || !selectedUnit || !subunit) return
+    const subunits = selectedUnit.subunits || []
+    if (subunits.length <= 1) {
+      setDataError('At least one subtopic must remain in a topic.')
+      return
+    }
+    const confirmed = window.confirm(
+      `Delete subtopic "${subunit}" and all its content items? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setIsDeletingSubtopic(true)
+    setDataError('')
+    try {
+      const updatedCurricula = curricula.map((curriculum) => {
+        if (curriculum.id !== curriculumId) return curriculum
+        return {
+          ...curriculum,
+          units: curriculum.units.map((unit) =>
+            unit.id === unitId ? { ...unit, subunits: unit.subunits.filter((name) => name !== subunit) } : unit,
+          ),
+        }
+      })
+      await persistCurricula(updatedCurricula)
+
+      const nextUnit = updatedCurricula.find((curriculum) => curriculum.id === curriculumId)?.units.find((unit) => unit.id === unitId)
+      const fallbackSubunit = nextUnit?.subunits?.[0] || ''
+      setSubunit(fallbackSubunit)
+
+      const deleteSubunitKey = `${unitId}::${subunit}`
+      const nextLockedSubunits = (paywallConfig.lockedSubunits?.[curriculumId] || []).filter(
+        (lockKey) => lockKey !== deleteSubunitKey,
+      )
+      const nextPaywallConfig = {
+        ...paywallConfig,
+        lockedSubunits: {
+          ...paywallConfig.lockedSubunits,
+          [curriculumId]: nextLockedSubunits,
+        },
+      }
+      await persistPaywall(nextPaywallConfig)
+
+      if (paywallCourseId === curriculumId && paywallUnitId === unitId && paywallSubunit === subunit) {
+        setPaywallSubunit(fallbackSubunit)
+      }
+
+      const recordsToDelete = records.filter(
+        (item) => item.curriculumId === curriculumId && item.unitId === unitId && item.subunit === subunit,
+      )
+      await Promise.all(recordsToDelete.map((item) => deleteDoc(doc(db, 'courseContentItems', item.id))))
+      persistRecords(records.filter((item) => !(item.curriculumId === curriculumId && item.unitId === unitId && item.subunit === subunit)))
+    } catch (error) {
+      setDataError(error?.message || 'Unable to delete subtopic.')
+    } finally {
+      setIsDeletingSubtopic(false)
+    }
   }
 
   function onImageFileChange(event) {
@@ -2866,6 +2992,9 @@ function AdminPage() {
               ))}
             </select>
           </label>
+          <button className="btn danger" type="button" onClick={deleteSelectedTopic} disabled={isDeletingTopic || !(selectedCurriculum?.units?.length > 1)}>
+            {isDeletingTopic ? 'Deleting topic...' : 'Delete Selected Topic'}
+          </button>
           <label>
             Subtopic
             <select value={subunit} onChange={(event) => setSubunit(event.target.value)}>
@@ -2876,6 +3005,14 @@ function AdminPage() {
               ))}
             </select>
           </label>
+          <button
+            className="btn danger"
+            type="button"
+            onClick={deleteSelectedSubtopic}
+            disabled={isDeletingSubtopic || !(selectedUnit?.subunits?.length > 1)}
+          >
+            {isDeletingSubtopic ? 'Deleting subtopic...' : 'Delete Selected Subtopic'}
+          </button>
 
           <form onSubmit={addTopic}>
             <label>

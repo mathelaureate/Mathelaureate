@@ -160,6 +160,17 @@ nav button:hover {
   color: #4a3f68;
 }
 
+.btn.danger {
+  background: #fff5f5;
+  border-color: #efc1c1;
+  color: #9f1b1b;
+}
+
+.btn.danger:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
 .program-grid,
 .testimonial-grid {
   margin-top: 1.2rem;
