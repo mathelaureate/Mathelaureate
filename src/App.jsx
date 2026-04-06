@@ -1154,6 +1154,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [paymentBusy, setPaymentBusy] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [shareFeedback, setShareFeedback] = useState('')
+  const [expandedImageUrl, setExpandedImageUrl] = useState('')
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -1272,9 +1273,15 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
   const questions = scopedItems.filter((item) => item.itemType === 'question')
   const difficultyOptions = ['easy', 'medium', 'hard']
+  const difficultyRank = { easy: 1, medium: 2, hard: 3 }
   const filteredQuestions = [...(selectedDifficulties.length === 0
     ? questions
-    : questions.filter((item) => selectedDifficulties.includes(String(item.difficulty || '').toLowerCase())))].sort(sortByStoredOrder)
+    : questions.filter((item) => selectedDifficulties.includes(String(item.difficulty || '').toLowerCase())))].sort((a, b) => {
+    const aRank = difficultyRank[String(a?.difficulty || 'medium').toLowerCase()] || 99
+    const bRank = difficultyRank[String(b?.difficulty || 'medium').toLowerCase()] || 99
+    if (aRank !== bRank) return aRank - bRank
+    return sortByStoredOrder(a, b)
+  })
   const activeItems = activeTab === 'lesson' ? lessons : filteredQuestions
   const lessonShareUrl =
     typeof window !== 'undefined'
@@ -1622,10 +1629,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
               <p className="eyebrow">{currentSubunit || 'Subunit'}</p>
               <h2>{activeTab === 'lesson' ? 'Lesson' : 'Question Bank'}</h2>
               <div className="lesson-share-row">
-                <button type="button" className="btn ghost" onClick={nativeShareLesson}>
-                  Share Lesson
-                </button>
                 {shareFeedback ? <small>{shareFeedback}</small> : null}
+                <button type="button" className="icon-share-btn" onClick={nativeShareLesson} title="Share lesson" aria-label="Share lesson">
+                  🔗
+                </button>
               </div>
 
               <div className="lesson-tabs">
@@ -1718,10 +1725,17 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           <LatexText value={item.description} className="latex-text" />
                           {item.imageUrl ? (
                             <div className="content-image-block">
-                              <img src={item.imageUrl} alt="Lesson visual" />
+                              <button
+                                type="button"
+                                className="image-open-btn"
+                                onClick={() => setExpandedImageUrl(item.imageUrl)}
+                                aria-label="Open image in full view"
+                              >
+                                <img src={item.imageUrl} alt="Lesson visual" />
+                              </button>
                             </div>
                           ) : null}
-                          {activeTab === 'question' && (item.solution || item.solutionVideoLink) ? (
+                          {activeTab === 'question' && (item.solution || item.solutionVideoLink || item.solutionImageUrl) ? (
                             <button type="button" className="btn ghost text-btn" onClick={() => openSolution(item, index)}>
                               View Solution
                             </button>
@@ -1775,6 +1789,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 <LatexText value={activeSolutionItem.solution} className="latex-text" />
               </div>
             ) : null}
+            {activeSolutionItem.solutionImageUrl ? (
+              <div className="content-image-block">
+                <button
+                  type="button"
+                  className="image-open-btn"
+                  onClick={() => setExpandedImageUrl(activeSolutionItem.solutionImageUrl)}
+                  aria-label="Open solution image in full view"
+                >
+                  <img src={activeSolutionItem.solutionImageUrl} alt="Solution visual" />
+                </button>
+              </div>
+            ) : null}
             {activeSolutionItem.solutionVideoLink && toYouTubeEmbedUrl(activeSolutionItem.solutionVideoLink) ? (
               <div className="solution-video-wrap">
                 <h4>Video Solution</h4>
@@ -1787,6 +1813,16 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 />
               </div>
             ) : null}
+          </article>
+        </section>
+      ) : null}
+      {expandedImageUrl ? (
+        <section className="image-zoom-overlay" role="dialog" aria-modal="true" onClick={() => setExpandedImageUrl('')}>
+          <article className="image-zoom-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="icon-back-btn image-zoom-close" onClick={() => setExpandedImageUrl('')} aria-label="Close image view">
+              ×
+            </button>
+            <img src={expandedImageUrl} alt="Expanded content" />
           </article>
         </section>
       ) : null}
@@ -1979,6 +2015,8 @@ function AdminPage() {
   const [attachedFileName, setAttachedFileName] = useState('')
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState('')
+  const [solutionImageFile, setSolutionImageFile] = useState(null)
+  const [solutionImagePreviewUrl, setSolutionImagePreviewUrl] = useState('')
   const [isImageUploading, setIsImageUploading] = useState(false)
   const [bulkQuestionInput, setBulkQuestionInput] = useState('')
   const [isBulkUploading, setIsBulkUploading] = useState(false)
@@ -2366,14 +2404,27 @@ function AdminPage() {
     setSelectedImagePreviewUrl(file ? URL.createObjectURL(file) : '')
   }
 
+  function onSolutionImageFileChange(event) {
+    const file = event.target.files?.[0] || null
+    setSolutionImageFile(file)
+    setSolutionImagePreviewUrl(file ? URL.createObjectURL(file) : '')
+  }
+
   async function submitItem(event) {
     event.preventDefault()
-    if (itemType === 'question' && !String(solution || '').trim() && !String(solutionVideoLink || '').trim()) {
-      setDataError('Add either a text solution or a YouTube video solution link for question items.')
+    if (
+      itemType === 'question' &&
+      !String(solution || '').trim() &&
+      !String(solutionVideoLink || '').trim() &&
+      !solutionImageFile
+    ) {
+      setDataError('Add a text solution, solution image, or a YouTube video solution link for question items.')
       return
     }
     let imageUrl = ''
     let imagePath = ''
+    let solutionImageUrl = ''
+    let solutionImagePath = ''
 
     if (selectedImageFile) {
       if (!supabaseConfigured) {
@@ -2388,6 +2439,23 @@ function AdminPage() {
       } catch (error) {
         setIsImageUploading(false)
         setDataError(error?.message || 'Unable to upload image to Supabase.')
+        return
+      }
+    }
+    if (itemType === 'question' && solutionImageFile) {
+      if (!supabaseConfigured) {
+        setDataError('Supabase not configured. Add Supabase env values before uploading images.')
+        setIsImageUploading(false)
+        return
+      }
+      try {
+        setIsImageUploading(true)
+        const uploadResult = await uploadImageToSupabase(solutionImageFile, `${curriculumId}/${unitId}/solutions`)
+        solutionImageUrl = uploadResult.publicUrl
+        solutionImagePath = uploadResult.path
+      } catch (error) {
+        setIsImageUploading(false)
+        setDataError(error?.message || 'Unable to upload solution image to Supabase.')
         return
       }
     }
@@ -2410,6 +2478,8 @@ function AdminPage() {
       description,
       solution: itemType === 'question' ? solution : '',
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
+      solutionImageUrl: itemType === 'question' ? solutionImageUrl : '',
+      solutionImagePath: itemType === 'question' ? solutionImagePath : '',
       difficulty: itemType === 'question' ? questionDifficulty : '',
       marks: itemType === 'question' ? Number(questionMarks || 0) : 0,
       gdc: itemType === 'question' ? questionGdc : '',
@@ -2444,6 +2514,8 @@ function AdminPage() {
     setAttachedFileName('')
     setSelectedImageFile(null)
     setSelectedImagePreviewUrl('')
+    setSolutionImageFile(null)
+    setSolutionImagePreviewUrl('')
   }
 
   async function submitBulkQuestions(event) {
@@ -2460,9 +2532,15 @@ function AdminPage() {
       const fencedMatch = rawInput.match(/```(?:json)?\s*([\s\S]*?)```/i)
       const jsonSource = fencedMatch?.[1]?.trim() || rawInput
       const parsed = JSON.parse(jsonSource)
-      const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.questions) ? parsed.questions : null
+      const items = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.questions)
+          ? parsed.questions
+          : parsed && typeof parsed === 'object'
+            ? [parsed]
+            : null
       if (!items || items.length === 0) {
-        throw new Error('Provide a JSON array of questions (or { "questions": [...] }).')
+        throw new Error('Provide a question JSON object, array, or { "questions": [...] }.')
       }
       if (!curriculumId || !unitId || !subunit) {
         throw new Error('Select course, topic, and subtopic before bulk upload.')
@@ -2494,6 +2572,8 @@ function AdminPage() {
           description: descriptionValue,
           solution: String(item.solution || '').trim(),
           solutionVideoLink: String(item.solutionVideoLink || item.videoSolutionLink || item.youtubeLink || '').trim(),
+          solutionImageUrl: String(item.solutionImageUrl || '').trim(),
+          solutionImagePath: '',
           difficulty: String(item.difficulty || 'medium').toLowerCase(),
           marks: Math.max(1, Number(item.marks || 1)),
           gdc: String(item.gdc || 'not gdc').toLowerCase() === 'gdc' ? 'gdc' : 'not gdc',
@@ -2564,6 +2644,7 @@ function AdminPage() {
 
   async function saveRecordEdits() {
     if (!editingRecordId || !editingRecordType) return
+    const editingRecord = records.find((item) => item.id === editingRecordId) || null
     if (editingRecordType !== 'question' && !editTitle.trim()) {
       setDataError('Title is required for lessons.')
       return
@@ -2572,8 +2653,13 @@ function AdminPage() {
       setDataError('Description is required.')
       return
     }
-    if (editingRecordType === 'question' && !editSolution.trim() && !editSolutionVideoLink.trim()) {
-      setDataError('Add either a text solution or a YouTube video solution link.')
+    if (
+      editingRecordType === 'question' &&
+      !editSolution.trim() &&
+      !editSolutionVideoLink.trim() &&
+      !String(editingRecord?.solutionImageUrl || '').trim()
+    ) {
+      setDataError('Add either a text solution, solution image, or a YouTube video solution link.')
       return
     }
 
@@ -3124,6 +3210,19 @@ function AdminPage() {
                     placeholder="https://www.youtube.com/watch?v=..."
                   />
                 </label>
+                <label>
+                  Solution Image Upload (optional)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onSolutionImageFileChange}
+                  />
+                </label>
+                {solutionImagePreviewUrl ? (
+                  <div className="image-preview-block">
+                    <img src={solutionImagePreviewUrl} alt="Question solution preview" />
+                  </div>
+                ) : null}
                 <section className="latex-preview">
                   <h3>Live Preview</h3>
                   <article className="lesson-card">
@@ -3278,6 +3377,7 @@ function AdminPage() {
                       ) : null}
                       {record.itemType === 'question' && record.solution ? <small>Solution added</small> : null}
                       {record.itemType === 'question' && record.solutionVideoLink ? <small>Video solution added</small> : null}
+                      {record.itemType === 'question' && record.solutionImageUrl ? <small>Solution image added</small> : null}
                       {record.itemType === 'lesson' && record.geogebraLink ? <small>GeoGebra added</small> : null}
                       <small>Drag to reorder</small>
                       {record.imageUrl ? (

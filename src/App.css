@@ -403,12 +403,24 @@ nav button:hover {
 .lesson-share-row {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.55rem;
   flex-wrap: wrap;
 }
 
 .lesson-share-row small {
   color: #5a4f78;
+}
+
+.icon-share-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid #d4c8ee;
+  background: #fff;
+  color: var(--bs-primary);
+  font-size: 1.1rem;
+  cursor: pointer;
 }
 
 .lesson-main-centered .lesson-card-lesson .latex-text,
@@ -669,12 +681,50 @@ nav button:hover {
   margin-top: 0.55rem;
 }
 
+.image-open-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  width: 100%;
+}
+
 .content-image-block img {
   width: min(720px, 100%);
   border-radius: 12px;
   border: 1px solid #ddd2f5;
   display: block;
   margin-inline: auto;
+}
+
+.image-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 10, 24, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  padding: 1rem;
+}
+
+.image-zoom-modal {
+  position: relative;
+  max-width: min(1100px, 96vw);
+  max-height: 90vh;
+}
+
+.image-zoom-modal img {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 12px;
+  border: 1px solid #d7caef;
+  display: block;
+}
+
+.image-zoom-close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
 }
 
 .image-preview-block {
