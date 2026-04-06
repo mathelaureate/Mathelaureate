@@ -1628,29 +1628,40 @@ function CoursePage({ user, authReady, cachedProfile }) {
             <section className={`lesson-main ${activeTab === 'lesson' ? 'lesson-main-centered' : ''}`}>
               <p className="eyebrow">{currentSubunit || 'Subunit'}</p>
               <h2>{activeTab === 'lesson' ? 'Lesson' : 'Question Bank'}</h2>
-              <div className="lesson-share-row">
-                {shareFeedback ? <small>{shareFeedback}</small> : null}
-                <button type="button" className="icon-share-btn" onClick={nativeShareLesson} title="Share lesson" aria-label="Share lesson">
-                  🔗
-                </button>
-              </div>
-
-              <div className="lesson-tabs">
+              <div className="lesson-toolbar">
+                <div className="lesson-tabs">
+                  <button
+                    type="button"
+                    className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('lesson')}
+                  >
+                    Lesson
+                  </button>
+                  <button
+                    type="button"
+                    className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('question')}
+                  >
+                    Question Bank
+                  </button>
+                </div>
                 <button
                   type="button"
-                  className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('lesson')}
+                  className="icon-share-btn"
+                  onClick={nativeShareLesson}
+                  title="Share lesson"
+                  aria-label="Share lesson"
                 >
-                  Lesson
-                </button>
-                <button
-                  type="button"
-                  className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('question')}
-                >
-                  Question Bank
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 16a3 3 0 0 0-2.39 1.19l-6.1-3.05a3.03 3.03 0 0 0 0-2.28l6.1-3.05A3 3 0 1 0 15 7a2.9 2.9 0 0 0 .05.53L8.95 10.6a3 3 0 1 0 0 2.8l6.1 3.07A2.9 2.9 0 0 0 15 17a3 3 0 1 0 3-3z" />
+                  </svg>
                 </button>
               </div>
+              {shareFeedback ? (
+                <div className="lesson-share-row">
+                  <small>{shareFeedback}</small>
+                </div>
+              ) : null}
 
               {isCurrentSelectionLocked ? (
                 <article className="lesson-card paywall-card">

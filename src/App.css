@@ -411,12 +411,17 @@ nav button:hover {
   margin: 0;
 }
 
-.lesson-share-row {
+.lesson-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.55rem;
+  justify-content: space-between;
+  gap: 0.7rem;
   flex-wrap: wrap;
+}
+
+.lesson-share-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .lesson-share-row small {
@@ -424,14 +429,22 @@ nav button:hover {
 }
 
 .icon-share-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-  border: 1px solid #d4c8ee;
+  border: 1px solid #d3c4f3;
   background: #fff;
-  color: var(--bs-primary);
-  font-size: 1.1rem;
+  color: #6f42c1;
+  display: grid;
+  place-items: center;
   cursor: pointer;
+  box-shadow: 0 3px 8px rgba(58, 31, 116, 0.08);
+}
+
+.icon-share-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 .lesson-main-centered .lesson-card-lesson .latex-text,
