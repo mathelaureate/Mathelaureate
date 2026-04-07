@@ -3528,7 +3528,11 @@ function AdminPage() {
                           </button>
                         </div>
                       </div>
-                      <h3>{record.title || (record.itemType === 'question' ? 'Question' : 'Untitled')}</h3>
+                      <h3>
+                        {record.itemType === 'question'
+                          ? `Question ${index + 1}`
+                          : record.title || 'Untitled'}
+                      </h3>
                       <p>{record.description}</p>
                       {record.itemType === 'question' ? (
                         <small>
