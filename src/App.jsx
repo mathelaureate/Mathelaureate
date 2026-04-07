@@ -582,40 +582,21 @@ function ensureRequiredCurricula(cachedCurricula) {
     }
   }
 
-  function mergeCourse(defaultCourse, savedCourse) {
+  const savedById = new Map(cachedCurricula.map((course) => [course.id, course]))
+  const merged = defaultCurricula.map((defaultCourse) => {
+    const savedCourse = savedById.get(defaultCourse.id)
     if (!savedCourse) return normalizeCourseOrdering(defaultCourse)
-    const savedUnits = Array.isArray(savedCourse.units) ? savedCourse.units : []
-    const savedById = new Map(savedUnits.map((unit) => [unit.id, unit]))
-
-    const mergedUnits = defaultCourse.units.map((defaultUnit) => {
-      const savedUnit = savedById.get(defaultUnit.id)
-      if (!savedUnit) return defaultUnit
-
-      const existingSubunits = Array.isArray(savedUnit.subunits) ? savedUnit.subunits : []
-      const mergedSubunits = [...existingSubunits]
-      for (const subunit of defaultUnit.subunits) {
-        if (!mergedSubunits.includes(subunit)) mergedSubunits.push(subunit)
-      }
-
-      return {
-        ...savedUnit,
-        name: savedUnit.name || defaultUnit.name,
-        subunits: sortSubunitsInNumericOrder(mergedSubunits),
-      }
-    })
-
-    const additionalUnits = savedUnits.filter((savedUnit) => !defaultCourse.units.some((unit) => unit.id === savedUnit.id))
     return normalizeCourseOrdering({
       ...savedCourse,
       name: savedCourse.name || defaultCourse.name,
-      units: [...mergedUnits, ...additionalUnits],
+      units: Array.isArray(savedCourse.units) ? savedCourse.units : [],
     })
-  }
-
-  return defaultCurricula.map((defaultCourse) => {
-    const savedCourse = cachedCurricula.find((course) => course.id === defaultCourse.id)
-    return mergeCourse(defaultCourse, savedCourse)
   })
+
+  const additionalCourses = cachedCurricula
+    .filter((savedCourse) => !defaultCurricula.some((defaultCourse) => defaultCourse.id === savedCourse.id))
+    .map((course) => normalizeCourseOrdering(course))
+  return [...merged, ...additionalCourses]
 }
 
 function moveItem(list, fromIndex, toIndex) {
@@ -1653,7 +1634,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                   aria-label="Share lesson"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M18 16a3 3 0 0 0-2.39 1.19l-6.1-3.05a3.03 3.03 0 0 0 0-2.28l6.1-3.05A3 3 0 1 0 15 7a2.9 2.9 0 0 0 .05.53L8.95 10.6a3 3 0 1 0 0 2.8l6.1 3.07A2.9 2.9 0 0 0 15 17a3 3 0 1 0 3-3z" />
+                    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                    <path d="M12 16V4" />
+                    <path d="M7 9l5-5 5 5" />
                   </svg>
                 </button>
               </div>
