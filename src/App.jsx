@@ -1253,6 +1253,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   }
   const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
   const questions = scopedItems.filter((item) => item.itemType === 'question')
+  const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
   const difficultyRank = { easy: 1, medium: 2, hard: 3 }
   const filteredQuestions = [...(selectedDifficulties.length === 0
@@ -1711,6 +1712,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                             <div className="question-meta-row">
                               <span className="meta-chip">{String(item.gdc || 'Not GDC').toUpperCase()}</span>
                               <span className="meta-chip">{item.marks || 0} marks</span>
+                              {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
+                                <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+                              ) : null}
                               <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
                                 {String(item.difficulty || 'medium')}
                               </span>
@@ -2004,6 +2008,7 @@ function AdminPage() {
   const [questionDifficulty, setQuestionDifficulty] = useState('medium')
   const [questionMarks, setQuestionMarks] = useState(1)
   const [questionGdc, setQuestionGdc] = useState('not gdc')
+  const [questionLevel, setQuestionLevel] = useState('sl')
   const [geogebraLink, setGeogebraLink] = useState('')
   const [resourceLink, setResourceLink] = useState('')
   const [attachedFileName, setAttachedFileName] = useState('')
@@ -2055,6 +2060,7 @@ function AdminPage() {
   const [editDifficulty, setEditDifficulty] = useState('medium')
   const [editMarks, setEditMarks] = useState(1)
   const [editGdc, setEditGdc] = useState('not gdc')
+  const [editQuestionLevel, setEditQuestionLevel] = useState('sl')
   const [editGeogebraLink, setEditGeogebraLink] = useState('')
   const [editResourceLink, setEditResourceLink] = useState('')
 
@@ -2064,6 +2070,7 @@ function AdminPage() {
   )
   const isEventsManagementSelected = adminSelection === adminEventsOptionId
   const isTeachersResourcesSelected = adminSelection === adminTeachersResourcesOptionId
+  const isCurrentAdminIbdpCourse = curriculumId === 'ibdp-aa-hl' || curriculumId === 'ibdp-ai-hl'
   const selectedUnit = useMemo(
     () => selectedCurriculum?.units.find((unit) => unit.id === unitId) ?? selectedCurriculum?.units[0],
     [selectedCurriculum, unitId],
@@ -2600,6 +2607,7 @@ function AdminPage() {
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
       solutionImageUrl: itemType === 'question' ? solutionImageUrl : '',
       solutionImagePath: itemType === 'question' ? solutionImagePath : '',
+      questionLevel: itemType === 'question' && isCurrentAdminIbdpCourse ? questionLevel : '',
       difficulty: itemType === 'question' ? questionDifficulty : '',
       marks: itemType === 'question' ? Number(questionMarks || 0) : 0,
       gdc: itemType === 'question' ? questionGdc : '',
@@ -2629,6 +2637,7 @@ function AdminPage() {
     setQuestionDifficulty('medium')
     setQuestionMarks(1)
     setQuestionGdc('not gdc')
+    setQuestionLevel('sl')
     setGeogebraLink('')
     setResourceLink('')
     setAttachedFileName('')
@@ -2694,6 +2703,10 @@ function AdminPage() {
           solutionVideoLink: String(item.solutionVideoLink || item.videoSolutionLink || item.youtubeLink || '').trim(),
           solutionImageUrl: String(item.solutionImageUrl || '').trim(),
           solutionImagePath: '',
+          questionLevel:
+            isCurrentAdminIbdpCourse && ['sl', 'hl'].includes(String(item.questionLevel || item.level || 'sl').toLowerCase())
+              ? String(item.questionLevel || item.level || 'sl').toLowerCase()
+              : '',
           difficulty: String(item.difficulty || 'medium').toLowerCase(),
           marks: Math.max(1, Number(item.marks || 1)),
           gdc: String(item.gdc || 'not gdc').toLowerCase() === 'gdc' ? 'gdc' : 'not gdc',
@@ -2744,6 +2757,7 @@ function AdminPage() {
     setEditDifficulty(String(record.difficulty || 'medium'))
     setEditMarks(Number(record.marks || 1))
     setEditGdc(String(record.gdc || 'not gdc'))
+    setEditQuestionLevel(String(record.questionLevel || 'sl'))
     setEditGeogebraLink(String(record.geogebraLink || ''))
     setEditResourceLink(String(record.resourceLink || ''))
   }
@@ -2758,6 +2772,7 @@ function AdminPage() {
     setEditDifficulty('medium')
     setEditMarks(1)
     setEditGdc('not gdc')
+    setEditQuestionLevel('sl')
     setEditGeogebraLink('')
     setEditResourceLink('')
   }
@@ -2789,6 +2804,11 @@ function AdminPage() {
             description: editDescription.trim(),
             solution: editSolution.trim(),
             solutionVideoLink: editSolutionVideoLink.trim(),
+            questionLevel:
+              (editingRecord?.curriculumId === 'ibdp-aa-hl' || editingRecord?.curriculumId === 'ibdp-ai-hl') &&
+              ['sl', 'hl'].includes(String(editQuestionLevel || 'sl').toLowerCase())
+                ? String(editQuestionLevel || 'sl').toLowerCase()
+                : '',
             difficulty: editDifficulty,
             marks: Math.max(1, Number(editMarks || 1)),
             gdc: editGdc,
@@ -3324,6 +3344,15 @@ function AdminPage() {
                     <option value="not gdc">Not GDC</option>
                   </select>
                 </label>
+                {isCurrentAdminIbdpCourse ? (
+                  <label>
+                    Level (AA/AI only)
+                    <select value={questionLevel} onChange={(event) => setQuestionLevel(event.target.value)}>
+                      <option value="sl">SL</option>
+                      <option value="hl">HL</option>
+                    </select>
+                  </label>
+                ) : null}
                 <label>
                   Solution (supports LaTeX)
                   <textarea
@@ -3363,6 +3392,7 @@ function AdminPage() {
                     <div className="question-meta-row">
                       <span className="meta-chip">{questionGdc.toUpperCase()}</span>
                       <span className="meta-chip">{questionMarks} marks</span>
+                      {isCurrentAdminIbdpCourse ? <span className="meta-chip">{questionLevel.toUpperCase()}</span> : null}
                       <span className="meta-chip">{questionDifficulty}</span>
                     </div>
                     <h3 className="question-number-title">Question Preview</h3>
@@ -3502,7 +3532,11 @@ function AdminPage() {
                       <p>{record.description}</p>
                       {record.itemType === 'question' ? (
                         <small>
-                          {String(record.gdc || 'not gdc').toUpperCase()} · {record.marks || 0} marks ·{' '}
+                          {String(record.gdc || 'not gdc').toUpperCase()} · {record.marks || 0} marks
+                          {record.curriculumId === 'ibdp-aa-hl' || record.curriculumId === 'ibdp-ai-hl'
+                            ? ` · ${String(record.questionLevel || 'sl').toUpperCase()}`
+                            : ''}{' '}
+                          ·{' '}
                           {String(record.difficulty || 'medium')}
                         </small>
                       ) : null}
@@ -3589,6 +3623,15 @@ function AdminPage() {
                                   <option value="not gdc">Not GDC</option>
                                 </select>
                               </label>
+                              {record.curriculumId === 'ibdp-aa-hl' || record.curriculumId === 'ibdp-ai-hl' ? (
+                                <label>
+                                  Level (AA/AI only)
+                                  <select value={editQuestionLevel} onChange={(event) => setEditQuestionLevel(event.target.value)}>
+                                    <option value="sl">SL</option>
+                                    <option value="hl">HL</option>
+                                  </select>
+                                </label>
+                              ) : null}
                               <label>
                                 Solution (supports LaTeX)
                                 <textarea

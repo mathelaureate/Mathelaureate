@@ -429,26 +429,33 @@ nav button:hover {
 }
 
 .icon-share-btn {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  border: 1px solid #d9deea;
-  background: #fff;
-  color: #6a7288;
+  border: 1px solid #dfe4ee;
+  background: #f9fbff;
+  color: #7f889b;
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(31, 42, 55, 0.06);
+  box-shadow: 0 1px 4px rgba(31, 42, 55, 0.05);
+  transition: all 0.16s ease;
 }
 
 .icon-share-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.icon-share-btn:hover {
+  border-color: #cfd8e8;
+  color: #5e6980;
+  background: #fff;
 }
 
 .lesson-main-centered .lesson-card-lesson .latex-text,
