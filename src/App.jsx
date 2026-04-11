@@ -1382,6 +1382,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
     provider.setCustomParameters({ prompt: 'select_account' })
 
     try {
+      await setPersistence(auth, browserLocalPersistence)
       await signInWithPopup(auth, provider)
     } catch (error) {
       const message = error?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.'
@@ -1849,9 +1850,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           key={item.id}
                         >
                           {activeTab !== 'question' ? (
-                            <div className="record-top">
-                              <span className="pill">{item.itemType}</span>
-                            </div>
+                            index === 0 ? (
+                              <div className="record-top">
+                                <span className="pill">{item.itemType}</span>
+                              </div>
+                            ) : null
                           ) : null}
                           {activeTab === 'question' ? (
                             <h3 className="question-number-title">Question {index + 1}</h3>
@@ -1879,7 +1882,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 onClick={() => setExpandedImageUrl(item.imageUrl)}
                                 aria-label="Open image in full view"
                               >
-                                <img src={item.imageUrl} alt="Lesson visual" />
+                                <img src={item.imageUrl} alt="Lesson visual" style={getRecordImageStyle(item)} />
                               </button>
                             </div>
                           ) : null}
