@@ -636,7 +636,7 @@ function toYouTubeEmbedUrl(input) {
   return `https://www.youtube.com/embed/${id}`
 }
 
-function toDisplayDate(value) {
+function formatMetaDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
   const parsed = new Date(raw)
@@ -1080,53 +1080,39 @@ function EventsPage({ user, cachedProfile }) {
     }
   }, [])
 
-  const featuredEvent = events[0] || null
-  const otherEvents = events.slice(1)
-
   return (
     <main className="site">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section blog-page">
-        <header className="blog-hero">
-          <p className="eyebrow">Mathelaureate Journal</p>
-          <h1>Events</h1>
-          <p>Upcoming workshops, bootcamps, and revision sessions in a blog-style feed.</p>
-        </header>
+      <section className="panel-section">
+        <h1>Events</h1>
+        <p>Upcoming workshops, bootcamps, and revision sessions.</p>
         {loadingEvents ? <p>Loading events...</p> : null}
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
-        {!loadingEvents && events.length === 0 ? <p className="blog-empty">No upcoming events yet.</p> : null}
-        {!loadingEvents && featuredEvent ? (
-          <div className="blog-layout">
-            <article className="blog-feature-card">
-              {featuredEvent.imageUrl ? <img src={featuredEvent.imageUrl} alt={featuredEvent.title} /> : null}
-              <small>{toDisplayDate(featuredEvent.date)}</small>
-              <h2>{featuredEvent.title}</h2>
-              <p>{featuredEvent.description}</p>
-              {featuredEvent.link ? (
-                <a href={featuredEvent.link} target="_blank" rel="noreferrer">
-                  Read Event Details
-                </a>
-              ) : null}
+        {!loadingEvents && events.length === 0 ? <p>No upcoming events yet.</p> : null}
+        <div className="showcase-grid">
+          {events.map((event) => (
+            <article key={event.id} className="showcase-card">
+              <div className="showcase-image-wrap">
+                {event.imageUrl ? <img src={event.imageUrl} alt={event.title} className="showcase-image" /> : <div className="showcase-image-fallback">Event</div>}
+              </div>
+              <div className="showcase-body">
+                <small className="showcase-label">Event</small>
+                <h3>{event.title}</h3>
+                <LatexText value={event.description} className="showcase-description" />
+                {event.link ? (
+                  <a className="showcase-link" href={event.link} target="_blank" rel="noreferrer">
+                    Open event link
+                  </a>
+                ) : (
+                  <span className="showcase-link disabled">Details coming soon</span>
+                )}
+              </div>
+              <div className="showcase-footer">
+                <small>{event.date}</small>
+              </div>
             </article>
-            <div className="blog-post-list">
-              {otherEvents.map((event) => (
-                <article key={event.id} className="blog-list-card">
-                  {event.imageUrl ? <img src={event.imageUrl} alt={event.title} /> : null}
-                  <div>
-                    <small>{toDisplayDate(event.date)}</small>
-                    <h3>{event.title}</h3>
-                    <p>{event.description}</p>
-                    {event.link ? (
-                      <a href={event.link} target="_blank" rel="noreferrer">
-                        Open event link
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        ) : null}
+          ))}
+        </div>
       </section>
     </main>
   )
@@ -1162,61 +1148,39 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     }
   }, [])
 
-  const featuredPost = posts[0] || null
-  const otherPosts = posts.slice(1)
-
   return (
     <main className="site">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section blog-page">
-        <header className="blog-hero">
-          <p className="eyebrow">Teaching Notes</p>
-          <h1>Teachers &amp; Resources</h1>
-          <p>Updates, curated links, and classroom-ready resources in a magazine-like layout.</p>
-        </header>
+      <section className="panel-section">
+        <h1>Teachers &amp; Resources</h1>
+        <p>Updates, curated links, and classroom-ready materials shared as resource posts.</p>
         {loadingPosts ? <p>Loading resources...</p> : null}
         {postsError ? <p className="error-text">{postsError}</p> : null}
-        {!loadingPosts && posts.length === 0 ? <p className="blog-empty">No resource posts yet.</p> : null}
-        {!loadingPosts && featuredPost ? (
-          <div className="blog-layout">
-            <article className="blog-feature-card">
-              {featuredPost.imageUrl ? (
-                <div className="resource-post-image">
-                  <img src={featuredPost.imageUrl} alt={featuredPost.title} />
-                </div>
-              ) : null}
-              <small>Featured Resource</small>
-              <h2>{featuredPost.title}</h2>
-              <p>{featuredPost.description}</p>
-              {featuredPost.link ? (
-                <a href={featuredPost.link} target="_blank" rel="noreferrer">
-                  Open Resource
-                </a>
-              ) : null}
+        {!loadingPosts && posts.length === 0 ? <p>No resource posts yet.</p> : null}
+        <div className="showcase-grid">
+          {posts.map((post) => (
+            <article key={post.id} className="showcase-card">
+              <div className="showcase-image-wrap">
+                {post.imageUrl ? <img src={post.imageUrl} alt={post.title} className="showcase-image" /> : <div className="showcase-image-fallback">Resource</div>}
+              </div>
+              <div className="showcase-body">
+                <small className="showcase-label">Teachers &amp; Resources</small>
+                <h3>{post.title}</h3>
+                <LatexText value={post.description} className="showcase-description" />
+                {post.link ? (
+                  <a className="showcase-link" href={post.link} target="_blank" rel="noreferrer">
+                    Open resource
+                  </a>
+                ) : (
+                  <span className="showcase-link disabled">No external link</span>
+                )}
+              </div>
+              <div className="showcase-footer">
+                <small>{formatMetaDate(post.createdAt) || 'Resource update'}</small>
+              </div>
             </article>
-            <div className="blog-post-list">
-              {otherPosts.map((post) => (
-                <article key={post.id} className="blog-list-card">
-                  {post.imageUrl ? (
-                    <div className="resource-post-image">
-                      <img src={post.imageUrl} alt={post.title} />
-                    </div>
-                  ) : null}
-                  <div>
-                    <small>Resource Post</small>
-                    <h3>{post.title}</h3>
-                    <p>{post.description}</p>
-                    {post.link ? (
-                      <a href={post.link} target="_blank" rel="noreferrer">
-                        Open resource
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        ) : null}
+          ))}
+        </div>
       </section>
     </main>
   )

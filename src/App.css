@@ -187,6 +187,99 @@ nav button:hover {
   gap: 0.9rem;
 }
 
+.showcase-grid {
+  margin-top: 1.15rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.1rem;
+}
+
+.showcase-card {
+  border: 1px solid #dfd9f2;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fcfbff;
+  box-shadow: 0 10px 24px rgba(47, 34, 82, 0.08);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100%;
+}
+
+.showcase-image-wrap {
+  background: linear-gradient(140deg, #ece8fb, #f5f3ff);
+}
+
+.showcase-image {
+  width: 100%;
+  height: 210px;
+  object-fit: cover;
+  display: block;
+}
+
+.showcase-image-fallback {
+  min-height: 210px;
+  display: grid;
+  place-items: center;
+  color: #4f4572;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.showcase-body {
+  padding: 1rem 1.05rem 0.8rem;
+  display: grid;
+  gap: 0.58rem;
+}
+
+.showcase-label {
+  color: #655985;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.showcase-body h3 {
+  margin: 0;
+  font-size: 1.34rem;
+  line-height: 1.22;
+  color: #2f2845;
+}
+
+.showcase-description {
+  color: #544f67;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.showcase-link {
+  width: fit-content;
+  font-weight: 700;
+  color: #4d3f7f;
+  text-decoration-thickness: 2px;
+}
+
+.showcase-link.disabled {
+  color: #7b748f;
+  text-decoration: none;
+  pointer-events: none;
+}
+
+.showcase-footer {
+  border-top: 1px solid #e4deef;
+  margin: 0 1.05rem 1rem;
+  padding-top: 0.78rem;
+}
+
+.showcase-footer small {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #635985;
+}
+
 .program-grid article,
 .testimonial-grid blockquote,
 .events-grid article,
@@ -240,124 +333,6 @@ nav button:hover {
 
 .resource-post-body a {
   width: fit-content;
-}
-
-.blog-page {
-  display: grid;
-  gap: 1rem;
-}
-
-.blog-hero {
-  border: 1px solid #e3def8;
-  border-radius: 16px;
-  padding: 1.1rem 1.15rem;
-  background: linear-gradient(180deg, #fcfaff 0%, #ffffff 100%);
-}
-
-.blog-hero .eyebrow {
-  margin: 0;
-}
-
-.blog-hero h1 {
-  margin: 0.2rem 0 0.35rem;
-}
-
-.blog-hero p {
-  margin: 0;
-  color: #5d5872;
-}
-
-.blog-empty {
-  margin: 0;
-  color: #5f5a77;
-}
-
-.blog-layout {
-  display: grid;
-  gap: 0.95rem;
-}
-
-.blog-feature-card {
-  border: 1px solid #ded6f3;
-  border-radius: 16px;
-  padding: 1rem;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(49, 35, 92, 0.07);
-}
-
-.blog-feature-card img {
-  width: 100%;
-  max-height: 320px;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid #e4dcf7;
-  margin-bottom: 0.65rem;
-}
-
-.blog-feature-card small {
-  display: inline-block;
-  color: #6a6393;
-  font-weight: 700;
-  margin-bottom: 0.2rem;
-}
-
-.blog-feature-card h2 {
-  margin: 0.1rem 0 0.4rem;
-}
-
-.blog-feature-card p {
-  margin: 0;
-  color: #514a6f;
-}
-
-.blog-feature-card a {
-  display: inline-flex;
-  margin-top: 0.65rem;
-}
-
-.blog-post-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
-}
-
-.blog-list-card {
-  border: 1px solid #e2daf5;
-  border-radius: 14px;
-  padding: 0.72rem;
-  background: #fff;
-  display: grid;
-  gap: 0.6rem;
-  box-shadow: 0 6px 16px rgba(43, 30, 88, 0.05);
-}
-
-.blog-list-card img {
-  width: 100%;
-  height: 165px;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #e5ddf8;
-}
-
-.blog-list-card small {
-  display: inline-block;
-  color: #6f6796;
-  font-weight: 700;
-}
-
-.blog-list-card h3 {
-  margin: 0.2rem 0 0.35rem;
-  font-size: 1.04rem;
-}
-
-.blog-list-card p {
-  margin: 0;
-  color: #585270;
-}
-
-.blog-list-card a {
-  display: inline-flex;
-  margin-top: 0.55rem;
 }
 
 .course-card-link {
@@ -1336,6 +1311,10 @@ select {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .showcase-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .course-head {
     flex-direction: column;
   }
@@ -1350,6 +1329,7 @@ select {
   .program-grid,
   .testimonial-grid,
   .events-grid,
+  .showcase-grid,
   .resource-links-grid,
   .admin-grid {
     grid-template-columns: 1fr;
@@ -2035,10 +2015,6 @@ select {
 
 @media (max-width: 980px) {
   .resource-posts-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .blog-post-list {
     grid-template-columns: 1fr;
   }
 }
