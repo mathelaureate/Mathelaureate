@@ -382,6 +382,7 @@ function normalizeEvents(raw) {
       id: item?.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: String(item?.title || '').trim(),
       date: String(item?.date || '').trim(),
+      summary: String(item?.summary || '').trim(),
       description: String(item?.description || '').trim(),
       link: String(item?.link || '').trim(),
       imageUrl: String(item?.imageUrl || '').trim(),
@@ -1090,28 +1091,41 @@ function EventsPage({ user, cachedProfile }) {
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
         {!loadingEvents && events.length === 0 ? <p>No upcoming events yet.</p> : null}
         <div className="showcase-grid">
-          {events.map((event) => (
-            <article key={event.id} className="showcase-card">
-              <div className="showcase-image-wrap">
-                {event.imageUrl ? <img src={event.imageUrl} alt={event.title} className="showcase-image" /> : <div className="showcase-image-fallback">Event</div>}
-              </div>
-              <div className="showcase-body">
-                <small className="showcase-label">Event</small>
-                <h3>{event.title}</h3>
-                <LatexText value={event.description} className="showcase-description" />
-                {event.link ? (
-                  <a className="showcase-link" href={event.link} target="_blank" rel="noreferrer">
-                    Open event link
-                  </a>
-                ) : (
-                  <span className="showcase-link disabled">Details coming soon</span>
-                )}
-              </div>
-              <div className="showcase-footer">
-                <small>{event.date}</small>
-              </div>
-            </article>
-          ))}
+          {events.map((event) => {
+            const content = (
+              <>
+                <div className="showcase-image-wrap">
+                  {event.imageUrl ? <img src={event.imageUrl} alt={event.title} className="showcase-image" /> : <div className="showcase-image-fallback">Event</div>}
+                </div>
+                <div className="showcase-body">
+                  <small className="showcase-label">Event</small>
+                  <h3>{event.title}</h3>
+                  <LatexText value={event.summary || event.description} className="showcase-description" />
+                  <span className={`showcase-link ${event.link ? '' : 'disabled'}`}>
+                    {event.link ? 'Open event' : 'Details coming soon'}
+                  </span>
+                </div>
+                <div className="showcase-footer">
+                  <small>{event.date}</small>
+                </div>
+              </>
+            )
+            return event.link ? (
+              <a
+                key={event.id}
+                className="showcase-card showcase-card-link"
+                href={event.link}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {content}
+              </a>
+            ) : (
+              <article key={event.id} className="showcase-card">
+                {content}
+              </article>
+            )
+          })}
         </div>
       </section>
     </main>
@@ -2212,6 +2226,7 @@ function AdminPage() {
   const [adminSelection, setAdminSelection] = useState(curricula[0]?.id ?? '')
   const [eventTitle, setEventTitle] = useState('')
   const [eventDate, setEventDate] = useState('')
+  const [eventSummary, setEventSummary] = useState('')
   const [eventDescription, setEventDescription] = useState('')
   const [eventLink, setEventLink] = useState('')
   const [eventImageFile, setEventImageFile] = useState(null)
@@ -3081,6 +3096,7 @@ function AdminPage() {
         id: `event-${Date.now()}`,
         title: eventTitle.trim(),
         date: eventDate,
+        summary: eventSummary.trim(),
         description: eventDescription.trim(),
         link: eventLink.trim(),
         imageUrl,
@@ -3090,6 +3106,7 @@ function AdminPage() {
     await persistEvents(next)
     setEventTitle('')
     setEventDate('')
+    setEventSummary('')
     setEventDescription('')
     setEventLink('')
     setEventImageFile(null)
@@ -3309,12 +3326,21 @@ function AdminPage() {
                 <input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required />
               </label>
               <label>
-                Description
+                Event Summary (shown on card)
                 <textarea
-                  rows={3}
+                  rows={2}
+                  value={eventSummary}
+                  onChange={(event) => setEventSummary(event.target.value)}
+                  placeholder="Short summary shown on event card (HTML supported)"
+                />
+              </label>
+              <label>
+                Description (optional full text)
+                <textarea
+                  rows={4}
                   value={eventDescription}
                   onChange={(event) => setEventDescription(event.target.value)}
-                  placeholder="Workshop details"
+                  placeholder="Long-form event details (HTML supported)"
                 />
               </label>
               <label>
@@ -3348,7 +3374,8 @@ function AdminPage() {
                     </div>
                     <h3>{item.title}</h3>
                     <small>{item.date}</small>
-                    <p>{item.description}</p>
+                    {item.summary ? <LatexText value={item.summary} className="latex-text" /> : null}
+                    {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
                     {item.imageUrl ? (
                       <div className="admin-record-image">
                         <img src={item.imageUrl} alt={item.title} />
@@ -3373,12 +3400,12 @@ function AdminPage() {
                 <input value={resourcePostTitle} onChange={(event) => setResourcePostTitle(event.target.value)} required />
               </label>
               <label>
-                Description
+                Description (HTML supported)
                 <textarea
                   rows={4}
                   value={resourcePostDescription}
                   onChange={(event) => setResourcePostDescription(event.target.value)}
-                  placeholder="Add the post summary/content"
+                  placeholder="Add post summary/content (HTML supported)"
                   required
                 />
               </label>
@@ -3416,7 +3443,7 @@ function AdminPage() {
                       </button>
                     </div>
                     <h3>{item.title}</h3>
-                    <p>{item.description}</p>
+                    <LatexText value={item.description} className="latex-text" />
                     {item.imageUrl ? (
                       <div className="admin-record-image">
                         <img src={item.imageUrl} alt={item.title} />
