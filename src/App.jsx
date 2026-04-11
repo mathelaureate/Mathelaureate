@@ -1402,7 +1402,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
     return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
   }
   const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
-  const shouldShowLessonTab = lessons.length === 1
   const questions = scopedItems.filter((item) => item.itemType === 'question')
   const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
@@ -1763,15 +1762,13 @@ function CoursePage({ user, authReady, cachedProfile }) {
               <h2>{activeTab === 'lesson' ? 'Lesson' : 'Question Bank'}</h2>
               <div className="lesson-toolbar">
                 <div className="lesson-tabs">
-                  {shouldShowLessonTab ? (
-                    <button
-                      type="button"
-                      className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
-                      onClick={() => setActiveTab('lesson')}
-                    >
-                      Lesson
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('lesson')}
+                  >
+                    Lesson
+                  </button>
                   <button
                     type="button"
                     className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
@@ -1882,7 +1879,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 onClick={() => setExpandedImageUrl(item.imageUrl)}
                                 aria-label="Open image in full view"
                               >
-                                <img src={item.imageUrl} alt="Lesson visual" style={getRecordImageStyle(item)} />
+                                <img src={item.imageUrl} alt="Lesson visual" />
                               </button>
                             </div>
                           ) : null}
