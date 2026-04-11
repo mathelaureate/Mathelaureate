@@ -428,26 +428,152 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;')
 }
 
+function isSafeUrl(value, { allowHash = false } = {}) {
+  const next = String(value || '').trim().toLowerCase()
+  if (!next) return false
+  if (allowHash && next.startsWith('#')) return true
+  return (
+    next.startsWith('http://') ||
+    next.startsWith('https://') ||
+    next.startsWith('mailto:') ||
+    next.startsWith('tel:') ||
+    next.startsWith('/') ||
+    next.startsWith('data:image/')
+  )
+}
+
+function sanitizeHtml(value) {
+  if (!value) return ''
+  if (typeof window === 'undefined') return escapeHtml(value)
+
+  const parser = new window.DOMParser()
+  const documentFragment = parser.parseFromString(`<div>${value}</div>`, 'text/html')
+  const root = documentFragment.body.firstElementChild
+  if (!root) return ''
+
+  const allowedTags = new Set([
+    'a',
+    'b',
+    'blockquote',
+    'br',
+    'code',
+    'div',
+    'em',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'hr',
+    'i',
+    'img',
+    'li',
+    'ol',
+    'p',
+    'pre',
+    's',
+    'span',
+    'strong',
+    'sub',
+    'sup',
+    'table',
+    'tbody',
+    'td',
+    'th',
+    'thead',
+    'tr',
+    'u',
+    'ul',
+  ])
+  const allowedAttributes = new Set(['class', 'title', 'colspan', 'rowspan', 'width', 'height', 'alt'])
+
+  function cleanNode(node) {
+    const children = Array.from(node.childNodes)
+    for (const child of children) {
+      if (child.nodeType === window.Node.ELEMENT_NODE) {
+        const tagName = child.tagName.toLowerCase()
+        if (!allowedTags.has(tagName)) {
+          const nestedChildren = Array.from(child.childNodes)
+          for (const nestedChild of nestedChildren) {
+            child.parentNode?.insertBefore(nestedChild, child)
+          }
+          child.remove()
+          continue
+        }
+
+        for (const attribute of Array.from(child.attributes)) {
+          const name = attribute.name.toLowerCase()
+          const rawValue = attribute.value
+          const tagAllowed =
+            (tagName === 'a' && ['href', 'target', 'rel'].includes(name)) ||
+            (tagName === 'img' && ['src', 'loading'].includes(name))
+          if (!allowedAttributes.has(name) && !tagAllowed) {
+            child.removeAttribute(attribute.name)
+            continue
+          }
+          if (name === 'href' && !isSafeUrl(rawValue, { allowHash: true })) {
+            child.removeAttribute(attribute.name)
+          }
+          if (name === 'src' && !isSafeUrl(rawValue)) {
+            child.removeAttribute(attribute.name)
+          }
+        }
+        if (tagName === 'a') {
+          if (child.getAttribute('target') === '_blank') {
+            child.setAttribute('rel', 'noreferrer')
+          }
+        }
+        if (tagName === 'img' && !child.getAttribute('loading')) {
+          child.setAttribute('loading', 'lazy')
+        }
+      } else if (child.nodeType !== window.Node.TEXT_NODE) {
+        child.remove()
+        continue
+      }
+      cleanNode(child)
+    }
+  }
+
+  cleanNode(root)
+  return root.innerHTML
+}
+
 function renderLatexToHtml(value) {
   if (!value) return ''
 
-  const text = String(value)
+  const tokenPrefix = '__LATEX_TOKEN__'
   const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g
-  const parts = text.split(pattern).filter(Boolean)
+  const tokenizedText = String(value).replace(pattern, (segment, _rawMatch, offset) => {
+    const token = `${tokenPrefix}${offset}__`
+    if (segment.startsWith('$$') && segment.endsWith('$$')) {
+      const expression = segment.slice(2, -2).trim()
+      return `${token}${katex.renderToString(expression, { throwOnError: false, displayMode: true })}${token}`
+    }
+    if (segment.startsWith('$') && segment.endsWith('$')) {
+      const expression = segment.slice(1, -1).trim()
+      return `${token}${katex.renderToString(expression, { throwOnError: false, displayMode: false })}${token}`
+    }
+    return segment
+  })
 
-  return parts
-    .map((part) => {
-      if (part.startsWith('$$') && part.endsWith('$$')) {
-        const expression = part.slice(2, -2).trim()
-        return katex.renderToString(expression, { throwOnError: false, displayMode: true })
-      }
-      if (part.startsWith('$') && part.endsWith('$')) {
-        const expression = part.slice(1, -1).trim()
-        return katex.renderToString(expression, { throwOnError: false, displayMode: false })
-      }
-      return escapeHtml(part).replaceAll('\n', '<br />')
-    })
-    .join('')
+  const parts = tokenizedText.split(new RegExp(`(${tokenPrefix}\\d+__)`, 'g')).filter(Boolean)
+  const rendered = []
+  let inLatexSegment = false
+
+  for (const part of parts) {
+    if (part.startsWith(tokenPrefix) && part.endsWith('__')) {
+      inLatexSegment = !inLatexSegment
+      continue
+    }
+    if (inLatexSegment) {
+      rendered.push(part)
+    } else {
+      rendered.push(sanitizeHtml(part).replaceAll('\n', '<br />'))
+    }
+  }
+
+  return rendered.join('')
 }
 
 function LatexText({ value, className = '' }) {
@@ -508,6 +634,30 @@ function toYouTubeEmbedUrl(input) {
   const id = watchMatch?.[1] || shortMatch?.[1] || embedMatch?.[1]
   if (!id) return ''
   return `https://www.youtube.com/embed/${id}`
+}
+
+function clampImageWidthPercent(value, fallback = 100) {
+  const next = Number(value)
+  if (!Number.isFinite(next)) return fallback
+  return Math.min(180, Math.max(20, Math.round(next)))
+}
+
+function normalizeImageHeightPx(value, fallback = '') {
+  if (value === '' || value === null || value === undefined) return fallback
+  const next = Number(value)
+  if (!Number.isFinite(next) || next <= 0) return fallback
+  return Math.min(1400, Math.max(80, Math.round(next)))
+}
+
+function getRecordImageStyle(item) {
+  const width = clampImageWidthPercent(item?.imageWidthPercent, 100)
+  const height = normalizeImageHeightPx(item?.imageHeightPx, '')
+  return {
+    width: `${width}%`,
+    maxWidth: '100%',
+    height: height ? `${height}px` : 'auto',
+    objectFit: height ? 'fill' : 'contain',
+  }
 }
 const courseCatalog = [
   {
@@ -1225,6 +1375,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
     }
   }, [user, course.curriculumId, location.search])
 
+  useEffect(() => {
+    if (!shouldShowLessonTab && activeTab === 'lesson') {
+      setActiveTab('question')
+    }
+  }, [activeTab, shouldShowLessonTab])
+
   async function startGoogleLogin() {
     setLoginPending(true)
     setLoginError('')
@@ -1252,6 +1408,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
     return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
   }
   const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
+  const shouldShowLessonTab = lessons.length === 1
   const questions = scopedItems.filter((item) => item.itemType === 'question')
   const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
@@ -1612,13 +1769,15 @@ function CoursePage({ user, authReady, cachedProfile }) {
               <h2>{activeTab === 'lesson' ? 'Lesson' : 'Question Bank'}</h2>
               <div className="lesson-toolbar">
                 <div className="lesson-tabs">
-                  <button
-                    type="button"
-                    className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('lesson')}
-                  >
-                    Lesson
-                  </button>
+                  {shouldShowLessonTab ? (
+                    <button
+                      type="button"
+                      className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('lesson')}
+                    >
+                      Lesson
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
@@ -1729,7 +1888,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 onClick={() => setExpandedImageUrl(item.imageUrl)}
                                 aria-label="Open image in full view"
                               >
-                                <img src={item.imageUrl} alt="Lesson visual" />
+                                <img src={item.imageUrl} alt="Lesson visual" style={getRecordImageStyle(item)} />
                               </button>
                             </div>
                           ) : null}
@@ -2016,6 +2175,8 @@ function AdminPage() {
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState('')
   const [solutionImageFile, setSolutionImageFile] = useState(null)
   const [solutionImagePreviewUrl, setSolutionImagePreviewUrl] = useState('')
+  const [imageWidthPercent, setImageWidthPercent] = useState(100)
+  const [imageHeightPx, setImageHeightPx] = useState('')
   const [isImageUploading, setIsImageUploading] = useState(false)
   const [bulkQuestionInput, setBulkQuestionInput] = useState('')
   const [isBulkUploading, setIsBulkUploading] = useState(false)
@@ -2063,6 +2224,8 @@ function AdminPage() {
   const [editQuestionLevel, setEditQuestionLevel] = useState('sl')
   const [editGeogebraLink, setEditGeogebraLink] = useState('')
   const [editResourceLink, setEditResourceLink] = useState('')
+  const [editImageWidthPercent, setEditImageWidthPercent] = useState(100)
+  const [editImageHeightPx, setEditImageHeightPx] = useState('')
 
   const selectedCurriculum = useMemo(
     () => curricula.find((curriculum) => curriculum.id === curriculumId) ?? curricula[0],
@@ -2108,6 +2271,8 @@ function AdminPage() {
     setEditGdc('not gdc')
     setEditGeogebraLink('')
     setEditResourceLink('')
+    setEditImageWidthPercent(100)
+    setEditImageHeightPx('')
     setDragRecordIndex(null)
   }, [curriculumId, unitId, subunit, storedItemsTab])
 
@@ -2616,6 +2781,8 @@ function AdminPage() {
       attachedFileName,
       imageUrl,
       imagePath,
+      imageWidthPercent: clampImageWidthPercent(imageWidthPercent, 100),
+      imageHeightPx: normalizeImageHeightPx(imageHeightPx, ''),
       curriculumId,
       unitId,
       subunit,
@@ -2645,6 +2812,8 @@ function AdminPage() {
     setSelectedImagePreviewUrl('')
     setSolutionImageFile(null)
     setSolutionImagePreviewUrl('')
+    setImageWidthPercent(100)
+    setImageHeightPx('')
   }
 
   async function submitBulkQuestions(event) {
@@ -2715,6 +2884,8 @@ function AdminPage() {
           attachedFileName: '',
           imageUrl: '',
           imagePath: '',
+          imageWidthPercent: clampImageWidthPercent(item.imageWidthPercent, 100),
+          imageHeightPx: normalizeImageHeightPx(item.imageHeightPx, ''),
           curriculumId,
           unitId,
           subunit,
@@ -2760,6 +2931,8 @@ function AdminPage() {
     setEditQuestionLevel(String(record.questionLevel || 'sl'))
     setEditGeogebraLink(String(record.geogebraLink || ''))
     setEditResourceLink(String(record.resourceLink || ''))
+    setEditImageWidthPercent(clampImageWidthPercent(record.imageWidthPercent, 100))
+    setEditImageHeightPx(normalizeImageHeightPx(record.imageHeightPx, ''))
   }
 
   function cancelEditRecord() {
@@ -2775,6 +2948,8 @@ function AdminPage() {
     setEditQuestionLevel('sl')
     setEditGeogebraLink('')
     setEditResourceLink('')
+    setEditImageWidthPercent(100)
+    setEditImageHeightPx('')
   }
 
   async function saveRecordEdits() {
@@ -2813,6 +2988,8 @@ function AdminPage() {
             marks: Math.max(1, Number(editMarks || 1)),
             gdc: editGdc,
             resourceLink: editResourceLink.trim(),
+            imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
+            imageHeightPx: normalizeImageHeightPx(editImageHeightPx, ''),
             updatedAt: new Date().toISOString(),
           }
         : {
@@ -2820,6 +2997,8 @@ function AdminPage() {
             description: editDescription.trim(),
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
+            imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
+            imageHeightPx: normalizeImageHeightPx(editImageHeightPx, ''),
             updatedAt: new Date().toISOString(),
           }
 
@@ -3313,7 +3492,7 @@ function AdminPage() {
                 rows={4}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Prompt, explanation or resource details"
+                placeholder="Prompt, explanation or resource details (HTML and LaTeX supported)"
                 required
               />
             </label>
@@ -3451,6 +3630,31 @@ function AdminPage() {
                 <small>{attachedFileName}</small>
               </div>
             ) : null}
+            <div className="image-size-controls">
+              <label>
+                Image Width (%)
+                <input
+                  type="range"
+                  min={20}
+                  max={180}
+                  value={clampImageWidthPercent(imageWidthPercent, 100)}
+                  onChange={(event) => setImageWidthPercent(clampImageWidthPercent(event.target.value, 100))}
+                />
+                <small>{clampImageWidthPercent(imageWidthPercent, 100)}%</small>
+              </label>
+              <label>
+                Image Height (px, optional)
+                <input
+                  type="number"
+                  min={80}
+                  max={1400}
+                  value={imageHeightPx}
+                  onChange={(event) => setImageHeightPx(event.target.value)}
+                  placeholder="Auto"
+                />
+                <small>Leave empty to keep natural image ratio.</small>
+              </label>
+            </div>
             <button className="btn primary" type="submit" disabled={isImageUploading}>
               {isImageUploading ? 'Uploading image...' : 'Save Item'}
             </button>
@@ -3528,12 +3732,12 @@ function AdminPage() {
                           </button>
                         </div>
                       </div>
-                      <h3>
-                        {record.itemType === 'question'
-                          ? `Question ${index + 1}`
-                          : record.title || 'Untitled'}
-                      </h3>
-                      <p>{record.description}</p>
+                      {record.itemType === 'question' ? (
+                        <h3>{`Question ${index + 1}`}</h3>
+                      ) : (
+                        <LatexText value={record.title || 'Untitled'} className="latex-heading" />
+                      )}
+                      <LatexText value={record.description} className="latex-text" />
                       {record.itemType === 'question' ? (
                         <small>
                           {String(record.gdc || 'not gdc').toUpperCase()} · {record.marks || 0} marks
@@ -3551,7 +3755,7 @@ function AdminPage() {
                       <small>Drag to reorder</small>
                       {record.imageUrl ? (
                         <div className="admin-record-image">
-                          <img src={record.imageUrl} alt="Uploaded content" />
+                          <img src={record.imageUrl} alt="Uploaded content" style={getRecordImageStyle(record)} />
                         </div>
                       ) : null}
                       {record.resourceLink && (
@@ -3590,6 +3794,30 @@ function AdminPage() {
                                   value={editResourceLink}
                                   onChange={(event) => setEditResourceLink(event.target.value)}
                                   placeholder="https://..."
+                                />
+                              </label>
+                              <label>
+                                Image Width (%)
+                                <input
+                                  type="range"
+                                  min={20}
+                                  max={180}
+                                  value={clampImageWidthPercent(editImageWidthPercent, 100)}
+                                  onChange={(event) =>
+                                    setEditImageWidthPercent(clampImageWidthPercent(event.target.value, 100))
+                                  }
+                                />
+                                <small>{clampImageWidthPercent(editImageWidthPercent, 100)}%</small>
+                              </label>
+                              <label>
+                                Image Height (px, optional)
+                                <input
+                                  type="number"
+                                  min={80}
+                                  max={1400}
+                                  value={editImageHeightPx}
+                                  onChange={(event) => setEditImageHeightPx(event.target.value)}
+                                  placeholder="Auto"
                                 />
                               </label>
                             </>
@@ -3658,6 +3886,30 @@ function AdminPage() {
                                   value={editResourceLink}
                                   onChange={(event) => setEditResourceLink(event.target.value)}
                                   placeholder="https://..."
+                                />
+                              </label>
+                              <label>
+                                Image Width (%)
+                                <input
+                                  type="range"
+                                  min={20}
+                                  max={180}
+                                  value={clampImageWidthPercent(editImageWidthPercent, 100)}
+                                  onChange={(event) =>
+                                    setEditImageWidthPercent(clampImageWidthPercent(event.target.value, 100))
+                                  }
+                                />
+                                <small>{clampImageWidthPercent(editImageWidthPercent, 100)}%</small>
+                              </label>
+                              <label>
+                                Image Height (px, optional)
+                                <input
+                                  type="number"
+                                  min={80}
+                                  max={1400}
+                                  value={editImageHeightPx}
+                                  onChange={(event) => setEditImageHeightPx(event.target.value)}
+                                  placeholder="Auto"
                                 />
                               </label>
                             </>
