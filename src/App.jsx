@@ -636,6 +636,18 @@ function toYouTubeEmbedUrl(input) {
   return `https://www.youtube.com/embed/${id}`
 }
 
+function toDisplayDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  return parsed.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 function clampImageWidthPercent(value, fallback = 100) {
   const next = Number(value)
   if (!Number.isFinite(next)) return fallback
@@ -1068,30 +1080,53 @@ function EventsPage({ user, cachedProfile }) {
     }
   }, [])
 
+  const featuredEvent = events[0] || null
+  const otherEvents = events.slice(1)
+
   return (
     <main className="site">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Events</h1>
-        <p>Upcoming workshops, bootcamps, and revision sessions.</p>
+      <section className="panel-section blog-page">
+        <header className="blog-hero">
+          <p className="eyebrow">Mathelaureate Journal</p>
+          <h1>Events</h1>
+          <p>Upcoming workshops, bootcamps, and revision sessions in a blog-style feed.</p>
+        </header>
         {loadingEvents ? <p>Loading events...</p> : null}
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
-        {!loadingEvents && events.length === 0 ? <p>No upcoming events yet.</p> : null}
-        <div className="events-grid">
-          {events.map((event) => (
-            <article key={event.id}>
-              {event.imageUrl ? <img src={event.imageUrl} alt={event.title} /> : null}
-              <small>{event.date}</small>
-              <h3>{event.title}</h3>
-              <p>{event.description}</p>
-              {event.link ? (
-                <a href={event.link} target="_blank" rel="noreferrer">
-                  Open event link
+        {!loadingEvents && events.length === 0 ? <p className="blog-empty">No upcoming events yet.</p> : null}
+        {!loadingEvents && featuredEvent ? (
+          <div className="blog-layout">
+            <article className="blog-feature-card">
+              {featuredEvent.imageUrl ? <img src={featuredEvent.imageUrl} alt={featuredEvent.title} /> : null}
+              <small>{toDisplayDate(featuredEvent.date)}</small>
+              <h2>{featuredEvent.title}</h2>
+              <p>{featuredEvent.description}</p>
+              {featuredEvent.link ? (
+                <a href={featuredEvent.link} target="_blank" rel="noreferrer">
+                  Read Event Details
                 </a>
               ) : null}
             </article>
-          ))}
-        </div>
+            <div className="blog-post-list">
+              {otherEvents.map((event) => (
+                <article key={event.id} className="blog-list-card">
+                  {event.imageUrl ? <img src={event.imageUrl} alt={event.title} /> : null}
+                  <div>
+                    <small>{toDisplayDate(event.date)}</small>
+                    <h3>{event.title}</h3>
+                    <p>{event.description}</p>
+                    {event.link ? (
+                      <a href={event.link} target="_blank" rel="noreferrer">
+                        Open event link
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   )
@@ -1127,35 +1162,61 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     }
   }, [])
 
+  const featuredPost = posts[0] || null
+  const otherPosts = posts.slice(1)
+
   return (
     <main className="site">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Teachers &amp; Resources</h1>
-        <p>Updates, curated links, and classroom-ready materials shared as resource posts.</p>
+      <section className="panel-section blog-page">
+        <header className="blog-hero">
+          <p className="eyebrow">Teaching Notes</p>
+          <h1>Teachers &amp; Resources</h1>
+          <p>Updates, curated links, and classroom-ready resources in a magazine-like layout.</p>
+        </header>
         {loadingPosts ? <p>Loading resources...</p> : null}
         {postsError ? <p className="error-text">{postsError}</p> : null}
-        {!loadingPosts && posts.length === 0 ? <p>No resource posts yet.</p> : null}
-        <div className="resource-posts-grid">
-          {posts.map((post) => (
-            <article key={post.id} className="resource-post-card">
-              {post.imageUrl ? (
+        {!loadingPosts && posts.length === 0 ? <p className="blog-empty">No resource posts yet.</p> : null}
+        {!loadingPosts && featuredPost ? (
+          <div className="blog-layout">
+            <article className="blog-feature-card">
+              {featuredPost.imageUrl ? (
                 <div className="resource-post-image">
-                  <img src={post.imageUrl} alt={post.title} />
+                  <img src={featuredPost.imageUrl} alt={featuredPost.title} />
                 </div>
               ) : null}
-              <div className="resource-post-body">
-                <h3>{post.title}</h3>
-                <p>{post.description}</p>
-                {post.link ? (
-                  <a href={post.link} target="_blank" rel="noreferrer">
-                    Open resource
-                  </a>
-                ) : null}
-              </div>
+              <small>Featured Resource</small>
+              <h2>{featuredPost.title}</h2>
+              <p>{featuredPost.description}</p>
+              {featuredPost.link ? (
+                <a href={featuredPost.link} target="_blank" rel="noreferrer">
+                  Open Resource
+                </a>
+              ) : null}
             </article>
-          ))}
-        </div>
+            <div className="blog-post-list">
+              {otherPosts.map((post) => (
+                <article key={post.id} className="blog-list-card">
+                  {post.imageUrl ? (
+                    <div className="resource-post-image">
+                      <img src={post.imageUrl} alt={post.title} />
+                    </div>
+                  ) : null}
+                  <div>
+                    <small>Resource Post</small>
+                    <h3>{post.title}</h3>
+                    <p>{post.description}</p>
+                    {post.link ? (
+                      <a href={post.link} target="_blank" rel="noreferrer">
+                        Open resource
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   )
