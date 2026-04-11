@@ -1375,12 +1375,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
     }
   }, [user, course.curriculumId, location.search])
 
-  useEffect(() => {
-    if (!shouldShowLessonTab && activeTab === 'lesson') {
-      setActiveTab('question')
-    }
-  }, [activeTab, shouldShowLessonTab])
-
   async function startGoogleLogin() {
     setLoginPending(true)
     setLoginError('')
@@ -1409,6 +1403,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
   }
   const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
   const shouldShowLessonTab = lessons.length === 1
+  useEffect(() => {
+    if (!shouldShowLessonTab && activeTab === 'lesson') {
+      setActiveTab('question')
+    }
+  }, [activeTab, shouldShowLessonTab])
   const questions = scopedItems.filter((item) => item.itemType === 'question')
   const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
