@@ -1930,6 +1930,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               View Solution
                             </button>
                           ) : null}
+                          {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
+                            <div className="solution-video-wrap">
+                              <h4>Video</h4>
+                              <iframe
+                                title={`lesson-video-${item.id}`}
+                                src={toYouTubeEmbedUrl(item.resourceLink)}
+                                loading="lazy"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : null}
                           {item.resourceLink ? (
                             <a href={item.resourceLink} target="_blank" rel="noreferrer">
                               Open link
