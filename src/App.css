@@ -1025,6 +1025,57 @@ select {
   padding: 0.56rem 0.68rem;
 }
 
+.block-editor {
+  border: 1px solid #e4daf8;
+  border-radius: 10px;
+  background: #fcfaff;
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.block-editor .muted-text {
+  color: #6b6383;
+}
+
+.block-editor-item {
+  border: 1px solid #e5dcf8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.block-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.block-editor-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.block-editor-add {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.content-blocks-render {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.content-block-caption {
+  color: #5f5677;
+  display: block;
+  margin-top: 0.3rem;
+}
+
 .record {
   border: 1px solid #dfd4f2;
   border-radius: 12px;

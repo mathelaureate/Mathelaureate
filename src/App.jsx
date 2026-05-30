@@ -762,6 +762,64 @@ function ensureRequiredCurricula(cachedCurricula) {
   return [...merged, ...additionalCourses]
 }
 
+function createTextContentBlock(text = '') {
+  return {
+    id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'text',
+    text: String(text || ''),
+  }
+}
+
+function createImageContentBlock() {
+  return {
+    id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'image',
+    imageUrl: '',
+    imagePath: '',
+    caption: '',
+  }
+}
+
+function normalizeContentBlocks(rawBlocks, fallbackText = '') {
+  const source = Array.isArray(rawBlocks) ? rawBlocks : []
+  const normalized = source
+    .map((block, index) => {
+      const type = block?.type === 'image' ? 'image' : 'text'
+      if (type === 'image') {
+        return {
+          id: String(block?.id || `blk-${index}`),
+          type: 'image',
+          imageUrl: String(block?.imageUrl || '').trim(),
+          imagePath: String(block?.imagePath || '').trim(),
+          caption: String(block?.caption || '').trim(),
+        }
+      }
+      return {
+        id: String(block?.id || `blk-${index}`),
+        type: 'text',
+        text: String(block?.text || '').trim(),
+      }
+    })
+    .filter((block) => (block.type === 'image' ? Boolean(block.imageUrl) : Boolean(block.text)))
+
+  if (normalized.length > 0) return normalized
+  if (String(fallbackText || '').trim()) return [createTextContentBlock(String(fallbackText || '').trim())]
+  return []
+}
+
+function contentBlocksHaveMediaOrText(blocks) {
+  return Array.isArray(blocks) && blocks.some((block) => (block?.type === 'image' ? Boolean(block?.imageUrl || block?.imageFile) : Boolean(String(block?.text || '').trim())))
+}
+
+function contentBlocksToPlainText(blocks) {
+  if (!Array.isArray(blocks)) return ''
+  return blocks
+    .map((block) => (block?.type === 'text' ? String(block?.text || '').trim() : ''))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
+}
+
 function moveItem(list, fromIndex, toIndex) {
   if (fromIndex === toIndex) return list
   const copy = [...list]
@@ -1488,6 +1546,32 @@ function CoursePage({ user, authReady, cachedProfile }) {
     setActiveSolutionItem(null)
   }
 
+  function renderContentBlocks(blocks, keyPrefix) {
+    const normalizedBlocks = normalizeContentBlocks(blocks)
+    if (normalizedBlocks.length === 0) return null
+    return (
+      <div className="content-blocks-render">
+        {normalizedBlocks.map((block, index) =>
+          block.type === 'image' ? (
+            <div className="content-image-block" key={`${keyPrefix}-img-${index}`}>
+              <button
+                type="button"
+                className="image-open-btn"
+                onClick={() => setExpandedImageUrl(block.imageUrl)}
+                aria-label="Open image in full view"
+              >
+                <img src={block.imageUrl} alt={block.caption || 'Content visual'} />
+              </button>
+              {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
+            </div>
+          ) : (
+            <LatexText key={`${keyPrefix}-txt-${index}`} value={block.text} className="latex-text" />
+          ),
+        )}
+      </div>
+    )
+  }
+
   async function nativeShareLesson() {
     if (!lessonShareUrl) return
     if (navigator.share) {
@@ -1912,7 +1996,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               </span>
                             </div>
                           ) : null}
-                          <LatexText value={item.description} className="latex-text" />
+                          {contentBlocksHaveMediaOrText(item.descriptionBlocks)
+                            ? renderContentBlocks(item.descriptionBlocks, `desc-${item.id || index}`)
+                            : <LatexText value={item.description} className="latex-text" />}
                           {item.imageUrl ? (
                             <div className="content-image-block">
                               <button
@@ -1942,11 +2028,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               />
                             </div>
                           ) : null}
-                          {item.resourceLink ? (
-                            <a href={item.resourceLink} target="_blank" rel="noreferrer">
-                              Open link
-                            </a>
-                          ) : null}
                           {activeTab === 'lesson' && item.geogebraLink ? (
                             <div className="geogebra-block">
                               <strong>Interactive Graph</strong>
@@ -1956,14 +2037,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 loading="lazy"
                                 allowFullScreen
                               />
-                              <a
-                                className="btn ghost geogebra-open-btn"
-                                href={toGeoGebraOpenUrl(item.geogebraLink)}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Open in GeoGebra
-                              </a>
                             </div>
                           ) : null}
                         </article>
@@ -1986,11 +2059,14 @@ function CoursePage({ user, authReady, cachedProfile }) {
               </button>
             </div>
             <h4 className="question-number-title">Question {activeSolutionItem.questionNumber || ''}</h4>
-            {activeSolutionItem.solution ? (
+            {activeSolutionItem.solution && !contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks) ? (
               <div className="solution-box">
                 <LatexText value={activeSolutionItem.solution} className="latex-text" />
               </div>
             ) : null}
+            {contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks)
+              ? renderContentBlocks(activeSolutionItem.solutionBlocks, `sol-${activeSolutionItem.id || activeSolutionItem.questionNumber || 'question'}`)
+              : null}
             {activeSolutionItem.solutionImageUrl ? (
               <div className="content-image-block">
                 <button
@@ -2207,7 +2283,9 @@ function AdminPage() {
   const [itemType, setItemType] = useState('lesson')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [descriptionBlocks, setDescriptionBlocks] = useState([])
   const [solution, setSolution] = useState('')
+  const [solutionBlocks, setSolutionBlocks] = useState([])
   const [solutionVideoLink, setSolutionVideoLink] = useState('')
   const [questionDifficulty, setQuestionDifficulty] = useState('medium')
   const [questionMarks, setQuestionMarks] = useState(1)
@@ -2252,17 +2330,21 @@ function AdminPage() {
   const [isTeachersResourcesSaving, setIsTeachersResourcesSaving] = useState(false)
   const [newTopicName, setNewTopicName] = useState('')
   const [newSubtopicName, setNewSubtopicName] = useState('')
+  const [renameSubtopicName, setRenameSubtopicName] = useState('')
   const [dragTopicIndex, setDragTopicIndex] = useState(null)
   const [dragSubtopicIndex, setDragSubtopicIndex] = useState(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
   const [isDeletingSubtopic, setIsDeletingSubtopic] = useState(false)
+  const [isRenamingSubtopic, setIsRenamingSubtopic] = useState(false)
   const [storedItemsTab, setStoredItemsTab] = useState('lesson')
   const [dragRecordIndex, setDragRecordIndex] = useState(null)
   const [editingRecordId, setEditingRecordId] = useState('')
   const [editingRecordType, setEditingRecordType] = useState('')
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editDescriptionBlocks, setEditDescriptionBlocks] = useState([])
   const [editSolution, setEditSolution] = useState('')
+  const [editSolutionBlocks, setEditSolutionBlocks] = useState([])
   const [editSolutionVideoLink, setEditSolutionVideoLink] = useState('')
   const [editDifficulty, setEditDifficulty] = useState('medium')
   const [editMarks, setEditMarks] = useState(1)
@@ -2321,6 +2403,10 @@ function AdminPage() {
     setEditImageHeightPx('')
     setDragRecordIndex(null)
   }, [curriculumId, unitId, subunit, storedItemsTab])
+
+  useEffect(() => {
+    setRenameSubtopicName(subunit || '')
+  }, [curriculumId, unitId, subunit])
 
   function parseSubunitOrder(label) {
     const match = String(label).match(/(?:^|\s)(\d+)\.(\d+)\b/)
@@ -2579,6 +2665,84 @@ function AdminPage() {
     setNewSubtopicName('')
   }
 
+  async function renameSelectedSubtopic(event) {
+    event.preventDefault()
+    if (!selectedUnit || !subunit) return
+
+    const oldSubunit = String(subunit || '')
+    const nextSubunitName = String(renameSubtopicName || '').trim()
+    if (!nextSubunitName) {
+      setDataError('Enter a subtopic name.')
+      return
+    }
+    if (nextSubunitName === oldSubunit) return
+    if ((selectedUnit.subunits || []).some((name) => name === nextSubunitName)) {
+      setDataError('A subtopic with this name already exists in this topic.')
+      return
+    }
+
+    setIsRenamingSubtopic(true)
+    setDataError('')
+    try {
+      const updatedCurricula = curricula.map((curriculum) => {
+        if (curriculum.id !== curriculumId) return curriculum
+        return {
+          ...curriculum,
+          units: curriculum.units.map((unit) => {
+            if (unit.id !== unitId) return unit
+            return {
+              ...unit,
+              subunits: (unit.subunits || []).map((name) => (name === oldSubunit ? nextSubunitName : name)),
+            }
+          }),
+        }
+      })
+      await persistCurricula(updatedCurricula)
+      setSubunit(nextSubunitName)
+
+      const oldLockKey = `${unitId}::${oldSubunit}`
+      const newLockKey = `${unitId}::${nextSubunitName}`
+      const nextLockedSubunits = Array.from(
+        new Set(
+          (paywallConfig.lockedSubunits?.[curriculumId] || []).map((lockKey) => (lockKey === oldLockKey ? newLockKey : lockKey)),
+        ),
+      )
+      const nextPaywallConfig = {
+        ...paywallConfig,
+        lockedSubunits: {
+          ...paywallConfig.lockedSubunits,
+          [curriculumId]: nextLockedSubunits,
+        },
+      }
+      await persistPaywall(nextPaywallConfig)
+
+      if (paywallCourseId === curriculumId && paywallUnitId === unitId && paywallSubunit === oldSubunit) {
+        setPaywallSubunit(nextSubunitName)
+      }
+
+      const recordsToUpdate = records.filter(
+        (item) => item.curriculumId === curriculumId && item.unitId === unitId && item.subunit === oldSubunit,
+      )
+      const updateTimestamp = new Date().toISOString()
+      await Promise.all(
+        recordsToUpdate.map((item) =>
+          setDoc(doc(db, 'courseContentItems', item.id), { subunit: nextSubunitName, updatedAt: updateTimestamp }, { merge: true }),
+        ),
+      )
+      persistRecords(
+        records.map((item) =>
+          item.curriculumId === curriculumId && item.unitId === unitId && item.subunit === oldSubunit
+            ? { ...item, subunit: nextSubunitName, updatedAt: updateTimestamp }
+            : item,
+        ),
+      )
+    } catch (error) {
+      setDataError(error?.message || 'Unable to rename subtopic.')
+    } finally {
+      setIsRenamingSubtopic(false)
+    }
+  }
+
   function reorderTopics(targetIndex) {
     if (dragTopicIndex === null || dragTopicIndex === targetIndex) return
     const updated = curricula.map((curriculum) => {
@@ -2748,13 +2912,146 @@ function AdminPage() {
     setSolutionImagePreviewUrl(file ? URL.createObjectURL(file) : '')
   }
 
+  function updateBlock(setter, blockId, patch) {
+    setter((current) => current.map((block) => (block.id === blockId ? { ...block, ...patch } : block)))
+  }
+
+  function addBlock(setter, type) {
+    setter((current) => [...current, type === 'image' ? createImageContentBlock() : createTextContentBlock('')])
+  }
+
+  function moveBlock(setter, fromIndex, toIndex) {
+    setter((current) => moveItem(current, fromIndex, toIndex))
+  }
+
+  function removeBlock(setter, blockId) {
+    setter((current) => current.filter((block) => block.id !== blockId))
+  }
+
+  function onBlockImageChange(setter, blockId, event) {
+    const file = event.target.files?.[0] || null
+    if (!file) return
+    updateBlock(setter, blockId, {
+      imageFile: file,
+      imagePreviewUrl: URL.createObjectURL(file),
+    })
+  }
+
+  async function uploadBlocksImages(blocks, folder) {
+    if (!Array.isArray(blocks) || blocks.length === 0) return []
+    const normalized = []
+    for (const block of blocks) {
+      if (block?.type === 'image') {
+        let imageUrl = String(block?.imageUrl || '').trim()
+        let imagePath = String(block?.imagePath || '').trim()
+        if (block?.imageFile) {
+          if (!supabaseConfigured) {
+            throw new Error('Supabase not configured. Add Supabase env values before uploading images.')
+          }
+          const uploadResult = await uploadImageToSupabase(block.imageFile, folder)
+          imageUrl = uploadResult.publicUrl
+          imagePath = uploadResult.path
+        } else if (block?.imagePreviewUrl && !imageUrl) {
+          imageUrl = block.imagePreviewUrl
+        }
+        if (!imageUrl) continue
+        normalized.push({
+          id: String(block.id || `blk-${Date.now()}`),
+          type: 'image',
+          imageUrl,
+          imagePath,
+          caption: String(block?.caption || '').trim(),
+        })
+      } else {
+        const text = String(block?.text || '').trim()
+        if (!text) continue
+        normalized.push({
+          id: String(block?.id || `blk-${Date.now()}`),
+          type: 'text',
+          text,
+        })
+      }
+    }
+    return normalized
+  }
+
+  function renderAdminBlocksEditor({ blocks, setter, label }) {
+    return (
+      <div className="block-editor">
+        <strong>{label}</strong>
+        {blocks.length === 0 ? <small className="muted-text">No blocks yet.</small> : null}
+        {blocks.map((block, index) => (
+          <div className="block-editor-item" key={block.id}>
+            <div className="block-editor-head">
+              <span>{block.type === 'image' ? 'Image block' : 'Text block'}</span>
+              <div className="block-editor-actions">
+                <button type="button" onClick={() => moveBlock(setter, index, Math.max(0, index - 1))} disabled={index === 0}>
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveBlock(setter, index, Math.min(blocks.length - 1, index + 1))}
+                  disabled={index === blocks.length - 1}
+                >
+                  ↓
+                </button>
+                <button type="button" onClick={() => removeBlock(setter, block.id)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+            {block.type === 'image' ? (
+              <>
+                <input type="file" accept="image/*" onChange={(event) => onBlockImageChange(setter, block.id, event)} />
+                {(block.imagePreviewUrl || block.imageUrl) ? (
+                  <div className="image-preview-block">
+                    <img src={block.imagePreviewUrl || block.imageUrl} alt="Block preview" />
+                  </div>
+                ) : null}
+                <input
+                  value={block.caption || ''}
+                  onChange={(event) => updateBlock(setter, block.id, { caption: event.target.value })}
+                  placeholder="Caption (optional)"
+                />
+              </>
+            ) : (
+              <textarea
+                rows={4}
+                value={block.text || ''}
+                onChange={(event) => updateBlock(setter, block.id, { text: event.target.value })}
+                placeholder="Write text / LaTeX content"
+              />
+            )}
+          </div>
+        ))}
+        <div className="block-editor-add">
+          <button type="button" className="btn ghost" onClick={() => addBlock(setter, 'text')}>
+            + Text block
+          </button>
+          <button type="button" className="btn ghost" onClick={() => addBlock(setter, 'image')}>
+            + Image block
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   async function submitItem(event) {
     event.preventDefault()
+    const descriptionBlocksEnabled = contentBlocksHaveMediaOrText(descriptionBlocks)
+    const solutionBlocksEnabled = itemType === 'question' && contentBlocksHaveMediaOrText(solutionBlocks)
+    const preparedDescription = descriptionBlocksEnabled ? contentBlocksToPlainText(descriptionBlocks) : String(description || '').trim()
+    const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : String(solution || '').trim()
+    if (!preparedDescription && !descriptionBlocksEnabled) {
+      setDataError('Add description text or at least one description block.')
+      return
+    }
     if (
       itemType === 'question' &&
-      !String(solution || '').trim() &&
+      !preparedSolution &&
       !String(solutionVideoLink || '').trim() &&
-      !solutionImageFile
+      !solutionImageFile &&
+      !solutionBlocksEnabled
     ) {
       setDataError('Add a text solution, solution image, or a YouTube video solution link for question items.')
       return
@@ -2763,6 +3060,24 @@ function AdminPage() {
     let imagePath = ''
     let solutionImageUrl = ''
     let solutionImagePath = ''
+    let normalizedDescriptionBlocks = []
+    let normalizedSolutionBlocks = []
+
+    if (descriptionBlocksEnabled || solutionBlocksEnabled) {
+      try {
+        setIsImageUploading(true)
+        normalizedDescriptionBlocks = descriptionBlocksEnabled
+          ? await uploadBlocksImages(descriptionBlocks, `${curriculumId}/${unitId}/blocks/description`)
+          : []
+        normalizedSolutionBlocks = solutionBlocksEnabled
+          ? await uploadBlocksImages(solutionBlocks, `${curriculumId}/${unitId}/blocks/solution`)
+          : []
+      } catch (error) {
+        setIsImageUploading(false)
+        setDataError(error?.message || 'Unable to upload block images to Supabase.')
+        return
+      }
+    }
 
     if (selectedImageFile) {
       if (!supabaseConfigured) {
@@ -2813,8 +3128,10 @@ function AdminPage() {
     const newRecord = {
       itemType,
       title: itemType === 'question' ? '' : title,
-      description,
-      solution: itemType === 'question' ? solution : '',
+      description: descriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : description,
+      descriptionBlocks: descriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
+      solution: itemType === 'question' ? (solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : solution) : '',
+      solutionBlocks: itemType === 'question' && solutionBlocksEnabled ? normalizedSolutionBlocks : [],
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
       solutionImageUrl: itemType === 'question' ? solutionImageUrl : '',
       solutionImagePath: itemType === 'question' ? solutionImagePath : '',
@@ -2845,7 +3162,9 @@ function AdminPage() {
     setIsImageUploading(false)
     setTitle('')
     setDescription('')
+    setDescriptionBlocks([])
     setSolution('')
+    setSolutionBlocks([])
     setSolutionVideoLink('')
     setQuestionDifficulty('medium')
     setQuestionMarks(1)
@@ -2969,7 +3288,9 @@ function AdminPage() {
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
     setEditDescription(String(record.description || ''))
+    setEditDescriptionBlocks(normalizeContentBlocks(record.descriptionBlocks, record.description))
     setEditSolution(String(record.solution || ''))
+    setEditSolutionBlocks(normalizeContentBlocks(record.solutionBlocks, record.solution))
     setEditSolutionVideoLink(String(record.solutionVideoLink || ''))
     setEditDifficulty(String(record.difficulty || 'medium'))
     setEditMarks(Number(record.marks || 1))
@@ -2986,7 +3307,9 @@ function AdminPage() {
     setEditingRecordType('')
     setEditTitle('')
     setEditDescription('')
+    setEditDescriptionBlocks([])
     setEditSolution('')
+    setEditSolutionBlocks([])
     setEditSolutionVideoLink('')
     setEditDifficulty('medium')
     setEditMarks(1)
@@ -3001,29 +3324,61 @@ function AdminPage() {
   async function saveRecordEdits() {
     if (!editingRecordId || !editingRecordType) return
     const editingRecord = records.find((item) => item.id === editingRecordId) || null
+    const editDescriptionBlocksEnabled = contentBlocksHaveMediaOrText(editDescriptionBlocks)
+    const editSolutionBlocksEnabled = editingRecordType === 'question' && contentBlocksHaveMediaOrText(editSolutionBlocks)
+    const nextDescriptionText = editDescriptionBlocksEnabled ? contentBlocksToPlainText(editDescriptionBlocks) : editDescription.trim()
+    const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : editSolution.trim()
+
     if (editingRecordType !== 'question' && !editTitle.trim()) {
       setDataError('Title is required for lessons.')
       return
     }
-    if (!editDescription.trim()) {
+    if (!nextDescriptionText && !editDescriptionBlocksEnabled) {
       setDataError('Description is required.')
       return
     }
     if (
       editingRecordType === 'question' &&
-      !editSolution.trim() &&
+      !nextSolutionText &&
       !editSolutionVideoLink.trim() &&
-      !String(editingRecord?.solutionImageUrl || '').trim()
+      !String(editingRecord?.solutionImageUrl || '').trim() &&
+      !editSolutionBlocksEnabled
     ) {
       setDataError('Add either a text solution, solution image, or a YouTube video solution link.')
       return
     }
 
+    let normalizedDescriptionBlocks = []
+    let normalizedSolutionBlocks = []
+    if (editDescriptionBlocksEnabled || editSolutionBlocksEnabled) {
+      try {
+        setIsImageUploading(true)
+        normalizedDescriptionBlocks = editDescriptionBlocksEnabled
+          ? await uploadBlocksImages(
+              editDescriptionBlocks,
+              `${editingRecord?.curriculumId || curriculumId}/${editingRecord?.unitId || unitId}/blocks/description`,
+            )
+          : []
+        normalizedSolutionBlocks = editSolutionBlocksEnabled
+          ? await uploadBlocksImages(
+              editSolutionBlocks,
+              `${editingRecord?.curriculumId || curriculumId}/${editingRecord?.unitId || unitId}/blocks/solution`,
+            )
+          : []
+      } catch (error) {
+        setIsImageUploading(false)
+        setDataError(error?.message || 'Unable to upload block images to Supabase.')
+        return
+      }
+    }
+
     const payload =
       editingRecordType === 'question'
         ? {
-            description: editDescription.trim(),
-            solution: editSolution.trim(),
+            description: editDescriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : editDescription.trim(),
+            descriptionBlocks: editDescriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
+            solution: editSolutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : editSolution.trim(),
+            solutionBlocks: editSolutionBlocksEnabled ? normalizedSolutionBlocks : [],
             solutionVideoLink: editSolutionVideoLink.trim(),
             questionLevel:
               (editingRecord?.curriculumId === 'ibdp-aa-hl' || editingRecord?.curriculumId === 'ibdp-ai-hl') &&
@@ -3040,7 +3395,8 @@ function AdminPage() {
           }
         : {
             title: editTitle.trim(),
-            description: editDescription.trim(),
+            description: editDescriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : editDescription.trim(),
+            descriptionBlocks: editDescriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
@@ -3055,6 +3411,8 @@ function AdminPage() {
       cancelEditRecord()
     } catch (error) {
       setDataError(error?.message || 'Unable to save item edits.')
+    } finally {
+      setIsImageUploading(false)
     }
   }
 
@@ -3280,6 +3638,20 @@ function AdminPage() {
             </label>
             <button className="btn primary" type="submit">
               Add Subtopic
+            </button>
+          </form>
+
+          <form onSubmit={renameSelectedSubtopic}>
+            <label>
+              Rename Selected Subtopic
+              <input
+                value={renameSubtopicName}
+                onChange={(event) => setRenameSubtopicName(event.target.value)}
+                placeholder="New subtopic name"
+              />
+            </label>
+            <button className="btn ghost" type="submit" disabled={isRenamingSubtopic || !subunit}>
+              {isRenamingSubtopic ? 'Renaming...' : 'Rename Subtopic'}
             </button>
           </form>
 
@@ -3551,9 +3923,13 @@ function AdminPage() {
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="Prompt, explanation or resource details (HTML and LaTeX supported)"
-                required
               />
             </label>
+            {renderAdminBlocksEditor({
+              blocks: descriptionBlocks,
+              setter: setDescriptionBlocks,
+              label: 'Description blocks (optional advanced layout)',
+            })}
             {itemType === 'question' ? (
               <>
                 <label>
@@ -3620,6 +3996,11 @@ function AdminPage() {
                     <img src={solutionImagePreviewUrl} alt="Question solution preview" />
                   </div>
                 ) : null}
+                {renderAdminBlocksEditor({
+                  blocks: solutionBlocks,
+                  setter: setSolutionBlocks,
+                  label: 'Solution blocks (optional advanced layout)',
+                })}
                 <section className="latex-preview">
                   <h3>Live Preview</h3>
                   <article className="lesson-card">
@@ -3838,6 +4219,11 @@ function AdminPage() {
                                   onChange={(event) => setEditDescription(event.target.value)}
                                 />
                               </label>
+                              {renderAdminBlocksEditor({
+                                blocks: editDescriptionBlocks,
+                                setter: setEditDescriptionBlocks,
+                                label: 'Description blocks (optional advanced layout)',
+                              })}
                               <label>
                                 GeoGebra Link
                                 <input
@@ -3889,6 +4275,11 @@ function AdminPage() {
                                   onChange={(event) => setEditDescription(event.target.value)}
                                 />
                               </label>
+                              {renderAdminBlocksEditor({
+                                blocks: editDescriptionBlocks,
+                                setter: setEditDescriptionBlocks,
+                                label: 'Description blocks (optional advanced layout)',
+                              })}
                               <label>
                                 Difficulty
                                 <select value={editDifficulty} onChange={(event) => setEditDifficulty(event.target.value)}>
@@ -3930,6 +4321,11 @@ function AdminPage() {
                                   onChange={(event) => setEditSolution(event.target.value)}
                                 />
                               </label>
+                              {renderAdminBlocksEditor({
+                                blocks: editSolutionBlocks,
+                                setter: setEditSolutionBlocks,
+                                label: 'Solution blocks (optional advanced layout)',
+                              })}
                               <label>
                                 YouTube Video Solution Link
                                 <input
