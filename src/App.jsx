@@ -777,6 +777,8 @@ function createImageContentBlock() {
     imageUrl: '',
     imagePath: '',
     caption: '',
+    widthPercent: 100,
+    heightPx: '',
   }
 }
 
@@ -792,6 +794,8 @@ function normalizeContentBlocks(rawBlocks, fallbackText = '') {
           imageUrl: String(block?.imageUrl || '').trim(),
           imagePath: String(block?.imagePath || '').trim(),
           caption: String(block?.caption || '').trim(),
+          widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
+          heightPx: normalizeImageHeightPx(block?.heightPx, ''),
         }
       }
       return {
@@ -818,6 +822,17 @@ function contentBlocksToPlainText(blocks) {
     .filter(Boolean)
     .join('\n\n')
     .trim()
+}
+
+function getContentBlockImageStyle(block) {
+  const width = clampImageWidthPercent(block?.widthPercent, 100)
+  const height = normalizeImageHeightPx(block?.heightPx, '')
+  return {
+    width: `${width}%`,
+    maxWidth: '100%',
+    height: height ? `${height}px` : 'auto',
+    objectFit: height ? 'fill' : 'contain',
+  }
 }
 
 function moveItem(list, fromIndex, toIndex) {
@@ -1560,7 +1575,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 onClick={() => setExpandedImageUrl(block.imageUrl)}
                 aria-label="Open image in full view"
               >
-                <img src={block.imageUrl} alt={block.caption || 'Content visual'} />
+                <img
+                  src={block.imageUrl}
+                  alt={block.caption || 'Content visual'}
+                  style={getContentBlockImageStyle(block)}
+                />
               </button>
               {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
             </div>
@@ -2961,6 +2980,8 @@ function AdminPage() {
           imageUrl,
           imagePath,
           caption: String(block?.caption || '').trim(),
+          widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
+          heightPx: normalizeImageHeightPx(block?.heightPx, ''),
         })
       } else {
         const text = String(block?.text || '').trim()
@@ -3013,6 +3034,36 @@ function AdminPage() {
                   onChange={(event) => updateBlock(setter, block.id, { caption: event.target.value })}
                   placeholder="Caption (optional)"
                 />
+                <label>
+                  Image Width (%)
+                  <input
+                    type="range"
+                    min={20}
+                    max={180}
+                    value={clampImageWidthPercent(block.widthPercent, 100)}
+                    onChange={(event) =>
+                      updateBlock(setter, block.id, {
+                        widthPercent: clampImageWidthPercent(event.target.value, 100),
+                      })
+                    }
+                  />
+                  <small>{clampImageWidthPercent(block.widthPercent, 100)}%</small>
+                </label>
+                <label>
+                  Image Height (px, optional)
+                  <input
+                    type="number"
+                    min={80}
+                    max={1400}
+                    value={block.heightPx ?? ''}
+                    onChange={(event) =>
+                      updateBlock(setter, block.id, {
+                        heightPx: normalizeImageHeightPx(event.target.value, ''),
+                      })
+                    }
+                    placeholder="Auto"
+                  />
+                </label>
               </>
             ) : (
               <textarea
