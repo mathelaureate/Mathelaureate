@@ -1934,7 +1934,6 @@ select {
 
 .lesson-card-question .content-image-block img {
   width: min(440px, 100%);
-  max-height: 420px;
   object-fit: contain;
 }
 

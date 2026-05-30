@@ -655,21 +655,13 @@ function clampImageWidthPercent(value, fallback = 100) {
   return Math.min(180, Math.max(20, Math.round(next)))
 }
 
-function normalizeImageHeightPx(value, fallback = '') {
-  if (value === '' || value === null || value === undefined) return fallback
-  const next = Number(value)
-  if (!Number.isFinite(next) || next <= 0) return fallback
-  return Math.min(1400, Math.max(80, Math.round(next)))
-}
-
 function getRecordImageStyle(item) {
   const width = clampImageWidthPercent(item?.imageWidthPercent, 100)
-  const height = normalizeImageHeightPx(item?.imageHeightPx, '')
   return {
     width: `${width}%`,
-    maxWidth: '100%',
-    height: height ? `${height}px` : 'auto',
-    objectFit: height ? 'fill' : 'contain',
+    maxWidth: width > 100 ? 'none' : '100%',
+    height: 'auto',
+    objectFit: 'contain',
   }
 }
 const courseCatalog = [
@@ -778,7 +770,6 @@ function createImageContentBlock() {
     imagePath: '',
     caption: '',
     widthPercent: 100,
-    heightPx: '',
   }
 }
 
@@ -795,7 +786,6 @@ function normalizeContentBlocks(rawBlocks, fallbackText = '') {
           imagePath: String(block?.imagePath || '').trim(),
           caption: String(block?.caption || '').trim(),
           widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
-          heightPx: normalizeImageHeightPx(block?.heightPx, ''),
         }
       }
       return {
@@ -826,12 +816,11 @@ function contentBlocksToPlainText(blocks) {
 
 function getContentBlockImageStyle(block) {
   const width = clampImageWidthPercent(block?.widthPercent, 100)
-  const height = normalizeImageHeightPx(block?.heightPx, '')
   return {
     width: `${width}%`,
-    maxWidth: '100%',
-    height: height ? `${height}px` : 'auto',
-    objectFit: height ? 'fill' : 'contain',
+    maxWidth: width > 100 ? 'none' : '100%',
+    height: 'auto',
+    objectFit: 'contain',
   }
 }
 
@@ -2318,7 +2307,6 @@ function AdminPage() {
   const [solutionImageFile, setSolutionImageFile] = useState(null)
   const [solutionImagePreviewUrl, setSolutionImagePreviewUrl] = useState('')
   const [imageWidthPercent, setImageWidthPercent] = useState(100)
-  const [imageHeightPx, setImageHeightPx] = useState('')
   const [isImageUploading, setIsImageUploading] = useState(false)
   const [bulkQuestionInput, setBulkQuestionInput] = useState('')
   const [isBulkUploading, setIsBulkUploading] = useState(false)
@@ -2372,7 +2360,6 @@ function AdminPage() {
   const [editGeogebraLink, setEditGeogebraLink] = useState('')
   const [editResourceLink, setEditResourceLink] = useState('')
   const [editImageWidthPercent, setEditImageWidthPercent] = useState(100)
-  const [editImageHeightPx, setEditImageHeightPx] = useState('')
 
   const selectedCurriculum = useMemo(
     () => curricula.find((curriculum) => curriculum.id === curriculumId) ?? curricula[0],
@@ -2419,7 +2406,6 @@ function AdminPage() {
     setEditGeogebraLink('')
     setEditResourceLink('')
     setEditImageWidthPercent(100)
-    setEditImageHeightPx('')
     setDragRecordIndex(null)
   }, [curriculumId, unitId, subunit, storedItemsTab])
 
@@ -2981,7 +2967,6 @@ function AdminPage() {
           imagePath,
           caption: String(block?.caption || '').trim(),
           widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
-          heightPx: normalizeImageHeightPx(block?.heightPx, ''),
         })
       } else {
         const text = String(block?.text || '').trim()
@@ -3035,7 +3020,7 @@ function AdminPage() {
                   placeholder="Caption (optional)"
                 />
                 <label>
-                  Image Width (%)
+                  Image Size (%)
                   <input
                     type="range"
                     min={20}
@@ -3048,21 +3033,6 @@ function AdminPage() {
                     }
                   />
                   <small>{clampImageWidthPercent(block.widthPercent, 100)}%</small>
-                </label>
-                <label>
-                  Image Height (px, optional)
-                  <input
-                    type="number"
-                    min={80}
-                    max={1400}
-                    value={block.heightPx ?? ''}
-                    onChange={(event) =>
-                      updateBlock(setter, block.id, {
-                        heightPx: normalizeImageHeightPx(event.target.value, ''),
-                      })
-                    }
-                    placeholder="Auto"
-                  />
                 </label>
               </>
             ) : (
@@ -3196,7 +3166,6 @@ function AdminPage() {
       imageUrl,
       imagePath,
       imageWidthPercent: clampImageWidthPercent(imageWidthPercent, 100),
-      imageHeightPx: normalizeImageHeightPx(imageHeightPx, ''),
       curriculumId,
       unitId,
       subunit,
@@ -3229,7 +3198,6 @@ function AdminPage() {
     setSolutionImageFile(null)
     setSolutionImagePreviewUrl('')
     setImageWidthPercent(100)
-    setImageHeightPx('')
   }
 
   async function submitBulkQuestions(event) {
@@ -3301,7 +3269,6 @@ function AdminPage() {
           imageUrl: '',
           imagePath: '',
           imageWidthPercent: clampImageWidthPercent(item.imageWidthPercent, 100),
-          imageHeightPx: normalizeImageHeightPx(item.imageHeightPx, ''),
           curriculumId,
           unitId,
           subunit,
@@ -3350,7 +3317,6 @@ function AdminPage() {
     setEditGeogebraLink(String(record.geogebraLink || ''))
     setEditResourceLink(String(record.resourceLink || ''))
     setEditImageWidthPercent(clampImageWidthPercent(record.imageWidthPercent, 100))
-    setEditImageHeightPx(normalizeImageHeightPx(record.imageHeightPx, ''))
   }
 
   function cancelEditRecord() {
@@ -3369,7 +3335,6 @@ function AdminPage() {
     setEditGeogebraLink('')
     setEditResourceLink('')
     setEditImageWidthPercent(100)
-    setEditImageHeightPx('')
   }
 
   async function saveRecordEdits() {
@@ -3441,7 +3406,6 @@ function AdminPage() {
             gdc: editGdc,
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
-            imageHeightPx: normalizeImageHeightPx(editImageHeightPx, ''),
             updatedAt: new Date().toISOString(),
           }
         : {
@@ -3451,7 +3415,6 @@ function AdminPage() {
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
-            imageHeightPx: normalizeImageHeightPx(editImageHeightPx, ''),
             updatedAt: new Date().toISOString(),
           }
 
@@ -4122,7 +4085,7 @@ function AdminPage() {
             ) : null}
             <div className="image-size-controls">
               <label>
-                Image Width (%)
+                Image Size (%)
                 <input
                   type="range"
                   min={20}
@@ -4131,18 +4094,6 @@ function AdminPage() {
                   onChange={(event) => setImageWidthPercent(clampImageWidthPercent(event.target.value, 100))}
                 />
                 <small>{clampImageWidthPercent(imageWidthPercent, 100)}%</small>
-              </label>
-              <label>
-                Image Height (px, optional)
-                <input
-                  type="number"
-                  min={80}
-                  max={1400}
-                  value={imageHeightPx}
-                  onChange={(event) => setImageHeightPx(event.target.value)}
-                  placeholder="Auto"
-                />
-                <small>Leave empty to keep natural image ratio.</small>
               </label>
             </div>
             <button className="btn primary" type="submit" disabled={isImageUploading}>
@@ -4292,7 +4243,7 @@ function AdminPage() {
                                 />
                               </label>
                               <label>
-                                Image Width (%)
+                                Image Size (%)
                                 <input
                                   type="range"
                                   min={20}
@@ -4303,17 +4254,6 @@ function AdminPage() {
                                   }
                                 />
                                 <small>{clampImageWidthPercent(editImageWidthPercent, 100)}%</small>
-                              </label>
-                              <label>
-                                Image Height (px, optional)
-                                <input
-                                  type="number"
-                                  min={80}
-                                  max={1400}
-                                  value={editImageHeightPx}
-                                  onChange={(event) => setEditImageHeightPx(event.target.value)}
-                                  placeholder="Auto"
-                                />
                               </label>
                             </>
                           ) : (
@@ -4394,7 +4334,7 @@ function AdminPage() {
                                 />
                               </label>
                               <label>
-                                Image Width (%)
+                                Image Size (%)
                                 <input
                                   type="range"
                                   min={20}
@@ -4405,17 +4345,6 @@ function AdminPage() {
                                   }
                                 />
                                 <small>{clampImageWidthPercent(editImageWidthPercent, 100)}%</small>
-                              </label>
-                              <label>
-                                Image Height (px, optional)
-                                <input
-                                  type="number"
-                                  min={80}
-                                  max={1400}
-                                  value={editImageHeightPx}
-                                  onChange={(event) => setEditImageHeightPx(event.target.value)}
-                                  placeholder="Auto"
-                                />
                               </label>
                             </>
                           )}
