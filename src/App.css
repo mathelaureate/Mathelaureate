@@ -801,6 +801,16 @@ nav button:hover {
   line-height: 1.5;
 }
 
+.latex-text ul,
+.latex-text ol {
+  margin: 0.18rem 0 0.18rem 1.1rem;
+  padding-left: 0.35rem;
+}
+
+.latex-text li {
+  margin: 0.06rem 0;
+}
+
 .solution-box {
   margin-top: 0.45rem;
   border: 1px solid #ddd1f7;

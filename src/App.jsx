@@ -2428,8 +2428,7 @@ function AdminPage() {
   const [subunit, setSubunit] = useState(curricula[0]?.units[0]?.subunits[0] ?? '')
   const [itemType, setItemType] = useState('lesson')
   const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [descriptionBlocks, setDescriptionBlocks] = useState([])
+  const [descriptionBlocks, setDescriptionBlocks] = useState(() => [createTextContentBlock('')])
   const [solution, setSolution] = useState('')
   const [solutionBlocks, setSolutionBlocks] = useState([])
   const [solutionVideoLink, setSolutionVideoLink] = useState('')
@@ -2486,7 +2485,6 @@ function AdminPage() {
   const [editingRecordId, setEditingRecordId] = useState('')
   const [editingRecordType, setEditingRecordType] = useState('')
   const [editTitle, setEditTitle] = useState('')
-  const [editDescription, setEditDescription] = useState('')
   const [editDescriptionBlocks, setEditDescriptionBlocks] = useState([])
   const [editSolution, setEditSolution] = useState('')
   const [editSolutionBlocks, setEditSolutionBlocks] = useState([])
@@ -2535,7 +2533,7 @@ function AdminPage() {
     setEditingRecordId('')
     setEditingRecordType('')
     setEditTitle('')
-    setEditDescription('')
+    setEditDescriptionBlocks([])
     setEditSolution('')
     setEditSolutionVideoLink('')
     setEditDifficulty('medium')
@@ -3199,10 +3197,9 @@ function AdminPage() {
     event.preventDefault()
     const descriptionBlocksEnabled = contentBlocksHaveMediaOrText(descriptionBlocks)
     const solutionBlocksEnabled = itemType === 'question' && contentBlocksHaveMediaOrText(solutionBlocks)
-    const preparedDescription = descriptionBlocksEnabled ? contentBlocksToPlainText(descriptionBlocks) : String(description || '').trim()
     const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : String(solution || '').trim()
-    if (!preparedDescription && !descriptionBlocksEnabled) {
-      setDataError('Add description text or at least one description block.')
+    if (!descriptionBlocksEnabled) {
+      setDataError('Add at least one description block (text or image).')
       return
     }
     if (
@@ -3287,8 +3284,8 @@ function AdminPage() {
     const newRecord = {
       itemType,
       title: itemType === 'question' ? '' : title,
-      description: descriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : description,
-      descriptionBlocks: descriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
+      description: contentBlocksToPlainText(normalizedDescriptionBlocks),
+      descriptionBlocks: normalizedDescriptionBlocks,
       solution: itemType === 'question' ? (solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : solution) : '',
       solutionBlocks: itemType === 'question' && solutionBlocksEnabled ? normalizedSolutionBlocks : [],
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
@@ -3319,8 +3316,7 @@ function AdminPage() {
     }
     setIsImageUploading(false)
     setTitle('')
-    setDescription('')
-    setDescriptionBlocks([])
+    setDescriptionBlocks([createTextContentBlock('')])
     setSolution('')
     setSolutionBlocks([])
     setSolutionVideoLink('')
@@ -3443,7 +3439,6 @@ function AdminPage() {
     setEditingRecordId(record.id)
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
-    setEditDescription(String(record.description || ''))
     setEditDescriptionBlocks(normalizeContentBlocks(record.descriptionBlocks, record.description))
     setEditSolution(String(record.solution || ''))
     setEditSolutionBlocks(normalizeContentBlocks(record.solutionBlocks, record.solution))
@@ -3461,7 +3456,6 @@ function AdminPage() {
     setEditingRecordId('')
     setEditingRecordType('')
     setEditTitle('')
-    setEditDescription('')
     setEditDescriptionBlocks([])
     setEditSolution('')
     setEditSolutionBlocks([])
@@ -3480,15 +3474,14 @@ function AdminPage() {
     const editingRecord = records.find((item) => item.id === editingRecordId) || null
     const editDescriptionBlocksEnabled = contentBlocksHaveMediaOrText(editDescriptionBlocks)
     const editSolutionBlocksEnabled = editingRecordType === 'question' && contentBlocksHaveMediaOrText(editSolutionBlocks)
-    const nextDescriptionText = editDescriptionBlocksEnabled ? contentBlocksToPlainText(editDescriptionBlocks) : editDescription.trim()
     const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : editSolution.trim()
 
     if (editingRecordType !== 'question' && !editTitle.trim()) {
       setDataError('Title is required for lessons.')
       return
     }
-    if (!nextDescriptionText && !editDescriptionBlocksEnabled) {
-      setDataError('Description is required.')
+    if (!editDescriptionBlocksEnabled) {
+      setDataError('Add at least one description block (text or image).')
       return
     }
     if (
@@ -3529,8 +3522,8 @@ function AdminPage() {
     const payload =
       editingRecordType === 'question'
         ? {
-            description: editDescriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : editDescription.trim(),
-            descriptionBlocks: editDescriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
+            description: contentBlocksToPlainText(normalizedDescriptionBlocks),
+            descriptionBlocks: normalizedDescriptionBlocks,
             solution: editSolutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : editSolution.trim(),
             solutionBlocks: editSolutionBlocksEnabled ? normalizedSolutionBlocks : [],
             solutionVideoLink: editSolutionVideoLink.trim(),
@@ -3548,8 +3541,8 @@ function AdminPage() {
           }
         : {
             title: editTitle.trim(),
-            description: editDescriptionBlocksEnabled ? contentBlocksToPlainText(normalizedDescriptionBlocks) : editDescription.trim(),
-            descriptionBlocks: editDescriptionBlocksEnabled ? normalizedDescriptionBlocks : [],
+            description: contentBlocksToPlainText(normalizedDescriptionBlocks),
+            descriptionBlocks: normalizedDescriptionBlocks,
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
@@ -4068,19 +4061,10 @@ function AdminPage() {
                 <input value={title} onChange={(event) => setTitle(event.target.value)} required />
               </label>
             ) : null}
-            <label>
-              Description
-              <RichTextEditor
-                rows={5}
-                value={description}
-                onChange={setDescription}
-                placeholder="Prompt, explanation or resource details (HTML and LaTeX supported)"
-              />
-            </label>
             {renderAdminBlocksEditor({
               blocks: descriptionBlocks,
               setter: setDescriptionBlocks,
-              label: 'Description blocks (optional advanced layout)',
+              label: 'Description blocks (required)',
             })}
             {itemType === 'question' ? (
               <>
@@ -4166,7 +4150,7 @@ function AdminPage() {
                       <span className="meta-chip">{questionDifficulty}</span>
                     </div>
                     <h3 className="question-number-title">Question Preview</h3>
-                    <LatexText value={description || 'Question statement preview'} className="latex-text" />
+                    <LatexText value={contentBlocksToPlainText(descriptionBlocks) || 'Question statement preview'} className="latex-text" />
                     <div className="solution-box">
                       <LatexText value={solution || 'Solution preview'} className="latex-text" />
                     </div>
@@ -4351,14 +4335,10 @@ function AdminPage() {
                                 Title
                                 <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
                               </label>
-                              <label>
-                                Description
-                                <RichTextEditor rows={5} value={editDescription} onChange={setEditDescription} />
-                              </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
                                 setter: setEditDescriptionBlocks,
-                                label: 'Description blocks (optional advanced layout)',
+                                label: 'Description blocks (required)',
                               })}
                               <label>
                                 GeoGebra Link
@@ -4392,14 +4372,10 @@ function AdminPage() {
                             </>
                           ) : (
                             <>
-                              <label>
-                                Description
-                                <RichTextEditor rows={5} value={editDescription} onChange={setEditDescription} />
-                              </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
                                 setter: setEditDescriptionBlocks,
-                                label: 'Description blocks (optional advanced layout)',
+                                label: 'Description blocks (required)',
                               })}
                               <label>
                                 Difficulty
