@@ -991,6 +991,9 @@ function HomePage({ user, cachedProfile }) {
   const [contactEmail, setContactEmail] = useState('')
   const [contactSubject, setContactSubject] = useState('General inquiry')
   const [contactMessage, setContactMessage] = useState('')
+  const [contactWebsite, setContactWebsite] = useState('')
+  const [contactSending, setContactSending] = useState(false)
+  const [contactFeedbackIsError, setContactFeedbackIsError] = useState(false)
   const [contactFeedback, setContactFeedback] = useState('')
 
   useEffect(() => {
@@ -1002,24 +1005,51 @@ function HomePage({ user, cachedProfile }) {
     }
   }, [location.hash])
 
-  function onContactSubmit(event) {
+  async function onContactSubmit(event) {
     event.preventDefault()
     if (!contactName.trim() || !contactEmail.trim() || !contactSubject.trim() || !contactMessage.trim()) {
+      setContactFeedbackIsError(true)
       setContactFeedback('Please fill in your name, email, subject, and message.')
       return
     }
+    if (contactMessage.trim().length < 10) {
+      setContactFeedbackIsError(true)
+      setContactFeedback('Please add a little more detail to your message.')
+      return
+    }
 
-    const subject = `Mathelaureate inquiry: ${contactSubject.trim()}`
-    const body = [
-      `Name: ${contactName.trim()}`,
-      `Email: ${contactEmail.trim()}`,
-      `Subject: ${contactSubject.trim()}`,
-      '',
-      contactMessage.trim(),
-    ].join('\n')
-
-    window.location.href = `mailto:mathelaureate@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    setContactFeedback('Opening your email app with a pre-filled message.')
+    setContactSending(true)
+    setContactFeedback('')
+    setContactFeedbackIsError(false)
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: contactName.trim(),
+          email: contactEmail.trim(),
+          subject: contactSubject.trim(),
+          message: contactMessage.trim(),
+          website: contactWebsite.trim(),
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Unable to send your message right now. Please try again later.')
+      }
+      setContactFeedbackIsError(false)
+      setContactFeedback('Message sent successfully. We will get back to you within 24 hours.')
+      setContactName('')
+      setContactEmail('')
+      setContactSubject('General inquiry')
+      setContactMessage('')
+      setContactWebsite('')
+    } catch (error) {
+      setContactFeedbackIsError(true)
+      setContactFeedback(error?.message || 'Unable to send your message right now. Please try again later.')
+    } finally {
+      setContactSending(false)
+    }
   }
 
   return (
@@ -1135,13 +1165,22 @@ function HomePage({ user, cachedProfile }) {
             onChange={(event) => setContactMessage(event.target.value)}
             required
           />
+          <input
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            value={contactWebsite}
+            onChange={(event) => setContactWebsite(event.target.value)}
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+          />
           <div className="contact-actions-row">
-            <button type="submit" className="btn primary" id="login">
-              Send Message
+            <button type="submit" className="btn primary" id="login" disabled={contactSending}>
+              {contactSending ? 'Sending...' : 'Send Message'}
             </button>
             <small>We&apos;ll respond within 24 hours.</small>
           </div>
-          {contactFeedback ? <p className="success-text">{contactFeedback}</p> : null}
+          {contactFeedback ? <p className={contactFeedbackIsError ? 'error-text' : 'success-text'}>{contactFeedback}</p> : null}
         </form>
       </footer>
 
