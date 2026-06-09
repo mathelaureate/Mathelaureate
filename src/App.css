@@ -2558,3 +2558,95 @@ select {
     align-items: flex-start;
   }
 }
+
+/* Sitewide visual polish pass */
+.topbar {
+  border: 1px solid rgba(132, 138, 255, 0.26);
+  box-shadow: 0 16px 36px rgba(34, 47, 109, 0.12);
+}
+
+nav a,
+nav button {
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+nav a:hover,
+nav button:hover {
+  background: rgba(109, 74, 255, 0.08);
+  color: #3f3193;
+  transform: translateY(-1px);
+}
+
+.panel-section,
+.panel,
+.course-shell-fluid,
+.course-basic,
+.lesson-sidebar,
+.lesson-main,
+.record,
+.course-workspace-head,
+.showcase-card,
+.resource-post-card,
+.my-course-card,
+.quick-link-card {
+  border-radius: 16px;
+  border-color: rgba(133, 141, 255, 0.22);
+  box-shadow: 0 14px 34px rgba(34, 47, 109, 0.09);
+}
+
+.panel-section,
+.panel,
+.lesson-sidebar,
+.lesson-main {
+  background: linear-gradient(180deg, #ffffff 0%, #fcfcff 100%);
+}
+
+input,
+textarea,
+select {
+  border-radius: 10px;
+  background: #fcfdff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(109, 74, 255, 0.11);
+}
+
+.btn {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.btn.ghost:hover {
+  border-color: #cfd6fb;
+  background: #f8f9ff;
+}
+
+.record[draggable='true']:hover {
+  border-color: #c8b9f3;
+  box-shadow: 0 14px 28px rgba(78, 58, 147, 0.14);
+}
+
+.home-site .hero-content {
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(153, 160, 255, 0.22);
+  box-shadow: 0 18px 44px rgba(48, 63, 135, 0.12);
+  backdrop-filter: blur(4px);
+  border-radius: 18px;
+  padding: clamp(1.1rem, 2.2vw, 1.6rem);
+}
+
+.home-site .testimonials-title {
+  background: linear-gradient(95deg, #4f44c8, #2a8fdc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.home-site .contact-form-card {
+  border-color: #dfe5f7;
+  box-shadow: 0 14px 30px rgba(35, 49, 112, 0.1);
+}
