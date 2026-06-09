@@ -2630,15 +2630,6 @@ select:focus {
   box-shadow: 0 14px 28px rgba(78, 58, 147, 0.14);
 }
 
-.home-site .hero-content {
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid rgba(153, 160, 255, 0.22);
-  box-shadow: 0 18px 44px rgba(48, 63, 135, 0.12);
-  backdrop-filter: blur(4px);
-  border-radius: 18px;
-  padding: clamp(1.1rem, 2.2vw, 1.6rem);
-}
-
 .home-site .testimonials-title {
   background: linear-gradient(95deg, #4f44c8, #2a8fdc);
   -webkit-background-clip: text;
