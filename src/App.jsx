@@ -583,16 +583,31 @@ function LatexText({ value, className = '' }) {
 
 function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
   const textareaRef = useRef(null)
+  const selectionRef = useRef({ start: 0, end: 0 })
+
+  function captureSelection() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    selectionRef.current = {
+      start: Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : 0,
+      end: Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : 0,
+    }
+  }
 
   function updateSelection(transformer) {
     const textarea = textareaRef.current
-    if (!textarea) {
-      onChange(transformer(String(value || ''), 0, 0).nextValue)
-      return
-    }
     const current = String(value || '')
-    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : current.length
-    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start
+    const fallbackStart = current.length
+    const start = textarea
+      ? Number.isInteger(textarea.selectionStart)
+        ? textarea.selectionStart
+        : fallbackStart
+      : selectionRef.current.start ?? fallbackStart
+    const end = textarea
+      ? Number.isInteger(textarea.selectionEnd)
+        ? textarea.selectionEnd
+        : start
+      : selectionRef.current.end ?? start
     const result = transformer(current, start, end)
     onChange(result.nextValue)
     window.requestAnimationFrame(() => {
@@ -600,6 +615,7 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
       textareaRef.current.focus()
       const caret = Math.max(0, Math.min(result.caret, result.nextValue.length))
       textareaRef.current.setSelectionRange(caret, caret)
+      selectionRef.current = { start: caret, end: caret }
     })
   }
 
@@ -617,26 +633,57 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
   return (
     <div className="rich-text-editor">
       <div className="rich-text-toolbar">
-        <button type="button" onClick={() => wrapSelection('<strong>', '</strong>')} title="Bold">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<strong>', '</strong>')}
+          title="Bold"
+        >
           B
         </button>
-        <button type="button" onClick={() => wrapSelection('<em>', '</em>')} title="Italic">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<em>', '</em>')}
+          title="Italic"
+        >
           I
         </button>
-        <button type="button" onClick={() => wrapSelection('<u>', '</u>')} title="Underline">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<u>', '</u>')}
+          title="Underline"
+        >
           U
         </button>
-        <button type="button" onClick={() => wrapSelection('<h3>', '</h3>', 'Heading')} title="Heading">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<h3>', '</h3>', 'Heading')}
+          title="Heading"
+        >
           H
         </button>
-        <button type="button" onClick={() => wrapSelection('<ul><li>', '</li></ul>', 'List item')} title="Bulleted list">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<ul><li>', '</li></ul>', 'List item')}
+          title="Bulleted list"
+        >
           • List
         </button>
-        <button type="button" onClick={() => wrapSelection('<ol><li>', '</li></ol>', 'List item')} title="Numbered list">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => wrapSelection('<ol><li>', '</li></ol>', 'List item')}
+          title="Numbered list"
+        >
           1. List
         </button>
         <select
           defaultValue=""
+          onMouseDown={(event) => event.preventDefault()}
           onChange={(event) => {
             const className = event.target.value
             if (!className) return
@@ -653,6 +700,7 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
         </select>
         <select
           defaultValue=""
+          onMouseDown={(event) => event.preventDefault()}
           onChange={(event) => {
             const className = event.target.value
             if (!className) return
@@ -672,6 +720,9 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onSelect={captureSelection}
+        onKeyUp={captureSelection}
+        onClick={captureSelection}
         placeholder={placeholder}
       />
     </div>
