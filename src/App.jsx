@@ -681,39 +681,6 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
         >
           1. List
         </button>
-        <select
-          defaultValue=""
-          onMouseDown={(event) => event.preventDefault()}
-          onChange={(event) => {
-            const className = event.target.value
-            if (!className) return
-            wrapSelection(`<span class="${className}">`, '</span>')
-            event.target.value = ''
-          }}
-          title="Font size"
-        >
-          <option value="">Size</option>
-          <option value="rt-size-sm">Small</option>
-          <option value="rt-size-md">Normal</option>
-          <option value="rt-size-lg">Large</option>
-          <option value="rt-size-xl">XL</option>
-        </select>
-        <select
-          defaultValue=""
-          onMouseDown={(event) => event.preventDefault()}
-          onChange={(event) => {
-            const className = event.target.value
-            if (!className) return
-            wrapSelection(`<span class="${className}">`, '</span>')
-            event.target.value = ''
-          }}
-          title="Font style"
-        >
-          <option value="">Font</option>
-          <option value="rt-font-sans">Sans</option>
-          <option value="rt-font-serif">Serif</option>
-          <option value="rt-font-mono">Mono</option>
-        </select>
       </div>
       <textarea
         ref={textareaRef}
