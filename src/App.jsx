@@ -1117,6 +1117,7 @@ function EventsPage({ user, cachedProfile }) {
   const [events, setEvents] = useState([])
   const [loadingEvents, setLoadingEvents] = useState(true)
   const [eventsError, setEventsError] = useState('')
+  const [activeEvent, setActiveEvent] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -1163,33 +1164,50 @@ function EventsPage({ user, cachedProfile }) {
                   <small className="showcase-label">Event</small>
                   <h3>{event.title}</h3>
                   <LatexText value={event.summary || event.description} className="showcase-description" />
-                  <span className={`showcase-link ${event.link ? '' : 'disabled'}`}>
-                    {event.link ? 'Open event' : 'Details coming soon'}
-                  </span>
+                  <span className="showcase-link">View details</span>
                 </div>
                 <div className="showcase-footer">
                   <small>{event.date}</small>
                 </div>
               </>
             )
-            return event.link ? (
-              <a
+            return (
+              <button
                 key={event.id}
-                className="showcase-card showcase-card-link"
-                href={event.link}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                className="showcase-card showcase-card-button"
+                onClick={() => setActiveEvent(event)}
               >
                 {content}
-              </a>
-            ) : (
-              <article key={event.id} className="showcase-card">
-                {content}
-              </article>
+              </button>
             )
           })}
         </div>
       </section>
+      {activeEvent ? (
+        <section className="event-modal-overlay" role="dialog" aria-modal="true" onClick={() => setActiveEvent(null)}>
+          <article className="event-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="event-modal-head">
+              <h3>{activeEvent.title}</h3>
+              <button type="button" className="icon-back-btn" onClick={() => setActiveEvent(null)} aria-label="Close event popup">
+                &#8592;
+              </button>
+            </div>
+            {activeEvent.imageUrl ? (
+              <img src={activeEvent.imageUrl} alt={activeEvent.title} className="event-modal-image" />
+            ) : null}
+            <small className="event-modal-date">{activeEvent.date}</small>
+            <LatexText value={activeEvent.description || activeEvent.summary} className="latex-text" />
+            {activeEvent.link ? (
+              <a className="btn primary" href={activeEvent.link} target="_blank" rel="noreferrer">
+                Open event link
+              </a>
+            ) : (
+              <small>Link coming soon.</small>
+            )}
+          </article>
+        </section>
+      ) : null}
     </main>
   )
 }
