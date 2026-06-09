@@ -972,6 +972,37 @@ nav button:hover {
   gap: 0.25rem;
 }
 
+.rich-text-editor {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.rich-text-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rich-text-toolbar button,
+.rich-text-toolbar select {
+  border: 1px solid #d9cff3;
+  background: #fff;
+  color: #4e3d7f;
+  border-radius: 8px;
+  padding: 0.24rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rich-text-toolbar button:hover,
+.rich-text-toolbar select:hover {
+  background: #f7f3ff;
+}
+
+.rich-text-editor textarea {
+  margin-top: 0;
+}
+
 .admin-record-image img {
   width: min(220px, 100%);
   border-radius: 10px;
@@ -2040,6 +2071,34 @@ select {
   margin-inline: auto;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.rt-size-sm {
+  font-size: 0.85em;
+}
+
+.rt-size-md {
+  font-size: 1em;
+}
+
+.rt-size-lg {
+  font-size: 1.2em;
+}
+
+.rt-size-xl {
+  font-size: 1.4em;
+}
+
+.rt-font-sans {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.rt-font-serif {
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.rt-font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .home-site .hero-section,

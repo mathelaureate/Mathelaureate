@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   GoogleAuthProvider,
@@ -579,6 +579,103 @@ function renderLatexToHtml(value) {
 
 function LatexText({ value, className = '' }) {
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderLatexToHtml(value) }} />
+}
+
+function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
+  const textareaRef = useRef(null)
+
+  function updateSelection(transformer) {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      onChange(transformer(String(value || ''), 0, 0).nextValue)
+      return
+    }
+    const current = String(value || '')
+    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : current.length
+    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start
+    const result = transformer(current, start, end)
+    onChange(result.nextValue)
+    window.requestAnimationFrame(() => {
+      if (!textareaRef.current) return
+      textareaRef.current.focus()
+      const caret = Math.max(0, Math.min(result.caret, result.nextValue.length))
+      textareaRef.current.setSelectionRange(caret, caret)
+    })
+  }
+
+  function wrapSelection(prefix, suffix = prefix, fallbackText = 'text') {
+    updateSelection((current, start, end) => {
+      const hasSelection = end > start
+      const selected = hasSelection ? current.slice(start, end) : fallbackText
+      const replacement = `${prefix}${selected}${suffix}`
+      const nextValue = `${current.slice(0, start)}${replacement}${current.slice(end)}`
+      const caret = start + replacement.length
+      return { nextValue, caret }
+    })
+  }
+
+  return (
+    <div className="rich-text-editor">
+      <div className="rich-text-toolbar">
+        <button type="button" onClick={() => wrapSelection('<strong>', '</strong>')} title="Bold">
+          B
+        </button>
+        <button type="button" onClick={() => wrapSelection('<em>', '</em>')} title="Italic">
+          I
+        </button>
+        <button type="button" onClick={() => wrapSelection('<u>', '</u>')} title="Underline">
+          U
+        </button>
+        <button type="button" onClick={() => wrapSelection('<h3>', '</h3>', 'Heading')} title="Heading">
+          H
+        </button>
+        <button type="button" onClick={() => wrapSelection('<ul><li>', '</li></ul>', 'List item')} title="Bulleted list">
+          • List
+        </button>
+        <button type="button" onClick={() => wrapSelection('<ol><li>', '</li></ol>', 'List item')} title="Numbered list">
+          1. List
+        </button>
+        <select
+          defaultValue=""
+          onChange={(event) => {
+            const className = event.target.value
+            if (!className) return
+            wrapSelection(`<span class="${className}">`, '</span>')
+            event.target.value = ''
+          }}
+          title="Font size"
+        >
+          <option value="">Size</option>
+          <option value="rt-size-sm">Small</option>
+          <option value="rt-size-md">Normal</option>
+          <option value="rt-size-lg">Large</option>
+          <option value="rt-size-xl">XL</option>
+        </select>
+        <select
+          defaultValue=""
+          onChange={(event) => {
+            const className = event.target.value
+            if (!className) return
+            wrapSelection(`<span class="${className}">`, '</span>')
+            event.target.value = ''
+          }}
+          title="Font style"
+        >
+          <option value="">Font</option>
+          <option value="rt-font-sans">Sans</option>
+          <option value="rt-font-serif">Serif</option>
+          <option value="rt-font-mono">Mono</option>
+        </select>
+      </div>
+      <textarea
+        ref={textareaRef}
+        rows={rows}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  )
 }
 
 function toGeoGebraEmbedUrl(input) {
@@ -3059,10 +3156,10 @@ function AdminPage() {
                 </label>
               </>
             ) : (
-              <textarea
+              <RichTextEditor
                 rows={4}
                 value={block.text || ''}
-                onChange={(event) => updateBlock(setter, block.id, { text: event.target.value })}
+                onChange={(nextValue) => updateBlock(setter, block.id, { text: nextValue })}
                 placeholder="Write text / LaTeX content"
               />
             )}
@@ -3955,10 +4052,10 @@ function AdminPage() {
             ) : null}
             <label>
               Description
-              <textarea
-                rows={4}
+              <RichTextEditor
+                rows={5}
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={setDescription}
                 placeholder="Prompt, explanation or resource details (HTML and LaTeX supported)"
               />
             </label>
@@ -4005,10 +4102,10 @@ function AdminPage() {
                 ) : null}
                 <label>
                   Solution (supports LaTeX)
-                  <textarea
-                    rows={5}
+                  <RichTextEditor
+                    rows={6}
                     value={solution}
-                    onChange={(event) => setSolution(event.target.value)}
+                    onChange={setSolution}
                     placeholder="Example: $$x^2 - 4 = 0 \\Rightarrow (x-2)(x+2)=0$$"
                   />
                 </label>
@@ -4238,11 +4335,7 @@ function AdminPage() {
                               </label>
                               <label>
                                 Description
-                                <textarea
-                                  rows={4}
-                                  value={editDescription}
-                                  onChange={(event) => setEditDescription(event.target.value)}
-                                />
+                                <RichTextEditor rows={5} value={editDescription} onChange={setEditDescription} />
                               </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
@@ -4283,11 +4376,7 @@ function AdminPage() {
                             <>
                               <label>
                                 Description
-                                <textarea
-                                  rows={4}
-                                  value={editDescription}
-                                  onChange={(event) => setEditDescription(event.target.value)}
-                                />
+                                <RichTextEditor rows={5} value={editDescription} onChange={setEditDescription} />
                               </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
@@ -4329,11 +4418,7 @@ function AdminPage() {
                               ) : null}
                               <label>
                                 Solution (supports LaTeX)
-                                <textarea
-                                  rows={4}
-                                  value={editSolution}
-                                  onChange={(event) => setEditSolution(event.target.value)}
-                                />
+                                <RichTextEditor rows={6} value={editSolution} onChange={setEditSolution} />
                               </label>
                               {renderAdminBlocksEditor({
                                 blocks: editSolutionBlocks,
