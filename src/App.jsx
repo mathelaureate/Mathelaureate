@@ -1189,8 +1189,13 @@ function EventsPage({ user, cachedProfile }) {
           <article className="event-modal" onClick={(event) => event.stopPropagation()}>
             <div className="event-modal-head">
               <h3>{activeEvent.title}</h3>
-              <button type="button" className="icon-back-btn" onClick={() => setActiveEvent(null)} aria-label="Close event popup">
-                &#8592;
+              <button
+                type="button"
+                className="event-modal-close-btn"
+                onClick={() => setActiveEvent(null)}
+                aria-label="Close event popup"
+              >
+                &times;
               </button>
             </div>
             {activeEvent.imageUrl ? (
