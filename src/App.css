@@ -2159,7 +2159,10 @@ select {
 }
 
 .home-site > .hero-section {
-  background: #f4f6ff;
+  background:
+    radial-gradient(circle at 84% 18%, rgba(84, 181, 255, 0.24), transparent 34%),
+    radial-gradient(circle at 10% 84%, rgba(131, 99, 255, 0.2), transparent 38%),
+    linear-gradient(132deg, #f8f7ff 0%, #eef3ff 58%, #eef8ff 100%);
   min-height: clamp(24rem, 48vw, 36rem);
   display: grid;
   align-items: center;
@@ -2173,15 +2176,21 @@ select {
 }
 
 .home-site > #programs.panel-section {
-  background: #ffffff;
+  background:
+    radial-gradient(circle at 14% 16%, rgba(113, 92, 255, 0.08), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f8f6ff 100%);
 }
 
 .home-site > #testimonials.panel-section {
-  background: #f8f9ff;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(56, 186, 255, 0.12), transparent 35%),
+    linear-gradient(180deg, #f6f8ff 0%, #eef5ff 100%);
 }
 
 .home-site > #contact.panel-section {
-  background: #ffffff;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(103, 74, 255, 0.08), transparent 40%),
+    linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
   padding-top: clamp(3rem, 5.4vw, 4.8rem);
   padding-bottom: clamp(3rem, 5.4vw, 4.8rem);
 }
@@ -2240,6 +2249,11 @@ select {
   color: #555d78;
 }
 
+.home-site .eyebrow {
+  color: #5b5cc9;
+  letter-spacing: 0.12em;
+}
+
 .home-site .program-grid article,
 .home-site .events-grid article,
 .home-site .resource-links-grid a,
@@ -2249,6 +2263,25 @@ select {
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 10px 22px rgba(26, 36, 78, 0.05);
+}
+
+.home-site .program-grid article:nth-child(3n + 1),
+.home-site .events-grid article:nth-child(3n + 1) {
+  background: linear-gradient(165deg, #ffffff 0%, #f3f0ff 100%);
+}
+
+.home-site .program-grid article:nth-child(3n + 2),
+.home-site .events-grid article:nth-child(3n + 2) {
+  background: linear-gradient(165deg, #ffffff 0%, #eef7ff 100%);
+}
+
+.home-site .program-grid article:nth-child(3n),
+.home-site .events-grid article:nth-child(3n) {
+  background: linear-gradient(165deg, #ffffff 0%, #f8f2ff 100%);
+}
+
+.home-site .modern-testimonial-grid .testimonial-card {
+  background: linear-gradient(165deg, #ffffff 0%, #f5f2ff 100%);
 }
 
 .home-site .program-grid article:hover,
