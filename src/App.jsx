@@ -788,13 +788,6 @@ const courseCatalog = [
     highlights: ['Functions and Calculus depth', 'Rigorous algebraic manipulation', 'Exam strategy by paper type'],
   },
   {
-    slug: 'ibdp-ai',
-    title: 'IBDP AI',
-    curriculumId: 'ibdp-ai-hl',
-    description: 'Data-centered pathway focused on modeling and real-world applications.',
-    highlights: ['Modeling and interpretation', 'Technology-focused approaches', 'Statistics with context'],
-  },
-  {
     slug: 'igcse-additional',
     title: 'IGCSE Additional Maths',
     curriculumId: 'igcse-add-maths',
@@ -807,13 +800,6 @@ const courseCatalog = [
     curriculumId: 'igcse-intl-maths',
     description: 'International pathway with broad concept coverage and application-focused problem solving.',
     highlights: ['Clear concept sequencing', 'Exam-style mixed practice', 'Applied mathematical thinking'],
-  },
-  {
-    slug: 'ibmyp',
-    title: 'IBMYP',
-    curriculumId: 'ibmyp',
-    description: 'Concept-based approach to deepen mathematical communication and logic.',
-    highlights: ['Criterion-aligned support', 'Investigation and communication', 'Bridge to DP readiness'],
   },
 ]
 function ensureRequiredCurricula(cachedCurricula) {
