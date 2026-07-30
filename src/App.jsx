@@ -955,7 +955,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
         <a href="/#home">Home</a>
         <a href="/#programs">Programs</a>
         <Link to="/events">Events</Link>
-        <a href="/#testimonials">Testimonials</a>
+        <a href="/teachers-resources">Teachers & Resources</a>
         <a href="/#contact">Contact</a>
         {user || cachedProfile ? (
           <Link to="/profile" className="profile-icon" aria-label="Profile">
