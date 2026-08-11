@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" fill="none" role="img" aria-label="Mathematical diagrams">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EAF3FB"/>
+      <stop offset="55%" stop-color="#F4F8FC"/>
+      <stop offset="100%" stop-color="#E8F2F7"/>
+    </linearGradient>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1B4F8C" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#0B7A75" stop-opacity="0.2"/>
+    </linearGradient>
+    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1.2" fill="#1B4F8C" fill-opacity="0.12"/>
+    </pattern>
+  </defs>
+
+  <rect width="720" height="560" rx="28" fill="url(#bg)"/>
+  <rect width="720" height="560" rx="28" fill="url(#dots)"/>
+
+  <!-- 3D-like surface mesh -->
+  <g transform="translate(70 70)" stroke="#1B4F8C" stroke-width="1.4" stroke-opacity="0.55">
+    <path d="M20 180 C 70 120, 110 240, 160 170 C 210 100, 250 210, 300 150 C 340 110, 360 130, 390 100" fill="none"/>
+    <path d="M20 200 C 70 140, 110 260, 160 190 C 210 120, 250 230, 300 170 C 340 130, 360 150, 390 120" fill="none"/>
+    <path d="M20 220 C 70 160, 110 280, 160 210 C 210 140, 250 250, 300 190 C 340 150, 360 170, 390 140" fill="none"/>
+    <path d="M40 100 C 40 140, 40 180, 40 220" fill="none"/>
+    <path d="M100 90 C 100 140, 100 190, 100 240" fill="none"/>
+    <path d="M160 85 C 160 140, 160 200, 160 255" fill="none"/>
+    <path d="M220 95 C 220 145, 220 205, 220 250" fill="none"/>
+    <path d="M280 105 C 280 150, 280 200, 280 245" fill="none"/>
+    <path d="M340 115 C 340 155, 340 195, 340 235" fill="none"/>
+    <path d="M20 180 C 70 120, 110 240, 160 170 C 210 100, 250 210, 300 150 C 340 110, 360 130, 390 100 L 390 140 C 360 170, 340 150, 300 190 C 250 250, 210 140, 160 210 C 110 280, 70 160, 20 220 Z" fill="url(#surface)" stroke="none"/>
+  </g>
+
+  <!-- Unit circle card -->
+  <g transform="translate(430 40)">
+    <rect x="0" y="0" width="250" height="210" rx="18" fill="#fff" fill-opacity="0.92" stroke="#C9D9E6"/>
+    <circle cx="125" cy="95" r="58" stroke="#1B4F8C" stroke-width="2"/>
+    <circle cx="125" cy="95" r="3" fill="#0B7A75"/>
+    <line x1="67" y1="95" x2="183" y2="95" stroke="#1B4F8C" stroke-opacity="0.35"/>
+    <line x1="125" y1="37" x2="125" y2="153" stroke="#1B4F8C" stroke-opacity="0.35"/>
+    <line x1="125" y1="95" x2="170" y2="58" stroke="#0B7A75" stroke-width="2"/>
+    <circle cx="170" cy="58" r="4" fill="#1B4F8C"/>
+    <path d="M155 95 A 30 30 0 0 0 145 72" stroke="#E08A2B" stroke-width="2" fill="none"/>
+    <text x="125" y="188" text-anchor="middle" fill="#1B4F8C" font-family="Georgia, serif" font-size="15">e^{i¸}=cos¸+i sin¸</text>
+  </g>
+
+  <!-- Quadratic formula card -->
+  <g transform="translate(40 330)">
+    <rect x="0" y="0" width="300" height="100" rx="16" fill="#fff" fill-opacity="0.94" stroke="#C9D9E6"/>
+    <text x="150" y="42" text-anchor="middle" fill="#5C6B74" font-family="Manrope, sans-serif" font-size="13" font-weight="600">QUADRATIC FORMULA</text>
+    <text x="150" y="72" text-anchor="middle" fill="#14212B" font-family="Georgia, serif" font-size="22">x = (b ± (b²4ac)) / 2a</text>
+  </g>
+
+  <!-- Summation card -->
+  <g transform="translate(370 300)">
+    <rect x="0" y="0" width="300" height="130" rx="16" fill="#fff" fill-opacity="0.94" stroke="#C9D9E6"/>
+    <text x="150" y="40" text-anchor="middle" fill="#5C6B74" font-family="Manrope, sans-serif" font-size="13" font-weight="600">SUM OF FIRST n INTEGERS</text>
+    <text x="150" y="82" text-anchor="middle" fill="#14212B" font-family="Georgia, serif" font-size="28">£ k = n(n+1)/2</text>
+  </g>
+
+  <!-- Floating accent marks -->
+  <text x="300" y="300" fill="#1B4F8C" fill-opacity="0.35" font-family="Georgia, serif" font-size="28">+</text>
+  <text x="640" y="270" fill="#0B7A75" fill-opacity="0.4" font-family="Georgia, serif" font-size="24">À</text>
+  <text x="80" y="60" fill="#1B4F8C" fill-opacity="0.28" font-family="Georgia, serif" font-size="22"></text>
+</svg>

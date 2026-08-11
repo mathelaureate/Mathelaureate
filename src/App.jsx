@@ -782,24 +782,30 @@ function getRecordImageStyle(item) {
 const courseCatalog = [
   {
     slug: 'ibdp-aa',
-    title: 'IBDP AA',
+    title: 'IBDP Mathematics AA',
+    shortTitle: 'IBDP AA',
     curriculumId: 'ibdp-aa-hl',
     description: 'Proof-oriented pathway for strong algebraic reasoning and advanced calculus.',
     highlights: ['Functions and Calculus depth', 'Rigorous algebraic manipulation', 'Exam strategy by paper type'],
+    icon: 'aa',
   },
   {
     slug: 'igcse-additional',
     title: 'IGCSE Additional Maths',
+    shortTitle: 'IGCSE Add. Maths',
     curriculumId: 'igcse-add-maths',
     description: 'Core and Extended preparation with exam-focused checkpoints.',
     highlights: ['Structured concept progression', 'Past-paper style practice', 'Skill-by-skill reinforcement'],
+    icon: 'add',
   },
   {
     slug: 'igcse-international',
     title: 'IGCSE International Maths',
+    shortTitle: 'IGCSE Intl Maths',
     curriculumId: 'igcse-intl-maths',
     description: 'International pathway with broad concept coverage and application-focused problem solving.',
     highlights: ['Clear concept sequencing', 'Exam-style mixed practice', 'Applied mathematical thinking'],
+    icon: 'intl',
   },
 ]
 function ensureRequiredCurricula(cachedCurricula) {
@@ -941,32 +947,39 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
     cachedProfile?.email?.[0]?.toUpperCase() ||
     'P'
   const navigate = useNavigate()
+  const location = useLocation()
 
   function onLoginSignupClick() {
     navigate('/courses/ibdp-aa')
   }
 
+  const isHome = location.pathname === '/'
+
   return (
-    <header className={`topbar ${bare ? 'topbar-bare' : ''}`} id="home">
-      <div className="brand">
-        Mathe<span>laureate</span>
-        </div>
-      <nav>
-        <a href="/#home">Home</a>
-        <a href="/#programs">Programs</a>
-        <Link to="/events">Events</Link>
-        <a href="/teachers-resources">Teachers & Resources</a>
-        <a href="/#contact">Contact</a>
-        {user || cachedProfile ? (
-          <Link to="/profile" className="profile-icon" aria-label="Profile">
-            {profileLabel}
-          </Link>
-        ) : (
-          <button type="button" className="login-btn" onClick={onLoginSignupClick}>
-            Login/Signup
-          </button>
-        )}
-      </nav>
+    <header className={`topbar site-topbar ${bare ? 'topbar-bare' : ''}`} id="home">
+      <div className="topbar-inner">
+        <Link to="/" className="brand" aria-label="Mathelaureate home">
+          Mathe<span>laureate</span>
+        </Link>
+        <nav>
+          <a href="/#home" className={isHome ? 'nav-active' : undefined}>
+            Home
+          </a>
+          <a href="/#programs">Programs</a>
+          <Link to="/events">Events</Link>
+          <Link to="/teachers-resources">Teachers &amp; Resources</Link>
+          <a href="/#contact">Contact</a>
+          {user || cachedProfile ? (
+            <Link to="/profile" className="profile-icon" aria-label="Profile">
+              {profileLabel}
+            </Link>
+          ) : (
+            <button type="button" className="login-btn" onClick={onLoginSignupClick}>
+              Login / Signup
+            </button>
+          )}
+        </nav>
+      </div>
     </header>
   )
 }
@@ -1039,36 +1052,149 @@ function HomePage({ user, cachedProfile }) {
   }
 
   return (
-    <main className="site home-site">
+    <main className="site home-site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
 
-      <section className="hero-section">
-        <div className="hero-content">
-          <p className="eyebrow">IBDP | IGCSE | IBMYP</p>
-          <h1>Excellence in International Mathematics Education</h1>
-          <p className="hero-copy">
-            Learn with clarity, score with confidence. Curated resources, assessments and support classes aligned to
-            international curricula.
-          </p>
-          <div className="hero-actions">
-            <Link to="/programs" className="btn primary">
-              Explore Programs
-            </Link>
-            <a href="#contact" className="btn ghost">
-              Contact Us
-            </a>
+      <section className="hero-section hero-full">
+        <div className="hero-grid">
+          <div className="hero-content">
+            <p className="brand-mark">Mathelaureate</p>
+            <h1>Learn Math with Clarity and Confidence</h1>
+            <p className="hero-copy">
+              Structured pathways for Grade 9–12 students across IBDP, IGCSE, and MYP — with lessons, worked
+              examples, and exam-focused practice.
+            </p>
+            <div className="hero-actions">
+              <Link to="/programs" className="btn primary">
+                Start Learning →
+              </Link>
+              <a href="#programs" className="btn ghost">
+                Explore Courses
+              </a>
+            </div>
+            <ul className="hero-trust">
+              <li>
+                <span className="hero-trust-icon" aria-hidden="true">
+                  ✓
+                </span>
+                IB-aligned Content
+              </li>
+              <li>
+                <span className="hero-trust-icon" aria-hidden="true">
+                  ✓
+                </span>
+                Expert Teachers
+              </li>
+              <li>
+                <span className="hero-trust-icon" aria-hidden="true">
+                  ✓
+                </span>
+                Exam-Focused Approach
+              </li>
+            </ul>
+          </div>
+          <div className="hero-visual" aria-hidden="true">
+            <img src="/math-hero.svg" alt="" className="hero-math-svg" />
           </div>
         </div>
       </section>
 
-      <section id="programs" className="panel-section">
-        <h2>Programs We Offer</h2>
+      <section id="programs" className="panel-section home-programs">
+        <div className="section-head">
+          <p className="eyebrow">Programs</p>
+          <h2>Choose Your Pathway</h2>
+          <p>Curriculum-specific courses designed for international maths success.</p>
+        </div>
         <ProgramCards withLinks />
       </section>
 
+      <section className="panel-section home-tools-section">
+        <div className="home-split">
+          <div>
+            <div className="section-head left">
+              <p className="eyebrow">Featured Pathways</p>
+              <h2>Build mastery topic by topic</h2>
+            </div>
+            <div className="pathway-grid">
+              <article className="pathway-card">
+                <span className="pathway-num">01</span>
+                <h3>Number and Algebra</h3>
+                <p>Sequences, series, exponents, and algebraic fluency.</p>
+              </article>
+              <article className="pathway-card">
+                <span className="pathway-num">02</span>
+                <h3>Functions</h3>
+                <p>Graphs, transformations, and modelling with clarity.</p>
+              </article>
+              <article className="pathway-card">
+                <span className="pathway-num">03</span>
+                <h3>Calculus</h3>
+                <p>Differentiation and integration with exam technique.</p>
+              </article>
+              <article className="pathway-card">
+                <span className="pathway-num">04</span>
+                <h3>Statistics &amp; Probability</h3>
+                <p>Data analysis, distributions, and inference basics.</p>
+              </article>
+            </div>
+          </div>
+          <div>
+            <div className="section-head left">
+              <p className="eyebrow">Learning Tools</p>
+              <h2>Everything you need to improve</h2>
+            </div>
+            <div className="tools-grid">
+              <article className="tool-card">
+                <span className="tool-icon tool-icon-lessons" aria-hidden="true" />
+                <h3>Interactive Lessons</h3>
+                <p>Concept-first explanations with clear structure.</p>
+              </article>
+              <article className="tool-card">
+                <span className="tool-icon tool-icon-examples" aria-hidden="true" />
+                <h3>Worked Examples</h3>
+                <p>Step-by-step solutions that show the method.</p>
+              </article>
+              <article className="tool-card">
+                <span className="tool-icon tool-icon-bank" aria-hidden="true" />
+                <h3>Question Bank</h3>
+                <p>Difficulty-filtered practice for every subunit.</p>
+              </article>
+              <article className="tool-card">
+                <span className="tool-icon tool-icon-exam" aria-hidden="true" />
+                <h3>Exam Preparation</h3>
+                <p>Targeted drills aligned to paper styles.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="stats-bar" aria-label="Platform highlights">
+        <div className="stats-bar-inner">
+          <div>
+            <strong>10,000+</strong>
+            <span>Students Supported</span>
+          </div>
+          <div>
+            <strong>1,200+</strong>
+            <span>Lessons &amp; Examples</span>
+          </div>
+          <div>
+            <strong>25,000+</strong>
+            <span>Practice Questions</span>
+          </div>
+          <div>
+            <strong>95%</strong>
+            <span>Exam Success Focus</span>
+          </div>
+        </div>
+      </section>
+
       <section id="testimonials" className="panel-section testimonials-shell">
-        <p className="eyebrow testimonials-eyebrow">Student Voices</p>
-        <h2 className="testimonials-title">What Our Students Say</h2>
+        <div className="section-head">
+          <p className="eyebrow testimonials-eyebrow">Student Voices</p>
+          <h2 className="testimonials-title">What Our Students Say</h2>
+        </div>
         <div className="testimonial-grid modern-testimonial-grid">
           <article className="testimonial-card">
             <div className="testimonial-stars">★★★★★</div>
@@ -1115,7 +1241,7 @@ function HomePage({ user, cachedProfile }) {
         </div>
       </section>
 
-      <footer id="contact" className="panel-section">
+      <section id="contact" className="panel-section contact-section">
         <div className="contact-intro">
           <p className="eyebrow">Get In Touch</p>
           <h2>Contact Us</h2>
@@ -1168,7 +1294,7 @@ function HomePage({ user, cachedProfile }) {
           </div>
           {contactFeedback ? <p className={contactFeedbackIsError ? 'error-text' : 'success-text'}>{contactFeedback}</p> : null}
         </form>
-      </footer>
+      </section>
 
       <footer className="home-footer">
         <div className="home-footer-inner">
@@ -1177,7 +1303,7 @@ function HomePage({ user, cachedProfile }) {
               Mathe<span>laureate</span>
             </h3>
             <p>
-              Excellence in International Mathematics Education - empowering IB and IGCSE students to achieve their full
+              Excellence in International Mathematics Education — empowering IB and IGCSE students to achieve their full
               mathematical potential.
             </p>
           </div>
@@ -1185,13 +1311,13 @@ function HomePage({ user, cachedProfile }) {
             <h4>About</h4>
             <a href="/#home">Our Mission</a>
             <Link to="/teachers-resources">Teachers &amp; Resources</Link>
-            <a href="/events">Events</a>
+            <Link to="/events">Events</Link>
           </div>
           <div className="home-footer-column">
             <h4>Programs</h4>
             <a href="/#programs">IBDP Mathematics</a>
-            <a href="/#programs">IBMYP Mathematics</a>
             <a href="/#programs">IGCSE Mathematics</a>
+            <Link to="/programs">All Programs</Link>
           </div>
           <div className="home-footer-column">
             <h4>Contact</h4>
@@ -1221,28 +1347,31 @@ function ProgramCards({ withLinks = false }) {
 
   return (
     <div className="program-grid">
-      {courseCatalog.map((course) =>
-        withLinks ? (
-          <button className="course-card-link" key={course.slug} type="button" onClick={() => onCourseClick(course.slug)}>
-            <article>
-              <h3>{course.title}</h3>
-              <p>{course.description}</p>
-            </article>
-          </button>
-        ) : (
-          <article key={course.slug}>
+      {courseCatalog.map((course) => {
+        const body = (
+          <article className={`program-card icon-${course.icon || 'aa'}`}>
+            <span className="program-icon" aria-hidden="true" />
             <h3>{course.title}</h3>
             <p>{course.description}</p>
+            {withLinks ? <span className="program-link">View Course →</span> : null}
           </article>
-        ),
-      )}
+        )
+
+        return withLinks ? (
+          <button className="course-card-link" key={course.slug} type="button" onClick={() => onCourseClick(course.slug)}>
+            {body}
+          </button>
+        ) : (
+          <div key={course.slug}>{body}</div>
+        )
+      })}
     </div>
   )
 }
 
 function ProgramsPage({ user, cachedProfile }) {
   return (
-    <main className="site">
+    <main className="site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section">
         <h1>Programs</h1>
@@ -1285,7 +1414,7 @@ function EventsPage({ user, cachedProfile }) {
   }, [])
 
   return (
-    <main className="site">
+    <main className="site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section">
         <h1>Events</h1>
@@ -1388,7 +1517,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
   }, [])
 
   return (
-    <main className="site">
+    <main className="site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section">
         <h1>Teachers &amp; Resources</h1>
@@ -1427,7 +1556,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
 
 function PrivacyPolicyPage({ user, cachedProfile }) {
   return (
-    <main className="site">
+    <main className="site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section">
         <h1>Privacy Policy</h1>
@@ -1474,7 +1603,7 @@ function PrivacyPolicyPage({ user, cachedProfile }) {
 
 function TermsOfUsePage({ user, cachedProfile }) {
   return (
-    <main className="site">
+    <main className="site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section">
         <h1>Terms of Use</h1>
@@ -1988,7 +2117,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
 
   if (!authReady) {
     return (
-      <main className="site">
+      <main className="site site-full">
         <section className="panel-section auth-card">
           <h2>Checking authentication...</h2>
           <p>One moment while we verify your login status.</p>
@@ -1999,7 +2128,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
 
   if (!user) {
     return (
-      <main className="site">
+      <main className="site site-full">
         <section className="panel-section auth-card auth-status-card">
           <h2>Sign in required</h2>
           <p>Use your Google account to continue to this course.</p>
@@ -2013,18 +2142,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
   }
 
   return (
-    <main className="site course-page">
+    <main className="site course-page site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} bare />
       <section className="course-shell-fluid course-workspace">
         <div className="course-head course-workspace-head">
           <div>
-            <p className="eyebrow">{course.title} · Course</p>
+            <p className="eyebrow">{course.shortTitle || course.title} · Course</p>
             <h1>{selectedUnit?.name || course.title}</h1>
             <p>{course.description}</p>
         </div>
           <div className="course-head-actions">
             <button type="button" className="btn ghost" onClick={() => navigate('/#programs')}>
-              Back to Programs
+              ← Back to Programs
             </button>
           </div>
         </div>
@@ -2376,7 +2505,7 @@ function ProfilePage({ user, cachedProfile }) {
   const profileName = user.displayName || cachedProfile?.displayName || user.email?.split('@')[0] || 'Student'
 
   return (
-    <main className="site profile-page">
+    <main className="site profile-page site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="profile-card">
         <div className="profile-card-left">
@@ -2479,7 +2608,7 @@ function ProtectedAdmin() {
 
   if (!passcodeUnlocked) {
     return (
-      <main className="admin">
+      <main className="admin site-full">
         <AdminPasscodeGate setUnlocked={setPasscodeUnlocked} />
       </main>
     )
@@ -3781,7 +3910,7 @@ function AdminPage() {
   const isSubunitLockedInAdmin = (paywallConfig.lockedSubunits?.[paywallCourseId] || []).includes(selectedPaywallSubunitKey)
 
   return (
-    <main className="admin">
+    <main className="admin site-full">
       <header className="admin-header">
         <div>
           <h1>Admin Dashboard</h1>
