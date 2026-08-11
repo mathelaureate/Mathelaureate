@@ -2151,20 +2151,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
     <main className="site course-page site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} bare />
       <section className="course-shell-fluid course-workspace">
-        <div className="course-head course-workspace-head">
-          <div>
-            <p className="eyebrow">{course.shortTitle || course.title} · Course</p>
-            <h1>{selectedUnit?.name || course.title}</h1>
-            <p>{course.description}</p>
-        </div>
-          <div className="course-head-actions">
-            <button type="button" className="btn ghost" onClick={() => navigate('/#programs')}>
-              ← Back to Programs
-            </button>
-          </div>
-        </div>
-
-        {courseLoading ? <p>Loading lesson workspace...</p> : null}
+        {courseLoading ? <p className="course-loading-line">Loading lesson workspace...</p> : null}
         {courseError ? <p className="error-text">{courseError}</p> : null}
 
         {!course.curriculumId ? (
@@ -2173,48 +2160,87 @@ function CoursePage({ user, authReady, cachedProfile }) {
             <p>This course is available publicly, and its subunit lesson workspace will be added next.</p>
           </section>
         ) : (
-          <div className="course-workspace-grid">
+          <div className="course-workspace-grid course-workspace-lms">
             <aside className="lesson-sidebar">
-              {units.map((unit) => (
-                <div className="sidebar-unit" key={unit.id}>
-                  <button
-                    type="button"
-                    className={`sidebar-unit-btn ${selectedUnit?.id === unit.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedUnitId(unit.id)
-                      setSelectedSubunit(unit.subunits?.[0] || '')
-                    }}
-                  >
-                    <span>{unit.name}</span>
-                    {isUnitLocked(unit.id) ? <small className="lock-badge">Locked</small> : null}
-                  </button>
-                  {selectedUnit?.id === unit.id ? (
-                    <div className="sidebar-subunits">
-                      {(unit.subunits || []).map((subtopic) => (
-                        <button
-                          type="button"
-                          key={subtopic}
-                          className={`sidebar-subunit-btn ${
-                            selectedUnit?.id === unit.id && currentSubunit === subtopic ? 'active' : ''
-                          }`}
-                          onClick={() => {
-                            setSelectedUnitId(unit.id)
-                            setSelectedSubunit(subtopic)
-                          }}
-                        >
-                          <span>{subtopic}</span>
-                          {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              <button type="button" className="sidebar-back-link" onClick={() => navigate('/#programs')}>
+                ← Back to Programs
+              </button>
+              <p className="sidebar-course-label">{course.shortTitle || course.title} · Course</p>
+              <h2 className="sidebar-topic-title">{selectedUnit?.name || course.title}</h2>
+              <div className="sidebar-nav-list">
+                {units.map((unit) => (
+                  <div className="sidebar-unit" key={unit.id}>
+                    <button
+                      type="button"
+                      className={`sidebar-unit-btn ${selectedUnit?.id === unit.id ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedUnitId(unit.id)
+                        setSelectedSubunit(unit.subunits?.[0] || '')
+                      }}
+                    >
+                      <span>{unit.name}</span>
+                      {isUnitLocked(unit.id) ? <small className="lock-badge">Locked</small> : null}
+                    </button>
+                    {selectedUnit?.id === unit.id ? (
+                      <div className="sidebar-subunits">
+                        {(unit.subunits || []).map((subtopic, subIndex) => {
+                          const isActive = selectedUnit?.id === unit.id && currentSubunit === subtopic
+                          const currentIndex = (unit.subunits || []).indexOf(currentSubunit)
+                          const isDone = currentIndex > -1 && subIndex < currentIndex
+                          return (
+                            <button
+                              type="button"
+                              key={subtopic}
+                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+                              onClick={() => {
+                                setSelectedUnitId(unit.id)
+                                setSelectedSubunit(subtopic)
+                              }}
+                            >
+                              <span className="sidebar-status-dot" aria-hidden="true" />
+                              <span className="sidebar-subunit-label">{subtopic}</span>
+                              {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn ghost sidebar-overview-btn"
+                onClick={() => {
+                  if (units[0]) {
+                    setSelectedUnitId(units[0].id)
+                    setSelectedSubunit(units[0].subunits?.[0] || '')
+                    setActiveTab('lesson')
+                  }
+                }}
+              >
+                Course Overview
+              </button>
             </aside>
 
             <section className={`lesson-main ${activeTab === 'lesson' ? 'lesson-main-centered' : ''}`}>
-              <p className="eyebrow">{currentSubunit || 'Subunit'}</p>
-              <h2>{activeTab === 'lesson' ? 'Lesson' : 'Question Bank'}</h2>
+              <p className="eyebrow lesson-breadcrumb">{currentSubunit || 'Subunit'}</p>
+              <div className="lesson-title-row">
+                <h1 className="lesson-page-title">{currentSubunit || selectedUnit?.name || course.title}</h1>
+                <button
+                  type="button"
+                  className="icon-share-btn"
+                  onClick={nativeShareLesson}
+                  title="Share lesson"
+                  aria-label="Share lesson"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                    <path d="M12 16V4" />
+                    <path d="M7 9l5-5 5 5" />
+                  </svg>
+                </button>
+              </div>
               <div className="lesson-toolbar">
                 <div className="lesson-tabs">
                   <button
@@ -2240,7 +2266,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       onClick={() => jumpToSubunit(previousSubunitEntry)}
                       disabled={!previousSubunitEntry}
                     >
-                      Previous Lesson
+                      Previous
                     </button>
                     <button
                       type="button"
@@ -2248,22 +2274,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       onClick={() => jumpToSubunit(nextSubunitEntry)}
                       disabled={!nextSubunitEntry}
                     >
-                      Next Lesson
+                      Next
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    className="icon-share-btn"
-                    onClick={nativeShareLesson}
-                    title="Share lesson"
-                    aria-label="Share lesson"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-                      <path d="M12 16V4" />
-                      <path d="M7 9l5-5 5 5" />
-                    </svg>
-                  </button>
                 </div>
               </div>
               {shareFeedback ? (
@@ -2320,7 +2333,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         <article
                           className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
                             activeTab === 'question' ? 'lesson-card-question' : ''
-                          }`}
+                          } ${index === 0 && activeTab === 'lesson' ? 'lesson-card-overview' : ''}`}
                           key={item.id}
                         >
                           {activeTab !== 'question' ? (
@@ -2397,6 +2410,95 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 </>
               )}
             </section>
+
+            <aside className="lesson-rail">
+              {(() => {
+                const subunits = selectedUnit?.subunits || []
+                const currentIndex = Math.max(0, subunits.indexOf(currentSubunit))
+                const progressPct = subunits.length ? Math.round(((currentIndex + 1) / subunits.length) * 100) : 0
+                const lessonItems = (courseItems || []).filter(
+                  (item) =>
+                    item.curriculumId === course.curriculumId &&
+                    item.unitId === selectedUnit?.id &&
+                    item.subunit === currentSubunit &&
+                    item.itemType === 'lesson',
+                )
+                const questionItems = (courseItems || []).filter(
+                  (item) =>
+                    item.curriculumId === course.curriculumId &&
+                    item.unitId === selectedUnit?.id &&
+                    item.subunit === currentSubunit &&
+                    item.itemType === 'question',
+                )
+                const videoItem = lessonItems.find((item) => toYouTubeEmbedUrl(item.resourceLink))
+                const summaryLines = lessonItems
+                  .slice(0, 3)
+                  .map((item) => String(item.title || '').trim())
+                  .filter(Boolean)
+
+                return (
+                  <>
+                    <article className="rail-card">
+                      <h3>Your Progress</h3>
+                      <div className="rail-progress-head">
+                        <strong>{progressPct}%</strong>
+                        <span>
+                          {subunits.length ? `${currentIndex + 1} of ${subunits.length} subtopics` : 'No subtopics'}
+                        </span>
+                      </div>
+                      <div className="rail-progress-track" aria-hidden="true">
+                        <span className="rail-progress-fill" style={{ width: `${progressPct}%` }} />
+                      </div>
+                    </article>
+
+                    <article className="rail-card">
+                      <h3>Quick Summary</h3>
+                      {summaryLines.length > 0 ? (
+                        <ul className="rail-summary-list">
+                          {summaryLines.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>Open the lesson tab to review key points for this subtopic.</p>
+                      )}
+                    </article>
+
+                    <article className="rail-card rail-card-compact">
+                      <h3>Estimated Time</h3>
+                      <p className="rail-time">⏱ {Math.max(15, lessonItems.length * 8 + questionItems.length * 4)}–{Math.max(25, lessonItems.length * 12 + questionItems.length * 6)} minutes</p>
+                    </article>
+
+                    <article className="rail-card">
+                      <h3>Help &amp; Resources</h3>
+                      <div className="rail-links">
+                        {videoItem ? (
+                          <a href={videoItem.resourceLink} target="_blank" rel="noreferrer">
+                            Watch Video Explanation →
+                          </a>
+                        ) : (
+                          <span className="rail-link-muted">Video explanation coming soon</span>
+                        )}
+                        <button type="button" className="rail-text-btn" onClick={() => setActiveTab('lesson')}>
+                          View Lesson Notes →
+                        </button>
+                        <button type="button" className="rail-text-btn" onClick={() => setActiveTab('question')}>
+                          Open Question Bank →
+                        </button>
+                      </div>
+                    </article>
+
+                    <article className="rail-cta">
+                      <h3>Test Your Understanding</h3>
+                      <p>Try questions from this topic to strengthen your skills.</p>
+                      <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
+                        Start Practice →
+                      </button>
+                    </article>
+                  </>
+                )
+              })()}
+            </aside>
           </div>
         )}
       </section>
