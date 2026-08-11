@@ -4385,3 +4385,169 @@ body {
     width: 100%;
   }
 }
+
+/* ========== Hero side image restore + objectives + course overlap fix ========== */
+.home-site > .hero-section.hero-full {
+  background:
+    radial-gradient(circle at 86% 16%, rgba(26, 79, 140, 0.12), transparent 36%),
+    radial-gradient(circle at 8% 86%, rgba(11, 122, 117, 0.16), transparent 40%),
+    linear-gradient(132deg, #f7fbfb 0%, #eef6f5 52%, #eaf3f8 100%);
+  min-height: clamp(24rem, 48vw, 36rem);
+}
+
+.home-site > .hero-section .brand-mark {
+  color: #0f2c4d;
+}
+
+.home-site > .hero-section h1 {
+  color: #0f2c4d !important;
+  text-shadow: none;
+}
+
+.home-site > .hero-section .hero-copy,
+.home-site > .hero-section .hero-trust {
+  color: #4a5c6a !important;
+}
+
+.hero-grid {
+  width: min(100%, 118rem);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+}
+
+.hero-visual {
+  position: relative;
+  width: 100%;
+  min-height: 16rem;
+  animation: hero-float 7s ease-in-out infinite;
+}
+
+.hero-math-img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 22px;
+  object-fit: cover;
+  background: linear-gradient(145deg, #eaf3fb, #f4f8fc);
+  box-shadow: 0 22px 48px rgba(15, 44, 77, 0.14);
+}
+
+.course-page .course-workspace-grid.course-workspace-lms {
+  grid-template-columns: minmax(250px, 280px) minmax(0, 1fr) minmax(240px, 270px);
+  gap: 1rem;
+}
+
+.course-page .lesson-main {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.course-page .lesson-content,
+.course-page .lesson-card,
+.course-page .latex-text,
+.course-page .latex-heading {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lesson-rail {
+  min-width: 0;
+  max-width: 100%;
+  position: sticky;
+  z-index: 1;
+}
+
+.lesson-card-objectives {
+  background: #eef8f5 !important;
+  border: 1px solid #c5e4db !important;
+  border-left: 4px solid #0b7a75 !important;
+  position: relative;
+}
+
+.lesson-card-objectives::before {
+  display: none !important;
+}
+
+.objectives-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.objectives-head h3 {
+  margin: 0;
+  color: #0f2c4d;
+  font-size: 1.08rem;
+}
+
+.objectives-badge {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d8f1ec;
+  color: #0b7a75;
+}
+
+.objectives-ribbon {
+  margin-left: auto;
+  color: #0b7a75;
+  font-size: 1.15rem;
+}
+
+.objectives-intro {
+  margin: 0 0 0.65rem;
+  color: #3f5560;
+  font-weight: 650;
+}
+
+.objectives-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.objectives-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.objectives-check {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b7a75;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.objectives-list .latex-text {
+  margin: 0;
+  color: #24353f;
+}
+
+@media (max-width: 980px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+}

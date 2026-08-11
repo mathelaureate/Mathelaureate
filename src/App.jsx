@@ -921,6 +921,32 @@ function contentBlocksToPlainText(blocks) {
     .trim()
 }
 
+function parseLearningObjectivePoints(value) {
+  return String(value || '')
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*(?:[-*•●▪]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+}
+
+function isLearningObjectivesLesson(item) {
+  const title = String(item?.title || '')
+  if (/learning\s*objectives?/i.test(title)) return true
+  return Array.isArray(item?.learningObjectives) && item.learningObjectives.some((point) => String(point || '').trim())
+}
+
+function getLearningObjectivePoints(item) {
+  if (Array.isArray(item?.learningObjectives)) {
+    const fromField = item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
+    if (fromField.length) return fromField
+  }
+  const fromBlocks = contentBlocksToPlainText(item?.descriptionBlocks)
+  return parseLearningObjectivePoints(fromBlocks || item?.description || '')
+}
+
+function isOverviewLesson(item) {
+  return /overview/i.test(String(item?.title || ''))
+}
+
 function getContentBlockImageStyle(block) {
   const width = clampImageWidthPercent(block?.widthPercent, 100)
   return {
@@ -1055,14 +1081,8 @@ function HomePage({ user, cachedProfile }) {
     <main className="site home-site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
 
-      <section className="hero-section hero-full hero-with-bg">
-        <div className="hero-bg" aria-hidden="true">
-          <img src="/math-hero.png" alt="" className="hero-bg-img" />
-          <div className="hero-bg-glow hero-bg-glow-a" />
-          <div className="hero-bg-glow hero-bg-glow-b" />
-          <div className="hero-bg-grid" />
-        </div>
-        <div className="hero-shell">
+      <section className="hero-section hero-full">
+        <div className="hero-grid">
           <div className="hero-content">
             <p className="brand-mark">Mathelaureate</p>
             <h1>Learn Math with Clarity and Confidence</h1>
@@ -1098,6 +1118,15 @@ function HomePage({ user, cachedProfile }) {
                 Exam-Focused Approach
               </li>
             </ul>
+          </div>
+          <div className="hero-visual">
+            <img
+              src="/math-hero.png"
+              alt="Mathematical diagrams including surface plots, unit circle, and key formulas"
+              className="hero-math-img"
+              width="960"
+              height="540"
+            />
           </div>
         </div>
       </section>
@@ -2198,26 +2227,20 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     </button>
                     {selectedUnit?.id === unit.id ? (
                       <div className="sidebar-subunits">
-                        {(unit.subunits || []).map((subtopic, subIndex) => {
+                        {(unit.subunits || []).map((subtopic) => {
                           const isActive = selectedUnit?.id === unit.id && currentSubunit === subtopic
-                          const currentIndex = (unit.subunits || []).indexOf(currentSubunit)
-                          const isDone = currentIndex > -1 && subIndex < currentIndex
                           return (
                             <button
                               type="button"
                               key={subtopic}
-                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''}`}
                               onClick={() => {
                                 setSelectedUnitId(unit.id)
                                 setSelectedSubunit(subtopic)
                               }}
                             >
                               <span className="sidebar-status-dot" aria-hidden="true">
-                                {isDone ? (
-                                  <svg viewBox="0 0 24 24" width="12" height="12">
-                                    <path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                ) : isActive ? (
+                                {isActive ? (
                                   <svg viewBox="0 0 24 24" width="12" height="12">
                                     <path d="M7 4h7l3 3v13H7V4Z" fill="none" stroke="#fff" strokeWidth="2.2" />
                                   </svg>
@@ -2366,15 +2389,20 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         <p>Use the admin dashboard to add {activeTab}s for this subunit.</p>
                       </article>
                     ) : (
-                      activeItems.map((item, index) => (
+                      activeItems.map((item, index) => {
+                        const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
+                        const objectivePoints = objectivesItem ? getLearningObjectivePoints(item) : []
+                        const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
+
+                        return (
                         <article
                           className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
                             activeTab === 'question' ? 'lesson-card-question' : ''
-                          } ${index === 0 && activeTab === 'lesson' ? 'lesson-card-overview' : ''}`}
+                          } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}`}
                           key={item.id}
                         >
-                          {activeTab !== 'question' ? (
-                            index === 0 ? (
+                          {activeTab !== 'question' && !objectivesItem ? (
+                            index === 0 || overviewItem ? (
                               <div className="record-top">
                                 <span className="pill">{item.itemType}</span>
                               </div>
@@ -2382,6 +2410,19 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           ) : null}
                           {activeTab === 'question' ? (
                             <h3 className="question-number-title">Question {index + 1}</h3>
+                          ) : objectivesItem ? (
+                            <div className="objectives-head">
+                              <span className="objectives-badge" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="18" height="18">
+                                  <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                                  <circle cx="12" cy="12" r="3" fill="currentColor" />
+                                </svg>
+                              </span>
+                              <h3>Learning Objectives</h3>
+                              <span className="objectives-ribbon" aria-hidden="true">
+                                ★
+                              </span>
+                            </div>
                           ) : (
                             <LatexText value={item.title} className="latex-heading" />
                           )}
@@ -2397,9 +2438,27 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               </span>
                             </div>
                           ) : null}
-                          {contentBlocksHaveMediaOrText(item.descriptionBlocks)
-                            ? renderContentBlocks(item.descriptionBlocks, `desc-${item.id || index}`)
-                            : <LatexText value={item.description} className="latex-text" />}
+                          {objectivesItem ? (
+                            <>
+                              <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
+                              <ul className="objectives-list">
+                                {(objectivePoints.length > 0 ? objectivePoints : ['Add learning objective points in the admin dashboard.']).map(
+                                  (point) => (
+                                    <li key={point}>
+                                      <span className="objectives-check" aria-hidden="true">
+                                        ✓
+                                      </span>
+                                      <LatexText value={point} className="latex-text" />
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            </>
+                          ) : contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
+                            renderContentBlocks(item.descriptionBlocks, `desc-${item.id || index}`)
+                          ) : (
+                            <LatexText value={item.description} className="latex-text" />
+                          )}
                           {item.imageUrl ? (
                             <div className="content-image-block">
                               <button
@@ -2441,7 +2500,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
                             </div>
                           ) : null}
                         </article>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </>
@@ -2761,6 +2821,7 @@ function AdminPage() {
   const [subunit, setSubunit] = useState(curricula[0]?.units[0]?.subunits[0] ?? '')
   const [itemType, setItemType] = useState('lesson')
   const [title, setTitle] = useState('')
+  const [learningObjectivesText, setLearningObjectivesText] = useState('')
   const [descriptionBlocks, setDescriptionBlocks] = useState(() => [createTextContentBlock('')])
   const [solution, setSolution] = useState('')
   const [solutionBlocks, setSolutionBlocks] = useState([])
@@ -2818,6 +2879,7 @@ function AdminPage() {
   const [editingRecordId, setEditingRecordId] = useState('')
   const [editingRecordType, setEditingRecordType] = useState('')
   const [editTitle, setEditTitle] = useState('')
+  const [editLearningObjectivesText, setEditLearningObjectivesText] = useState('')
   const [editDescriptionBlocks, setEditDescriptionBlocks] = useState([])
   const [editSolution, setEditSolution] = useState('')
   const [editSolutionBlocks, setEditSolutionBlocks] = useState([])
@@ -3530,11 +3592,16 @@ function AdminPage() {
 
   async function submitItem(event) {
     event.preventDefault()
+    const objectivePoints = itemType === 'lesson' ? parseLearningObjectivePoints(learningObjectivesText) : []
     const descriptionBlocksEnabled = contentBlocksHaveMediaOrText(descriptionBlocks)
     const solutionBlocksEnabled = itemType === 'question' && contentBlocksHaveMediaOrText(solutionBlocks)
     const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : String(solution || '').trim()
-    if (!descriptionBlocksEnabled) {
-      setDataError('Add at least one description block (text or image).')
+    if (!descriptionBlocksEnabled && objectivePoints.length === 0) {
+      setDataError('Add description blocks, or learning objective points (one per line).')
+      return
+    }
+    if (itemType !== 'question' && !String(title || '').trim() && objectivePoints.length === 0) {
+      setDataError('Title is required.')
       return
     }
     if (
@@ -3568,6 +3635,11 @@ function AdminPage() {
         setDataError(error?.message || 'Unable to upload block images to Supabase.')
         return
       }
+    }
+    if (!descriptionBlocksEnabled && objectivePoints.length > 0) {
+      normalizedDescriptionBlocks = [
+        createTextContentBlock(objectivePoints.map((point, index) => `${index + 1}. ${point}`).join('\n')),
+      ]
     }
 
     if (selectedImageFile) {
@@ -3618,9 +3690,10 @@ function AdminPage() {
 
     const newRecord = {
       itemType,
-      title: itemType === 'question' ? '' : title,
+      title: itemType === 'question' ? '' : title.trim() || (objectivePoints.length ? 'Learning Objectives' : ''),
       description: contentBlocksToPlainText(normalizedDescriptionBlocks),
       descriptionBlocks: normalizedDescriptionBlocks,
+      learningObjectives: itemType === 'lesson' ? objectivePoints : [],
       solution: itemType === 'question' ? (solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : solution) : '',
       solutionBlocks: itemType === 'question' && solutionBlocksEnabled ? normalizedSolutionBlocks : [],
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
@@ -3651,6 +3724,7 @@ function AdminPage() {
     }
     setIsImageUploading(false)
     setTitle('')
+    setLearningObjectivesText('')
     setDescriptionBlocks([createTextContentBlock('')])
     setSolution('')
     setSolutionBlocks([])
@@ -3779,6 +3853,13 @@ function AdminPage() {
     setEditingRecordId(record.id)
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
+    setEditLearningObjectivesText(
+      Array.isArray(record.learningObjectives) && record.learningObjectives.length
+        ? record.learningObjectives.join('\n')
+        : /learning\s*objectives?/i.test(String(record.title || ''))
+          ? getLearningObjectivePoints(record).join('\n')
+          : '',
+    )
     setEditDescriptionBlocks(normalizeContentBlocks(record.descriptionBlocks, record.description))
     setEditSolution(String(record.solution || ''))
     setEditSolutionBlocks(normalizeContentBlocks(record.solutionBlocks, record.solution))
@@ -3796,6 +3877,7 @@ function AdminPage() {
     setEditingRecordId('')
     setEditingRecordType('')
     setEditTitle('')
+    setEditLearningObjectivesText('')
     setEditDescriptionBlocks([])
     setEditSolution('')
     setEditSolutionBlocks([])
@@ -3816,12 +3898,12 @@ function AdminPage() {
     const editSolutionBlocksEnabled = editingRecordType === 'question' && contentBlocksHaveMediaOrText(editSolutionBlocks)
     const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : editSolution.trim()
 
-    if (editingRecordType !== 'question' && !editTitle.trim()) {
+    if (editingRecordType !== 'question' && !editTitle.trim() && !parseLearningObjectivePoints(editLearningObjectivesText).length) {
       setDataError('Title is required for lessons.')
       return
     }
-    if (!editDescriptionBlocksEnabled) {
-      setDataError('Add at least one description block (text or image).')
+    if (!editDescriptionBlocksEnabled && !parseLearningObjectivePoints(editLearningObjectivesText).length) {
+      setDataError('Add description blocks, or learning objective points (one per line).')
       return
     }
     if (
@@ -3837,6 +3919,7 @@ function AdminPage() {
 
     let normalizedDescriptionBlocks = []
     let normalizedSolutionBlocks = []
+    const editObjectivePoints = editingRecordType === 'lesson' ? parseLearningObjectivePoints(editLearningObjectivesText) : []
     if (editDescriptionBlocksEnabled || editSolutionBlocksEnabled) {
       try {
         setIsImageUploading(true)
@@ -3857,6 +3940,11 @@ function AdminPage() {
         setDataError(error?.message || 'Unable to upload block images to Supabase.')
         return
       }
+    }
+    if (!editDescriptionBlocksEnabled && editObjectivePoints.length > 0) {
+      normalizedDescriptionBlocks = [
+        createTextContentBlock(editObjectivePoints.map((point, index) => `${index + 1}. ${point}`).join('\n')),
+      ]
     }
 
     const payload =
@@ -3880,9 +3968,10 @@ function AdminPage() {
             updatedAt: new Date().toISOString(),
           }
         : {
-            title: editTitle.trim(),
+            title: editTitle.trim() || (parseLearningObjectivePoints(editLearningObjectivesText).length ? 'Learning Objectives' : ''),
             description: contentBlocksToPlainText(normalizedDescriptionBlocks),
             descriptionBlocks: normalizedDescriptionBlocks,
+            learningObjectives: parseLearningObjectivePoints(editLearningObjectivesText),
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
@@ -4406,13 +4495,25 @@ function AdminPage() {
             {itemType !== 'question' ? (
               <label>
                 Title
-                <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+                <input value={title} onChange={(event) => setTitle(event.target.value)} required={itemType !== 'lesson'} />
+              </label>
+            ) : null}
+            {itemType === 'lesson' ? (
+              <label>
+                Learning Objectives (one point per line)
+                <textarea
+                  rows={5}
+                  value={learningObjectivesText}
+                  onChange={(event) => setLearningObjectivesText(event.target.value)}
+                  placeholder={'Identify the common ratio of a geometric sequence\nFind the nth term using u_n = ar^{n-1}\nCalculate the sum of the first n terms'}
+                />
+                <small className="muted-text">Leave blank for normal lessons. Title can be “Learning Objectives”.</small>
               </label>
             ) : null}
             {renderAdminBlocksEditor({
               blocks: descriptionBlocks,
               setter: setDescriptionBlocks,
-              label: 'Description blocks (required)',
+              label: itemType === 'lesson' ? 'Description blocks (optional if objectives are set)' : 'Description blocks (required)',
             })}
             {itemType === 'question' ? (
               <>
@@ -4683,10 +4784,19 @@ function AdminPage() {
                                 Title
                                 <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
                               </label>
+                              <label>
+                                Learning Objectives (one point per line)
+                                <textarea
+                                  rows={5}
+                                  value={editLearningObjectivesText}
+                                  onChange={(event) => setEditLearningObjectivesText(event.target.value)}
+                                  placeholder={'Point 1\nPoint 2\nPoint 3'}
+                                />
+                              </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
                                 setter: setEditDescriptionBlocks,
-                                label: 'Description blocks (required)',
+                                label: 'Description blocks (optional if objectives are set)',
                               })}
                               <label>
                                 GeoGebra Link
