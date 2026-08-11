@@ -4672,3 +4672,94 @@ body {
     grid-column: 1;
   }
 }
+
+/* ========== Events horizontal row cards ========== */
+.events-page .events-horizontal-list {
+  margin-top: 0.35rem;
+}
+
+.events-page .event-row-card {
+  background: #fff;
+  border: 1px solid #d5e0e8;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(15, 44, 77, 0.06);
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  grid-template-areas:
+    "image body"
+    "image footer";
+  min-height: 210px;
+}
+
+.events-page .event-row-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 36px rgba(15, 44, 77, 0.12);
+  border-color: #b7cfe2;
+}
+
+.events-page .event-row-card .showcase-image-wrap {
+  background: linear-gradient(145deg, #e8f0f7, #eef7f6);
+}
+
+.events-page .event-row-card .showcase-image,
+.events-page .event-row-card .showcase-image-fallback {
+  min-height: 210px;
+  height: 100%;
+  object-fit: cover;
+}
+
+.events-page .event-row-card .showcase-body {
+  padding: 1.15rem 1.25rem 0.55rem;
+}
+
+.events-page .event-row-card .showcase-label {
+  color: #1b6ea8;
+}
+
+.events-page .event-row-card .showcase-body h3 {
+  color: #0f2c4d;
+  font-size: 1.35rem;
+}
+
+.events-page .event-row-card .showcase-description {
+  color: #5c6b74;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.events-page .event-row-card .showcase-link {
+  color: #1b6ea8;
+  font-weight: 750;
+}
+
+.events-page .event-row-card .showcase-footer {
+  padding: 0.55rem 1.25rem 1.05rem;
+  border-top: none;
+}
+
+.events-page .event-row-card .showcase-footer small {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  background: #e8f0f7;
+  color: #0f2c4d;
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .events-page .event-row-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "image"
+      "body"
+      "footer";
+  }
+
+  .events-page .event-row-card .showcase-image,
+  .events-page .event-row-card .showcase-image-fallback {
+    min-height: 190px;
+  }
+}

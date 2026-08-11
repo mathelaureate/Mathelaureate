@@ -1467,37 +1467,29 @@ function EventsPage({ user, cachedProfile }) {
             <p>New workshops and revision sessions will appear here soon.</p>
           </div>
         ) : null}
-        <div className="events-card-grid">
+        <div className="showcase-grid showcase-grid-horizontal events-horizontal-list">
           {events.map((event) => (
             <button
               key={event.id}
               type="button"
-              className="event-card"
+              className="showcase-card showcase-card-button event-row-card"
               onClick={() => setActiveEvent(event)}
             >
-              <div className="event-card-media">
+              <div className="showcase-image-wrap">
                 {event.imageUrl ? (
-                  <img src={event.imageUrl} alt="" className="event-card-image" />
+                  <img src={event.imageUrl} alt={event.title} className="showcase-image" />
                 ) : (
-                  <div className="event-card-fallback" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="36" height="36">
-                      <rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                      <path d="M3 9h18M8 3v4M16 3v4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                    </svg>
-                  </div>
+                  <div className="showcase-image-fallback">Event</div>
                 )}
-                <span className="event-card-date-badge">{event.date || 'Date TBA'}</span>
               </div>
-              <div className="event-card-body">
-                <small className="event-card-label">Upcoming Event</small>
+              <div className="showcase-body">
+                <small className="showcase-label">Upcoming Event</small>
                 <h3>{event.title}</h3>
-                <LatexText value={event.summary || event.description} className="event-card-copy" />
-                <span className="event-card-cta">
-                  View details
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                    <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
+                <LatexText value={event.summary || event.description} className="showcase-description" />
+                <span className="showcase-link">View details →</span>
+              </div>
+              <div className="showcase-footer">
+                <small>{event.date || 'Date TBA'}</small>
               </div>
             </button>
           ))}
