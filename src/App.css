@@ -2912,14 +2912,22 @@ body {
 
 .hero-visual {
   position: relative;
+  width: 100%;
+  min-height: 16rem;
   animation: hero-float 7s ease-in-out infinite;
 }
 
+.hero-math-img,
 .hero-math-svg {
   width: 100%;
+  max-width: 100%;
   height: auto;
   display: block;
-  filter: drop-shadow(0 18px 40px rgba(15, 44, 77, 0.12));
+  border-radius: 22px;
+  object-fit: cover;
+  background: linear-gradient(145deg, #eaf3fb, #f4f8fc);
+  box-shadow: 0 22px 48px rgba(15, 44, 77, 0.14);
+  filter: none;
 }
 
 @keyframes hero-float {

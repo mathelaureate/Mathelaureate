@@ -1093,8 +1093,14 @@ function HomePage({ user, cachedProfile }) {
               </li>
             </ul>
           </div>
-          <div className="hero-visual" aria-hidden="true">
-            <img src="/math-hero.svg" alt="" className="hero-math-svg" />
+          <div className="hero-visual">
+            <img
+              src="/math-hero.png"
+              alt="Mathematical diagrams including surface plots, unit circle, and key formulas"
+              className="hero-math-img"
+              width="960"
+              height="540"
+            />
           </div>
         </div>
       </section>
