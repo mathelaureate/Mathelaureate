@@ -1729,6 +1729,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [paymentError, setPaymentError] = useState('')
   const [shareFeedback, setShareFeedback] = useState('')
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const [visitedSubunitKeys, setVisitedSubunitKeys] = useState([])
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -1800,6 +1801,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
         setCourseItems(filteredItems)
         setPaywallConfig(nextPaywallConfig)
         setPaidCourses(nextPaidCourses)
+        setVisitedSubunitKeys(
+          Array.isArray(lastViewedCourse?.visitedSubunits)
+            ? lastViewedCourse.visitedSubunits.map((key) => String(key))
+            : [],
+        )
         setSelectedUnitId(nextUnitId)
         setSelectedSubunit(nextSubunit)
         setActiveTab(nextTab)
@@ -2103,18 +2109,20 @@ function CoursePage({ user, authReady, cachedProfile }) {
     async function trackUserCourseProgress() {
       if (!user || !course.curriculumId || !selectedUnit?.id || !currentSubunit) return
 
+      const subunitKey = `${selectedUnit.id}::${currentSubunit}`
+      setVisitedSubunitKeys((current) => (current.includes(subunitKey) ? current : [...current, subunitKey]))
+
       try {
         const progressRef = doc(db, 'userCourseProgress', user.uid)
         const progressSnap = await getDoc(progressRef)
         const existingData = progressSnap.exists() ? progressSnap.data() : {}
         const existingCourses = existingData?.courses || {}
         const existingCourse = existingCourses[course.slug] || {}
-        const subunitKey = `${selectedUnit.id}::${currentSubunit}`
-        const visitedSubunits = Array.isArray(existingCourse.visitedSubunits) ? existingCourse.visitedSubunits : []
-
-        if (visitedSubunits.includes(subunitKey) || !active) return
-
-        const updatedVisitedSubunits = [...visitedSubunits, subunitKey]
+        const visitedSubunits = Array.isArray(existingCourse.visitedSubunits)
+          ? existingCourse.visitedSubunits.map((key) => String(key))
+          : []
+        const alreadyVisited = visitedSubunits.includes(subunitKey)
+        const updatedVisitedSubunits = alreadyVisited ? visitedSubunits : [...visitedSubunits, subunitKey]
         const timestamp = new Date().toISOString()
         const updatedCourse = {
           ...existingCourse,
@@ -2141,6 +2149,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
             updatedAt: courseEntry.updatedAt || timestamp,
           }))
 
+        if (!active) return
+
         await setDoc(
           progressRef,
           {
@@ -2153,6 +2163,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
           },
           { merge: true },
         )
+
+        if (active) {
+          setVisitedSubunitKeys(updatedVisitedSubunits)
+        }
       } catch {
         // Non-blocking: progress tracking should never break page access.
       }
@@ -2229,18 +2243,33 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       <div className="sidebar-subunits">
                         {(unit.subunits || []).map((subtopic) => {
                           const isActive = selectedUnit?.id === unit.id && currentSubunit === subtopic
+                          const subunitKey = `${unit.id}::${subtopic}`
+                          const isVisited = visitedSubunitKeys.includes(subunitKey)
                           return (
                             <button
                               type="button"
                               key={subtopic}
-                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''}`}
+                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${
+                                isVisited && !isActive ? 'done' : ''
+                              }`}
                               onClick={() => {
                                 setSelectedUnitId(unit.id)
                                 setSelectedSubunit(subtopic)
                               }}
                             >
                               <span className="sidebar-status-dot" aria-hidden="true">
-                                {isActive ? (
+                                {isVisited && !isActive ? (
+                                  <svg viewBox="0 0 24 24" width="12" height="12">
+                                    <path
+                                      d="M5 12.5 10 17l9-10"
+                                      fill="none"
+                                      stroke="#fff"
+                                      strokeWidth="2.6"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                ) : isActive ? (
                                   <svg viewBox="0 0 24 24" width="12" height="12">
                                     <path d="M7 4h7l3 3v13H7V4Z" fill="none" stroke="#fff" strokeWidth="2.2" />
                                   </svg>
@@ -2511,8 +2540,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
             <aside className="lesson-rail">
               {(() => {
                 const subunits = selectedUnit?.subunits || []
-                const currentIndex = Math.max(0, subunits.indexOf(currentSubunit))
-                const progressPct = subunits.length ? Math.round(((currentIndex + 1) / subunits.length) * 100) : 0
+                const visitedInUnit = subunits.filter((subtopic) =>
+                  visitedSubunitKeys.includes(`${selectedUnit?.id}::${subtopic}`),
+                ).length
+                const progressPct = subunits.length ? Math.round((visitedInUnit / subunits.length) * 100) : 0
 
                 return (
                   <>
@@ -2526,7 +2557,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       <div className="rail-progress-head">
                         <strong>{progressPct}%</strong>
                         <span>
-                          {subunits.length ? `${currentIndex + 1} of ${subunits.length} subtopics` : 'No subtopics'}
+                          {subunits.length
+                            ? `${visitedInUnit} of ${subunits.length} subtopics viewed`
+                            : 'No subtopics'}
                         </span>
                       </div>
                       <div className="rail-progress-track" aria-hidden="true">
