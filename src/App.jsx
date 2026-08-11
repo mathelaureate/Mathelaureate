@@ -1055,9 +1055,15 @@ function HomePage({ user, cachedProfile }) {
     <main className="site home-site site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
 
-      <section className="hero-section hero-full">
-        <div className="hero-grid">
-          <div className="hero-content">
+      <section className="hero-section hero-full hero-with-bg">
+        <div className="hero-bg" aria-hidden="true">
+          <img src="/math-hero.png" alt="" className="hero-bg-img" />
+          <div className="hero-bg-glow hero-bg-glow-a" />
+          <div className="hero-bg-glow hero-bg-glow-b" />
+          <div className="hero-bg-grid" />
+        </div>
+        <div className="hero-grid hero-grid-overlay">
+          <div className="hero-content hero-content-panel">
             <p className="brand-mark">Mathelaureate</p>
             <h1>Learn Math with Clarity and Confidence</h1>
             <p className="hero-copy">
@@ -1092,15 +1098,6 @@ function HomePage({ user, cachedProfile }) {
                 Exam-Focused Approach
               </li>
             </ul>
-          </div>
-          <div className="hero-visual">
-            <img
-              src="/math-hero.png"
-              alt="Mathematical diagrams including surface plots, unit circle, and key formulas"
-              className="hero-math-img"
-              width="960"
-              height="540"
-            />
           </div>
         </div>
       </section>
@@ -1420,43 +1417,61 @@ function EventsPage({ user, cachedProfile }) {
   }, [])
 
   return (
-    <main className="site site-full">
+    <main className="site site-full events-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Events</h1>
-        <p>Upcoming workshops, bootcamps, and revision sessions.</p>
+      <section className="events-hero">
+        <div className="events-hero-inner">
+          <p className="eyebrow">Workshops · Bootcamps · Revision</p>
+          <h1>Events</h1>
+          <p>Join live sessions designed for IBDP and IGCSE students — exam prep, concept intensives, and more.</p>
+        </div>
+      </section>
+      <section className="panel-section events-panel">
         {loadingEvents ? <p>Loading events...</p> : null}
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
-        {!loadingEvents && events.length === 0 ? <p>No upcoming events yet.</p> : null}
-        <div className="showcase-grid showcase-grid-horizontal">
-          {events.map((event) => {
-            const content = (
-              <>
-                <div className="showcase-image-wrap">
-                  {event.imageUrl ? <img src={event.imageUrl} alt={event.title} className="showcase-image" /> : <div className="showcase-image-fallback">Event</div>}
-                </div>
-                <div className="showcase-body">
-                  <small className="showcase-label">Event</small>
-                  <h3>{event.title}</h3>
-                  <LatexText value={event.summary || event.description} className="showcase-description" />
-                  <span className="showcase-link">View details</span>
-                </div>
-                <div className="showcase-footer">
-                  <small>{event.date}</small>
-                </div>
-              </>
-            )
-            return (
-              <button
-                key={event.id}
-                type="button"
-                className="showcase-card showcase-card-button"
-                onClick={() => setActiveEvent(event)}
-              >
-                {content}
-              </button>
-            )
-          })}
+        {!loadingEvents && events.length === 0 ? (
+          <div className="events-empty">
+            <span className="events-empty-icon" aria-hidden="true">
+              📅
+            </span>
+            <h2>No upcoming events yet</h2>
+            <p>New workshops and revision sessions will appear here soon.</p>
+          </div>
+        ) : null}
+        <div className="events-card-grid">
+          {events.map((event) => (
+            <button
+              key={event.id}
+              type="button"
+              className="event-card"
+              onClick={() => setActiveEvent(event)}
+            >
+              <div className="event-card-media">
+                {event.imageUrl ? (
+                  <img src={event.imageUrl} alt="" className="event-card-image" />
+                ) : (
+                  <div className="event-card-fallback" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="36" height="36">
+                      <rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                      <path d="M3 9h18M8 3v4M16 3v4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    </svg>
+                  </div>
+                )}
+                <span className="event-card-date-badge">{event.date || 'Date TBA'}</span>
+              </div>
+              <div className="event-card-body">
+                <small className="event-card-label">Upcoming Event</small>
+                <h3>{event.title}</h3>
+                <LatexText value={event.summary || event.description} className="event-card-copy" />
+                <span className="event-card-cta">
+                  View details
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </div>
+            </button>
+          ))}
         </div>
       </section>
       {activeEvent ? (
@@ -2197,7 +2212,17 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 setSelectedSubunit(subtopic)
                               }}
                             >
-                              <span className="sidebar-status-dot" aria-hidden="true" />
+                              <span className="sidebar-status-dot" aria-hidden="true">
+                                {isDone ? (
+                                  <svg viewBox="0 0 24 24" width="12" height="12">
+                                    <path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                ) : isActive ? (
+                                  <svg viewBox="0 0 24 24" width="12" height="12">
+                                    <path d="M7 4h7l3 3v13H7V4Z" fill="none" stroke="#fff" strokeWidth="2.2" />
+                                  </svg>
+                                ) : null}
+                              </span>
                               <span className="sidebar-subunit-label">{subtopic}</span>
                               {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
                             </button>
@@ -2219,6 +2244,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
                   }
                 }}
               >
+                <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 19.5V6.5A1.5 1.5 0 0 1 5.5 5H12v14.5H5.5A1.5 1.5 0 0 1 4 19.5Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                  <path d="M12 5h6.5A1.5 1.5 0 0 1 20 6.5v13a1.5 1.5 0 0 1-1.5 1.5H12V5Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                </svg>
                 Course Overview
               </button>
             </aside>
@@ -2248,6 +2277,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
                     onClick={() => setActiveTab('lesson')}
                   >
+                    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16M4 12h16M4 19h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
                     Lesson
                   </button>
                   <button
@@ -2255,6 +2287,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
                     onClick={() => setActiveTab('question')}
                   >
+                    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                      <path d="M9.6 9.4a2.5 2.5 0 0 1 4.7.9c0 1.5-2.35 2-2.35 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      <circle cx="12" cy="17.1" r="1" fill="currentColor" />
+                    </svg>
                     Question Bank
                   </button>
                 </div>
@@ -2431,15 +2468,16 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     item.itemType === 'question',
                 )
                 const videoItem = lessonItems.find((item) => toYouTubeEmbedUrl(item.resourceLink))
-                const summaryLines = lessonItems
-                  .slice(0, 3)
-                  .map((item) => String(item.title || '').trim())
-                  .filter(Boolean)
 
                 return (
                   <>
                     <article className="rail-card">
-                      <h3>Your Progress</h3>
+                      <h3>
+                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Your Progress
+                      </h3>
                       <div className="rail-progress-head">
                         <strong>{progressPct}%</strong>
                         <span>
@@ -2451,45 +2489,68 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       </div>
                     </article>
 
-                    <article className="rail-card">
-                      <h3>Quick Summary</h3>
-                      {summaryLines.length > 0 ? (
-                        <ul className="rail-summary-list">
-                          {summaryLines.map((line) => (
-                            <li key={line}>{line}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>Open the lesson tab to review key points for this subtopic.</p>
-                      )}
-                    </article>
-
                     <article className="rail-card rail-card-compact">
-                      <h3>Estimated Time</h3>
-                      <p className="rail-time">⏱ {Math.max(15, lessonItems.length * 8 + questionItems.length * 4)}–{Math.max(25, lessonItems.length * 12 + questionItems.length * 6)} minutes</p>
+                      <h3>
+                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                          <path d="M12 7.5v5l3 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                        Estimated Time
+                      </h3>
+                      <p className="rail-time">
+                        {Math.max(15, lessonItems.length * 8 + questionItems.length * 4)}–
+                        {Math.max(25, lessonItems.length * 12 + questionItems.length * 6)} minutes
+                      </p>
                     </article>
 
                     <article className="rail-card">
-                      <h3>Help &amp; Resources</h3>
+                      <h3>
+                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M8 6h11M8 12h11M8 18h11M5 6h.01M5 12h.01M5 18h.01" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                        Help &amp; Resources
+                      </h3>
                       <div className="rail-links">
                         {videoItem ? (
-                          <a href={videoItem.resourceLink} target="_blank" rel="noreferrer">
-                            Watch Video Explanation →
+                          <a href={videoItem.resourceLink} target="_blank" rel="noreferrer" className="rail-link-row">
+                            <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                              <rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                              <path d="M10 9.5v5l5-2.5-5-2.5Z" fill="currentColor" />
+                            </svg>
+                            Watch Video Explanation
+                            <span aria-hidden="true">→</span>
                           </a>
                         ) : (
                           <span className="rail-link-muted">Video explanation coming soon</span>
                         )}
-                        <button type="button" className="rail-text-btn" onClick={() => setActiveTab('lesson')}>
-                          View Lesson Notes →
+                        <button type="button" className="rail-text-btn rail-link-row" onClick={() => setActiveTab('lesson')}>
+                          <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 4h9l3 3v13H6V4Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                            <path d="M9 12h6M9 16h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                          </svg>
+                          View Lesson Notes
+                          <span aria-hidden="true">→</span>
                         </button>
-                        <button type="button" className="rail-text-btn" onClick={() => setActiveTab('question')}>
-                          Open Question Bank →
+                        <button type="button" className="rail-text-btn rail-link-row" onClick={() => setActiveTab('question')}>
+                          <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                            <path d="M9.6 9.4a2.5 2.5 0 0 1 4.7.9c0 1.5-2.35 2-2.35 3.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                            <circle cx="12" cy="17.1" r="1" fill="currentColor" />
+                          </svg>
+                          Open Question Bank
+                          <span aria-hidden="true">→</span>
                         </button>
                       </div>
                     </article>
 
                     <article className="rail-cta">
-                      <h3>Test Your Understanding</h3>
+                      <h3>
+                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M8 14.5 5 21l4-1.5L12 21l3-1.5L19 21l-3-6.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                          <circle cx="12" cy="8" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                        </svg>
+                        Test Your Understanding
+                      </h3>
                       <p>Try questions from this topic to strengthen your skills.</p>
                       <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
                         Start Practice →
