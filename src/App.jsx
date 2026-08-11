@@ -1448,21 +1448,15 @@ function EventsPage({ user, cachedProfile }) {
   return (
     <main className="site site-full events-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="events-hero">
-        <div className="events-hero-inner">
-          <p className="eyebrow">Workshops · Bootcamps · Revision</p>
-          <h1>Events</h1>
-          <p>Join live sessions designed for IBDP and IGCSE students — exam prep, concept intensives, and more.</p>
-        </div>
-      </section>
       <section className="panel-section events-panel">
+        <div className="events-page-head">
+          <h1>Events</h1>
+          <p>Upcoming workshops, bootcamps, and revision sessions for IBDP and IGCSE students.</p>
+        </div>
         {loadingEvents ? <p>Loading events...</p> : null}
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
         {!loadingEvents && events.length === 0 ? (
           <div className="events-empty">
-            <span className="events-empty-icon" aria-hidden="true">
-              📅
-            </span>
             <h2>No upcoming events yet</h2>
             <p>New workshops and revision sessions will appear here soon.</p>
           </div>
@@ -1483,13 +1477,13 @@ function EventsPage({ user, cachedProfile }) {
                 )}
               </div>
               <div className="showcase-body">
-                <small className="showcase-label">Upcoming Event</small>
+                <div className="event-row-meta">
+                  <small className="showcase-label">Event</small>
+                  <small className="event-row-date">{event.date || 'Date TBA'}</small>
+                </div>
                 <h3>{event.title}</h3>
                 <LatexText value={event.summary || event.description} className="showcase-description" />
                 <span className="showcase-link">View details →</span>
-              </div>
-              <div className="showcase-footer">
-                <small>{event.date || 'Date TBA'}</small>
               </div>
             </button>
           ))}

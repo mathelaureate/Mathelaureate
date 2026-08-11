@@ -4763,3 +4763,103 @@ body {
     min-height: 190px;
   }
 }
+
+/* ========== Cleaner Events page (no navy banner) ========== */
+.events-page {
+  background: #f5f8fa;
+  padding-bottom: 3rem;
+}
+
+.events-page .events-panel {
+  width: min(100% - 2rem, 118rem);
+  margin: 1.25rem auto 0 !important;
+  padding: 1.35rem 1.4rem 1.6rem !important;
+  background: #fff !important;
+  border: 1px solid #d8e3ea !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 28px rgba(15, 44, 77, 0.05) !important;
+}
+
+.events-page-head {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e4ecf1;
+}
+
+.events-page-head h1 {
+  margin: 0 0 0.35rem;
+  color: #0f2c4d;
+  font-size: clamp(1.7rem, 2.6vw, 2.2rem);
+}
+
+.events-page-head p {
+  margin: 0;
+  max-width: 54ch;
+  color: #5c6b74;
+}
+
+.events-page .events-hero {
+  display: none !important;
+}
+
+.events-page .event-row-card {
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  grid-template-areas: "image body";
+  min-height: 190px;
+  align-items: stretch;
+}
+
+.events-page .event-row-card .showcase-body {
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+  padding: 1.2rem 1.3rem;
+}
+
+.events-page .event-row-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.events-page .event-row-date {
+  border-radius: 999px;
+  background: #e8f0f7;
+  color: #0f2c4d;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.28rem 0.65rem;
+}
+
+.events-page .event-row-card .showcase-footer {
+  display: none;
+}
+
+.events-page .events-empty {
+  border: 1px dashed #c9d8e2;
+  border-radius: 14px;
+  background: #f8fbfd;
+  padding: 1.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.events-page .events-empty h2 {
+  margin: 0 0 0.3rem;
+  color: #0f2c4d;
+  font-size: 1.15rem;
+}
+
+.events-page .events-empty p {
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .events-page .event-row-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "image"
+      "body";
+  }
+}
