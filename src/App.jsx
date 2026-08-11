@@ -1889,7 +1889,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
         ondismiss: () => setPaymentBusy(false),
       },
       theme: {
-        color: '#6f42c1',
+        color: '#0b7a75',
       },
     }
 
@@ -2996,7 +2996,7 @@ function AdminPage() {
     const unitToDelete = units.find((unit) => unit.id === unitId)
     if (!unitToDelete) return
     const confirmed = window.confirm(
-      `Delete topic "${unitToDelete.name}" and all its subtopics/content items? This cannot be undone.`,
+      `Are you sure you want to delete topic "${unitToDelete.name}" and all its subtopics/content items?\n\nThis cannot be undone.`,
     )
     if (!confirmed) return
 
@@ -3059,7 +3059,7 @@ function AdminPage() {
       return
     }
     const confirmed = window.confirm(
-      `Delete subtopic "${subunit}" and all its content items? This cannot be undone.`,
+      `Are you sure you want to delete subtopic "${subunit}" and all its content items?\n\nThis cannot be undone.`,
     )
     if (!confirmed) return
 
@@ -3136,6 +3136,8 @@ function AdminPage() {
   }
 
   function removeBlock(setter, blockId) {
+    const confirmed = window.confirm('Are you sure you want to delete this block?')
+    if (!confirmed) return
     setter((current) => current.filter((block) => block.id !== blockId))
   }
 
@@ -3496,6 +3498,11 @@ function AdminPage() {
   }
 
   async function removeRecord(id) {
+    const record = records.find((item) => item.id === id)
+    const label = record?.title ? `"${record.title}"` : 'this content item'
+    const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
+    if (!confirmed) return
+
     try {
       await deleteDoc(doc(db, 'courseContentItems', id))
       persistRecords(records.filter((item) => item.id !== id))
@@ -3699,6 +3706,10 @@ function AdminPage() {
   }
 
   async function removeEvent(eventId) {
+    const eventItem = events.find((item) => item.id === eventId)
+    const label = eventItem?.title ? `"${eventItem.title}"` : 'this event'
+    const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
+    if (!confirmed) return
     await persistEvents(events.filter((item) => item.id !== eventId))
   }
 
@@ -3758,6 +3769,10 @@ function AdminPage() {
   }
 
   async function removeTeachersResourcePost(postId) {
+    const post = teachersResourcesPosts.find((item) => item.id === postId)
+    const label = post?.title ? `"${post.title}"` : 'this resource'
+    const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
+    if (!confirmed) return
     await persistTeachersResourcesPosts(teachersResourcesPosts.filter((item) => item.id !== postId))
   }
 
