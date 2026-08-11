@@ -2489,20 +2489,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       </div>
                     </article>
 
-                    <article className="rail-card rail-card-compact">
-                      <h3>
-                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                          <path d="M12 7.5v5l3 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                        </svg>
-                        Estimated Time
-                      </h3>
-                      <p className="rail-time">
-                        {Math.max(15, lessonItems.length * 8 + questionItems.length * 4)}–
-                        {Math.max(25, lessonItems.length * 12 + questionItems.length * 6)} minutes
-                      </p>
-                    </article>
-
                     <article className="rail-card">
                       <h3>
                         <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
