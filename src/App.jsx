@@ -2460,13 +2460,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     item.subunit === currentSubunit &&
                     item.itemType === 'lesson',
                 )
-                const questionItems = (courseItems || []).filter(
-                  (item) =>
-                    item.curriculumId === course.curriculumId &&
-                    item.unitId === selectedUnit?.id &&
-                    item.subunit === currentSubunit &&
-                    item.itemType === 'question',
-                )
                 const videoItem = lessonItems.find((item) => toYouTubeEmbedUrl(item.resourceLink))
 
                 return (
