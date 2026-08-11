@@ -811,7 +811,7 @@ nav button:hover {
   display: flex;
   gap: 0.52rem;
   flex-wrap: wrap;
-  margin: 0.26rem 0 0.5rem;
+  margin: 0.26rem 0 1.05rem;
 }
 
 .meta-chip {
@@ -2112,7 +2112,7 @@ select {
 }
 
 .lesson-card-question .question-meta-row {
-  margin-bottom: 0.7rem;
+  margin-bottom: 1.15rem;
 }
 
 .lesson-card-question .latex-text {
