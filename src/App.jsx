@@ -1293,7 +1293,7 @@ function EventsPage({ user, cachedProfile }) {
         {loadingEvents ? <p>Loading events...</p> : null}
         {eventsError ? <p className="error-text">{eventsError}</p> : null}
         {!loadingEvents && events.length === 0 ? <p>No upcoming events yet.</p> : null}
-        <div className="showcase-grid">
+        <div className="showcase-grid showcase-grid-horizontal">
           {events.map((event) => {
             const content = (
               <>
@@ -1396,7 +1396,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
         {loadingPosts ? <p>Loading resources...</p> : null}
         {postsError ? <p className="error-text">{postsError}</p> : null}
         {!loadingPosts && posts.length === 0 ? <p>No resource posts yet.</p> : null}
-        <div className="showcase-grid">
+        <div className="showcase-grid showcase-grid-horizontal">
           {posts.map((post) => (
             <article key={post.id} className="showcase-card">
               <div className="showcase-image-wrap">
@@ -1659,6 +1659,24 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const units = curriculum?.units ?? []
   const selectedUnit = units.find((unit) => unit.id === selectedUnitId) || units[0]
   const currentSubunit = selectedSubunit || selectedUnit?.subunits?.[0] || ''
+  const subunitSequence = useMemo(
+    () =>
+      units.flatMap((unit) =>
+        (unit.subunits || []).map((subunitName) => ({
+          unitId: unit.id,
+          subunit: subunitName,
+        })),
+      ),
+    [units],
+  )
+  const currentSubunitIndex = subunitSequence.findIndex(
+    (entry) => entry.unitId === selectedUnit?.id && entry.subunit === currentSubunit,
+  )
+  const previousSubunitEntry = currentSubunitIndex > 0 ? subunitSequence[currentSubunitIndex - 1] : null
+  const nextSubunitEntry =
+    currentSubunitIndex >= 0 && currentSubunitIndex < subunitSequence.length - 1
+      ? subunitSequence[currentSubunitIndex + 1]
+      : null
   const scopedItems = courseItems.filter((item) => item.unitId === selectedUnit?.id && item.subunit === currentSubunit)
   const sortByStoredOrder = (a, b) => {
     const aOrder = Number.isFinite(Number(a?.sortOrder)) ? Number(a.sortOrder) : Number.MAX_SAFE_INTEGER
@@ -1889,6 +1907,13 @@ function CoursePage({ user, authReady, cachedProfile }) {
     )
   }
 
+  function jumpToSubunit(target) {
+    if (!target?.unitId || !target?.subunit) return
+    setSelectedUnitId(target.unitId)
+    setSelectedSubunit(target.subunit)
+    setActiveTab('lesson')
+  }
+
   useEffect(() => {
     setShareFeedback('')
   }, [selectedUnit?.id, currentSubunit, activeTab])
@@ -2072,19 +2097,39 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     Question Bank
                   </button>
                 </div>
-                <button
-                  type="button"
-                  className="icon-share-btn"
-                  onClick={nativeShareLesson}
-                  title="Share lesson"
-                  aria-label="Share lesson"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-                    <path d="M12 16V4" />
-                    <path d="M7 9l5-5 5 5" />
-                  </svg>
-                </button>
+                <div className="lesson-toolbar-actions">
+                  <div className="lesson-nav-buttons">
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => jumpToSubunit(previousSubunitEntry)}
+                      disabled={!previousSubunitEntry}
+                    >
+                      Previous Lesson
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => jumpToSubunit(nextSubunitEntry)}
+                      disabled={!nextSubunitEntry}
+                    >
+                      Next Lesson
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-share-btn"
+                    onClick={nativeShareLesson}
+                    title="Share lesson"
+                    aria-label="Share lesson"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                      <path d="M12 16V4" />
+                      <path d="M7 9l5-5 5 5" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               {shareFeedback ? (
                 <div className="lesson-share-row">

@@ -194,6 +194,11 @@ nav button:hover {
   gap: 1.1rem;
 }
 
+.showcase-grid.showcase-grid-horizontal {
+  grid-template-columns: 1fr;
+  gap: 0.95rem;
+}
+
 .showcase-card {
   border: 1px solid #dfd9f2;
   border-radius: 14px;
@@ -303,6 +308,33 @@ nav button:hover {
   font-size: 0.74rem;
   font-weight: 700;
   color: #635985;
+}
+
+.showcase-grid-horizontal .showcase-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  grid-template-areas:
+    "image body"
+    "image footer";
+  align-items: stretch;
+}
+
+.showcase-grid-horizontal .showcase-image-wrap {
+  grid-area: image;
+}
+
+.showcase-grid-horizontal .showcase-image,
+.showcase-grid-horizontal .showcase-image-fallback {
+  height: 100%;
+  min-height: 100%;
+}
+
+.showcase-grid-horizontal .showcase-body {
+  grid-area: body;
+}
+
+.showcase-grid-horizontal .showcase-footer {
+  grid-area: footer;
 }
 
 .event-modal-overlay {
@@ -608,6 +640,22 @@ nav button:hover {
   justify-content: space-between;
   gap: 0.7rem;
   flex-wrap: nowrap;
+}
+
+.lesson-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.lesson-nav-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lesson-nav-buttons .btn {
+  padding: 0.46rem 0.72rem;
 }
 
 .lesson-share-row {
@@ -2221,6 +2269,19 @@ select {
 @media (max-width: 980px) {
   .home-site > .hero-section > .hero-content {
     margin-left: 0;
+  }
+
+  .showcase-grid-horizontal .showcase-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "image"
+      "body"
+      "footer";
+  }
+
+  .showcase-grid-horizontal .showcase-image,
+  .showcase-grid-horizontal .showcase-image-fallback {
+    min-height: 210px;
   }
 
   .home-footer-inner {
