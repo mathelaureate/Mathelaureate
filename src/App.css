@@ -4551,3 +4551,124 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ========== Fix lesson-change rail overlap ========== */
+.course-page .course-shell-fluid.course-workspace {
+  width: min(100% - 1.25rem, 118rem);
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.course-page .course-workspace-grid.course-workspace-lms {
+  display: grid !important;
+  grid-template-columns: 260px minmax(0, 1fr) 250px !important;
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  align-items: start;
+  isolation: isolate;
+}
+
+.course-page .course-workspace-grid.course-workspace-lms > .lesson-sidebar {
+  grid-column: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.course-page .course-workspace-grid.course-workspace-lms > .lesson-main {
+  grid-column: 2;
+  min-width: 0 !important;
+  max-width: 100%;
+  width: 100%;
+  overflow-x: visible;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.course-page .course-workspace-grid.course-workspace-lms > .lesson-rail {
+  grid-column: 3;
+  min-width: 0 !important;
+  max-width: 100%;
+  width: 100%;
+  justify-self: stretch;
+  align-self: start;
+  position: sticky;
+  top: 5.2rem;
+  z-index: 1;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.course-page .lesson-toolbar {
+  flex-wrap: wrap;
+  row-gap: 0.55rem;
+}
+
+.course-page .lesson-toolbar-actions,
+.course-page .lesson-nav-buttons {
+  flex-wrap: wrap;
+}
+
+.course-page .lesson-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.course-page .lesson-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.course-page .katex-display,
+.course-page .katex,
+.course-page .latex-text,
+.course-page .latex-heading {
+  max-width: 100%;
+}
+
+.course-page .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.course-page .lesson-main-centered .lesson-card-lesson .latex-text,
+.course-page .lesson-main-centered .lesson-card-lesson .solution-box {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+}
+
+@media (max-width: 1200px) {
+  .course-page .course-workspace-grid.course-workspace-lms {
+    grid-template-columns: 240px minmax(0, 1fr) !important;
+  }
+
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-sidebar {
+    grid-column: 1;
+  }
+
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-main {
+    grid-column: 2;
+  }
+
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-rail {
+    grid-column: 1 / -1;
+    position: static;
+    max-height: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 860px) {
+  .course-page .course-workspace-grid.course-workspace-lms {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-sidebar,
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-main,
+  .course-page .course-workspace-grid.course-workspace-lms > .lesson-rail {
+    grid-column: 1;
+  }
+}

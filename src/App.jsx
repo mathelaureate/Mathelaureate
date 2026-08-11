@@ -2275,7 +2275,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
               </button>
             </aside>
 
-            <section className={`lesson-main ${activeTab === 'lesson' ? 'lesson-main-centered' : ''}`}>
+            <section className="lesson-main">
               <p className="eyebrow lesson-breadcrumb">{currentSubunit || 'Subunit'}</p>
               <div className="lesson-title-row">
                 <h1 className="lesson-page-title">{currentSubunit || selectedUnit?.name || course.title}</h1>
