@@ -2453,14 +2453,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 const subunits = selectedUnit?.subunits || []
                 const currentIndex = Math.max(0, subunits.indexOf(currentSubunit))
                 const progressPct = subunits.length ? Math.round(((currentIndex + 1) / subunits.length) * 100) : 0
-                const lessonItems = (courseItems || []).filter(
-                  (item) =>
-                    item.curriculumId === course.curriculumId &&
-                    item.unitId === selectedUnit?.id &&
-                    item.subunit === currentSubunit &&
-                    item.itemType === 'lesson',
-                )
-                const videoItem = lessonItems.find((item) => toYouTubeEmbedUrl(item.resourceLink))
 
                 return (
                   <>
@@ -2479,46 +2471,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       </div>
                       <div className="rail-progress-track" aria-hidden="true">
                         <span className="rail-progress-fill" style={{ width: `${progressPct}%` }} />
-                      </div>
-                    </article>
-
-                    <article className="rail-card">
-                      <h3>
-                        <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M8 6h11M8 12h11M8 18h11M5 6h.01M5 12h.01M5 18h.01" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                        </svg>
-                        Help &amp; Resources
-                      </h3>
-                      <div className="rail-links">
-                        {videoItem ? (
-                          <a href={videoItem.resourceLink} target="_blank" rel="noreferrer" className="rail-link-row">
-                            <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                              <rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                              <path d="M10 9.5v5l5-2.5-5-2.5Z" fill="currentColor" />
-                            </svg>
-                            Watch Video Explanation
-                            <span aria-hidden="true">→</span>
-                          </a>
-                        ) : (
-                          <span className="rail-link-muted">Video explanation coming soon</span>
-                        )}
-                        <button type="button" className="rail-text-btn rail-link-row" onClick={() => setActiveTab('lesson')}>
-                          <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 4h9l3 3v13H6V4Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                            <path d="M9 12h6M9 16h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                          </svg>
-                          View Lesson Notes
-                          <span aria-hidden="true">→</span>
-                        </button>
-                        <button type="button" className="rail-text-btn rail-link-row" onClick={() => setActiveTab('question')}>
-                          <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                            <path d="M9.6 9.4a2.5 2.5 0 0 1 4.7.9c0 1.5-2.35 2-2.35 3.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                            <circle cx="12" cy="17.1" r="1" fill="currentColor" />
-                          </svg>
-                          Open Question Bank
-                          <span aria-hidden="true">→</span>
-                        </button>
                       </div>
                     </article>
 
