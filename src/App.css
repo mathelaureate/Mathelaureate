@@ -287,7 +287,11 @@ nav button:hover {
   width: fit-content;
   font-weight: 700;
   color: #4d3f7f;
-  text-decoration-thickness: 2px;
+  text-decoration: none;
+}
+
+.showcase-link:hover {
+  text-decoration: none;
 }
 
 .showcase-link.disabled {
