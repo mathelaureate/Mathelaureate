@@ -89,7 +89,20 @@ async function sendViaBrevo({ name, email, subject, message }) {
 
   if (!response.ok) {
     const details = await response.text().catch(() => '')
-    throw new Error(details || 'Brevo rejected the email request.')
+    let message = details || 'Brevo rejected the email request.'
+    try {
+      const parsed = JSON.parse(details)
+      message = parsed?.message || parsed?.error || message
+    } catch {
+      // keep raw text
+    }
+    const lower = String(message).toLowerCase()
+    if (lower.includes('unrecognised ip') || lower.includes('unrecognized ip') || lower.includes('ip not authorized')) {
+      throw new Error(
+        'Brevo blocked this send because the server IP is not authorized. In Brevo go to Security → Authorized IPs, authorize the IP (or turn off unknown-IP blocking for API keys), then try again.',
+      )
+    }
+    throw new Error(message)
   }
 }
 
