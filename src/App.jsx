@@ -1062,8 +1062,8 @@ function HomePage({ user, cachedProfile }) {
           <div className="hero-bg-glow hero-bg-glow-b" />
           <div className="hero-bg-grid" />
         </div>
-        <div className="hero-grid hero-grid-overlay">
-          <div className="hero-content hero-content-panel">
+        <div className="hero-shell">
+          <div className="hero-content">
             <p className="brand-mark">Mathelaureate</p>
             <h1>Learn Math with Clarity and Confidence</h1>
             <p className="hero-copy">
@@ -2607,34 +2607,55 @@ function ProfilePage({ user, cachedProfile }) {
   return (
     <main className="site profile-page site-full">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="profile-card">
-        <div className="profile-card-left">
-          <div className="profile-avatar">{profileInitial}</div>
-          <div>
-            <small>Your Profile</small>
-            <h1>{profileName}</h1>
-            <p>{user.email}</p>
+
+      <section className="profile-hero">
+        <div className="profile-hero-inner">
+          <div className="profile-identity">
+            <div className="profile-avatar" aria-hidden="true">
+              {profileInitial}
+            </div>
+            <div>
+              <p className="eyebrow">Your Profile</p>
+              <h1>{profileName}</h1>
+              <p className="profile-email">{user.email}</p>
+            </div>
           </div>
+          <button className="btn ghost profile-logout-btn" type="button" onClick={() => signOut(auth)}>
+            Logout
+          </button>
         </div>
-        <button className="btn ghost" type="button" onClick={() => signOut(auth)}>
-          Logout
-        </button>
       </section>
 
       <section className="profile-section">
-        <h2>My Courses</h2>
+        <div className="profile-section-head">
+          <h2>My Courses</h2>
+          <p>Pick up where you left off across your active pathways.</p>
+        </div>
         {isLoadingCourses ? (
           <p>Loading your courses...</p>
         ) : myCourses.length === 0 ? (
-          <p>No active courses found. Browse here.</p>
+          <div className="profile-empty">
+            <h3>No courses yet</h3>
+            <p>Browse the catalog and start a pathway to see it here.</p>
+            <Link className="btn primary" to="/#programs">
+              Explore Programs
+            </Link>
+          </div>
         ) : (
           <div className="my-courses-grid">
             {myCourses.map((courseEntry) => (
               <article className="my-course-card" key={`${courseEntry.slug}-${courseEntry.updatedAt || ''}`}>
-                <h3>{courseEntry.title || courseEntry.slug}</h3>
-                <p>{courseEntry.visitedSubunitsCount || 0} subunits covered</p>
-                <Link className="btn primary" to={`/courses/${courseEntry.slug}`}>
-                  Continue Course
+                <div className="my-course-card-top">
+                  <span className="my-course-icon" aria-hidden="true">
+                    ∑
+                  </span>
+                  <div>
+                    <h3>{courseEntry.title || courseEntry.slug}</h3>
+                    <p>{courseEntry.visitedSubunitsCount || 0} subunits covered</p>
+                  </div>
+                </div>
+                <Link className="my-course-link" to={`/courses/${courseEntry.slug}`}>
+                  Continue Course →
                 </Link>
               </article>
             ))}
@@ -2643,22 +2664,35 @@ function ProfilePage({ user, cachedProfile }) {
       </section>
 
       <section className="profile-section">
-        <h2>Quick Links</h2>
+        <div className="profile-section-head">
+          <h2>Quick Links</h2>
+          <p>Shortcuts to keep your study flow moving.</p>
+        </div>
         <div className="quick-links-grid">
-          <article className="quick-link-card">
-            <h3>Explore Catalog</h3>
-            <p>Discover new tracks and masterclasses.</p>
-            <Link className="btn ghost" to="/#programs">
-              Browse Courses
-            </Link>
-          </article>
-          <article className="quick-link-card">
-            <h3>Practice Papers</h3>
-            <p>Access your curated question papers.</p>
-            <Link className="btn ghost" to="/events">
-              View Events
-            </Link>
-          </article>
+          <Link className="quick-link-card" to="/#programs">
+            <span className="quick-link-icon" aria-hidden="true">
+              ▦
+            </span>
+            <div>
+              <h3>Explore Catalog</h3>
+              <p>Discover new tracks and masterclasses.</p>
+            </div>
+            <span className="quick-link-arrow" aria-hidden="true">
+              →
+            </span>
+          </Link>
+          <Link className="quick-link-card" to="/events">
+            <span className="quick-link-icon" aria-hidden="true">
+              ◎
+            </span>
+            <div>
+              <h3>Events</h3>
+              <p>Workshops, bootcamps, and revision sessions.</p>
+            </div>
+            <span className="quick-link-arrow" aria-hidden="true">
+              →
+            </span>
+          </Link>
         </div>
       </section>
     </main>

@@ -1454,7 +1454,7 @@ select {
 }
 
 .profile-page {
-  max-width: 1100px;
+  max-width: none;
 }
 
 .profile-card {
@@ -4077,5 +4077,311 @@ body {
   .hero-bg-img {
     object-position: center center;
     opacity: 0.4;
+  }
+}
+
+/* ========== Hero + Profile rescue pass ========== */
+.home-site > .hero-section.hero-with-bg {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: min(88vh, 46rem);
+  padding: 0;
+  display: grid;
+  align-items: center;
+}
+
+.home-site > .hero-section.hero-with-bg > .hero-shell {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 2.5rem, 118rem);
+  margin-inline: auto;
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+  max-inline-size: none;
+}
+
+.home-site > .hero-section.hero-with-bg .hero-content {
+  max-width: 38rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  animation: hero-rise 850ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.home-site > .hero-section.hero-with-bg .brand-mark {
+  color: #9fd4ff !important;
+  margin-bottom: 0.75rem;
+}
+
+.home-site > .hero-section.hero-with-bg h1 {
+  color: #ffffff !important;
+  max-width: 13ch;
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.home-site > .hero-section.hero-with-bg .hero-copy {
+  color: #d7e4f0 !important;
+  max-width: 42ch;
+}
+
+.home-site > .hero-section.hero-with-bg .hero-trust {
+  color: #d7e4f0 !important;
+}
+
+.home-site > .hero-section.hero-with-bg .btn.primary {
+  background: linear-gradient(135deg, #1b6ea8 0%, #0b7a75 100%);
+  box-shadow: 0 14px 30px rgba(11, 122, 117, 0.28);
+}
+
+.home-site > .hero-section.hero-with-bg .btn.ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #fff;
+}
+
+.home-site > .hero-section.hero-with-bg .hero-bg-img {
+  opacity: 0.62;
+  object-position: 70% center;
+}
+
+.home-site > .hero-section.hero-with-bg .hero-bg::after {
+  background:
+    linear-gradient(100deg, rgba(7, 20, 36, 0.92) 0%, rgba(10, 30, 50, 0.78) 38%, rgba(10, 30, 50, 0.28) 72%, rgba(10, 30, 50, 0.18) 100%),
+    linear-gradient(180deg, rgba(7, 20, 36, 0.2) 0%, rgba(7, 20, 36, 0.55) 100%);
+}
+
+/* Profile page redesign */
+.profile-page.site-full {
+  background: #f3f7fa;
+  min-height: 100vh;
+  padding-bottom: 3rem;
+}
+
+.profile-page .profile-hero,
+.profile-page .profile-section {
+  width: min(100% - 2rem, 118rem);
+  margin-inline: auto;
+}
+
+.profile-hero {
+  margin-top: 1.2rem;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 90% 20%, rgba(126, 200, 255, 0.18), transparent 36%),
+    linear-gradient(135deg, #0f2c4d 0%, #1a4f78 58%, #0b7a75 130%);
+  color: #e8f0f7;
+  padding: 1.4rem 1.5rem;
+}
+
+.profile-hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-page .profile-avatar {
+  width: 72px;
+  height: 72px;
+  background: #1b6ea8;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.profile-hero .eyebrow {
+  color: #9fd4ff;
+  margin: 0 0 0.25rem;
+}
+
+.profile-hero h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+}
+
+.profile-email {
+  margin: 0.25rem 0 0;
+  color: #c9d8e6;
+}
+
+.profile-logout-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+.profile-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.profile-page .profile-section {
+  margin-top: 1.5rem;
+  border: none;
+  padding: 0;
+}
+
+.profile-section-head {
+  margin-bottom: 0.9rem;
+}
+
+.profile-section-head h2 {
+  margin: 0 0 0.25rem;
+  color: #0f2c4d;
+}
+
+.profile-section-head p {
+  margin: 0;
+  color: #5c6b74;
+}
+
+.profile-page .my-courses-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.profile-page .my-course-card {
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1.05rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 10px 24px rgba(15, 44, 77, 0.05);
+  min-height: 148px;
+}
+
+.my-course-card-top {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.my-course-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #e8f0f7;
+  color: #0f2c4d;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.profile-page .my-course-card h3 {
+  margin: 0 0 0.25rem;
+  color: #0f2c4d;
+  font-size: 1.05rem;
+}
+
+.profile-page .my-course-card p {
+  margin: 0;
+  color: #5c6b74;
+  font-size: 0.9rem;
+}
+
+.my-course-link {
+  margin-top: auto;
+  color: #1b6ea8;
+  font-weight: 750;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.my-course-link:hover {
+  color: #0f2c4d;
+}
+
+.profile-empty {
+  border: 1px dashed #c9d8e2;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1.6rem;
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+}
+
+.profile-empty h3 {
+  margin: 0;
+  color: #0f2c4d;
+}
+
+.profile-page .quick-links-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.9rem;
+}
+
+.profile-page .quick-link-card {
+  text-decoration: none;
+  color: inherit;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 24px rgba(15, 44, 77, 0.05);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.profile-page .quick-link-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(15, 44, 77, 0.1);
+}
+
+.quick-link-icon {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: #eef7f6;
+  color: #0b7a75;
+  font-weight: 700;
+}
+
+.profile-page .quick-link-card h3 {
+  margin: 0 0 0.2rem;
+  color: #0f2c4d;
+  font-size: 1rem;
+}
+
+.profile-page .quick-link-card p {
+  margin: 0;
+  color: #5c6b74;
+  font-size: 0.88rem;
+}
+
+.quick-link-arrow {
+  color: #1b6ea8;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .profile-hero-inner {
+    align-items: flex-start;
+  }
+
+  .profile-logout-btn {
+    width: 100%;
   }
 }
