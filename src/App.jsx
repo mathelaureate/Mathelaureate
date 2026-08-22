@@ -2744,7 +2744,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           )}
                           {activeTab === 'question' ? (
                             <div className="question-meta-row">
-                              <span className="meta-chip">{String(item.gdc || 'Not GDC').toUpperCase()}</span>
+                              <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
                               <span className="meta-chip">{item.marks || 0} marks</span>
                               {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
                                 <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
