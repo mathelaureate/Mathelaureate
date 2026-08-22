@@ -1181,7 +1181,6 @@ function createDefaultMockPaperSettings(papers) {
       {
         enabled: index === 0,
         targetMarks: paper.fullMarks,
-        minutes: paper.fullMinutes,
       },
     ]),
   )
@@ -3051,10 +3050,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
   function onTargetMarksChange(paper, rawValue) {
     const targetMarks = Math.max(1, Number(rawValue) || 1)
-    updatePaperSetting(paper.id, {
-      targetMarks,
-      minutes: minutesFromTargetMarks(paper, targetMarks),
-    })
+    updatePaperSetting(paper.id, { targetMarks })
   }
 
   function matchesSelectedLevel(question) {
@@ -3126,7 +3122,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     enabledPapers.forEach((paperDef) => {
       const settings = paperSettings[paperDef.id]
       const targetMarks = Math.max(1, Number(settings.targetMarks) || paperDef.fullMarks)
-      const minutes = Math.max(1, Number(settings.minutes) || minutesFromTargetMarks(paperDef, targetMarks))
+      const minutes = minutesFromTargetMarks(paperDef, targetMarks)
       const available = getPoolForPaper(paperDef).filter((question) => !usedIds.has(question.id))
       const picked = sampleQuestionsToMarks(available, targetMarks)
       picked.forEach((question) => usedIds.add(question.id))
