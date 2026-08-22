@@ -5231,6 +5231,11 @@ body {
   gap: 0.85rem;
 }
 
+.mock-paper-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .mock-paper-banner {
   display: flex;
   justify-content: space-between;

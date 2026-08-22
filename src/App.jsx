@@ -3464,26 +3464,22 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
             {activeGeneratedPaper ? (
               <section className="mock-paper-body">
-                <div className="mock-paper-banner">
-                  <div>
-                    <h3>{activeGeneratedPaper.label}</h3>
-                    <p>
-                      {activeGeneratedPaper.hint} · {activeGeneratedPaper.minutes} minutes ·{' '}
-                      {activeGeneratedPaper.totalMarks} / {activeGeneratedPaper.targetMarks} marks
-                    </p>
-                  </div>
-                  <button type="button" className="btn mock-banner-btn" onClick={buildMock}>
-                    Reshuffle questions
-                  </button>
-                </div>
-
                 {activeGeneratedPaper.questions.length === 0 ? (
                   <article className="lesson-card">
                     <h3>No questions available</h3>
                     <p>Add more {activeGeneratedPaper.gdc === 'gdc' ? 'GDC' : 'Not GDC'} questions for the selected units.</p>
+                    <button type="button" className="btn mock-secondary-btn" onClick={buildMock}>
+                      Reshuffle questions
+                    </button>
                   </article>
                 ) : (
-                  activeGeneratedPaper.questions.map((item, index) => (
+                  <>
+                    <div className="mock-paper-actions">
+                      <button type="button" className="btn mock-secondary-btn" onClick={buildMock}>
+                        Reshuffle questions
+                      </button>
+                    </div>
+                    {activeGeneratedPaper.questions.map((item, index) => (
                     <article className="lesson-card lesson-card-question" key={`${activeGeneratedPaper.id}-${item.id}`}>
                       <h3 className="question-number-title">Question {index + 1}</h3>
                       <div className="question-meta-row">
@@ -3526,7 +3522,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         </button>
                       ) : null}
                     </article>
-                  ))
+                  ))}
+                  </>
                 )}
               </section>
             ) : null}
