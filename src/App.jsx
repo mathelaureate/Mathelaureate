@@ -540,12 +540,21 @@ function sanitizeHtml(value) {
   return root.innerHTML
 }
 
+function normalizeQuestionTypography(value) {
+  return String(value || '')
+    // Word/Docs often auto-convert option (c) into the copyright mark.
+    .replace(/©/g, '(c)')
+    .replace(/Ⓒ/g, '(c)')
+    .replace(/ⓒ/g, '(c)')
+    .replace(/\(\s*©\s*\)/g, '(c)')
+}
+
 function renderLatexToHtml(value) {
   if (!value) return ''
 
   const tokenPrefix = '__LATEX_TOKEN__'
   const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g
-  const tokenizedText = String(value).replace(pattern, (segment, _rawMatch, offset) => {
+  const tokenizedText = normalizeQuestionTypography(value).replace(pattern, (segment, _rawMatch, offset) => {
     const token = `${tokenPrefix}${offset}__`
     if (segment.startsWith('$$') && segment.endsWith('$$')) {
       const expression = segment.slice(2, -2).trim()

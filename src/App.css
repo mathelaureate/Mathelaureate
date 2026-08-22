@@ -822,7 +822,8 @@ nav button:hover {
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.3rem 0.62rem;
-  text-transform: capitalize;
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 
 .question-number-title {
@@ -3143,13 +3144,27 @@ body {
 }
 
 .tool-icon-bank::before {
-  background: radial-gradient(circle at 50% 50%, transparent 28%, #1b6ea8 29%, #1b6ea8 36%, transparent 37%),
-    linear-gradient(#1b6ea8, #1b6ea8) 50% 18%/2px 22% no-repeat;
+  content: '?';
+  inset: auto;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  background: none;
+  color: #1b6ea8;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 1;
 }
 
 .tool-icon-exam::before {
-  background: radial-gradient(circle at 50% 42%, #1b6ea8 0 18%, transparent 19%),
-    linear-gradient(#1b6ea8, #1b6ea8) 50% 68%/34% 2px no-repeat;
+  background: linear-gradient(#1b6ea8, #1b6ea8) 50% 28%/42% 2px no-repeat,
+    linear-gradient(#1b6ea8, #1b6ea8) 50% 48%/42% 2px no-repeat,
+    linear-gradient(#1b6ea8, #1b6ea8) 50% 68%/28% 2px no-repeat,
+    radial-gradient(circle at 72% 72%, #1b6ea8 0 10%, transparent 11%);
 }
 
 .stats-bar {
