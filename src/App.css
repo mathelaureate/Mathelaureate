@@ -2120,37 +2120,27 @@ select {
 
 /* Question card image spacing + smaller display size */
 .lesson-card-question {
-  padding: 0.85rem 0.95rem;
-}
-
-.lesson-card-question .question-card-head {
-  margin-bottom: 0.45rem;
+  padding: 0.9rem 1rem;
 }
 
 .lesson-card-question .question-number-title {
-  margin: 0;
+  margin: 0 0 0.35rem;
 }
 
 .lesson-card-question .question-meta-row {
-  margin: 0;
+  margin: 0 0 0.8rem;
 }
 
 .lesson-card-question .latex-text {
   margin: 0;
 }
 
-.lesson-card-question .latex-text br {
-  display: block;
-  content: '';
-  margin-top: 0.2rem;
-}
-
 .lesson-card-question .content-blocks-render {
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .lesson-card-question .content-image-block {
-  margin: 0.55rem 0 0.45rem;
+  margin: 0.65rem 0 0.55rem;
 }
 
 .lesson-card-question .content-image-block img {
@@ -2159,11 +2149,11 @@ select {
 }
 
 .lesson-card-question .text-btn {
-  margin-top: 0.45rem;
+  margin-top: 0.55rem;
 }
 
 .lesson-card-question .katex-display {
-  margin: 0.35rem 0;
+  margin: 0.4rem 0;
 }
 
 .course-head {
