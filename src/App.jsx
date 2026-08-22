@@ -994,53 +994,216 @@ function formatMockClock(totalSeconds) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-const mockPaperDefs = [
-  {
-    id: 'p1',
-    label: 'Paper 1',
-    shortLabel: 'P1',
-    gdc: 'not gdc',
-    preferHl: false,
-    defaultEnabled: true,
-    defaultCount: 8,
-    defaultMinutes: 90,
-    hint: 'No calculator (Not GDC)',
+/**
+ * Official paper mark/time ratios used to scale mock timing.
+ * AA HL P1/P2: 110 marks / 120 min (current syllabus students use).
+ * AA SL P1/P2: 80 marks / 90 min.
+ * AA HL P3: 55 marks / 75 min.
+ * IGCSE Add Maths: 80 marks / 120 min per paper.
+ * IGCSE Intl Core / Extended: Cambridge 0607 structure.
+ */
+const mockExamBlueprints = {
+  'ibdp-aa': {
+    levels: [
+      { id: 'hl', label: 'HL' },
+      { id: 'sl', label: 'SL' },
+    ],
+    defaultLevel: 'hl',
+    papersByLevel: {
+      hl: [
+        {
+          id: 'p1',
+          label: 'Paper 1',
+          shortLabel: 'P1',
+          gdc: 'not gdc',
+          fullMarks: 110,
+          fullMinutes: 120,
+          hint: 'No calculator (Not GDC)',
+        },
+        {
+          id: 'p2',
+          label: 'Paper 2',
+          shortLabel: 'P2',
+          gdc: 'gdc',
+          fullMarks: 110,
+          fullMinutes: 120,
+          hint: 'Calculator allowed (GDC)',
+        },
+        {
+          id: 'p3',
+          label: 'Paper 3',
+          shortLabel: 'P3',
+          gdc: 'gdc',
+          preferHl: true,
+          fullMarks: 55,
+          fullMinutes: 75,
+          hint: 'HL only · Calculator allowed (GDC)',
+        },
+      ],
+      sl: [
+        {
+          id: 'p1',
+          label: 'Paper 1',
+          shortLabel: 'P1',
+          gdc: 'not gdc',
+          fullMarks: 80,
+          fullMinutes: 90,
+          hint: 'No calculator (Not GDC)',
+        },
+        {
+          id: 'p2',
+          label: 'Paper 2',
+          shortLabel: 'P2',
+          gdc: 'gdc',
+          fullMarks: 80,
+          fullMinutes: 90,
+          hint: 'Calculator allowed (GDC)',
+        },
+      ],
+    },
   },
-  {
-    id: 'p2',
-    label: 'Paper 2',
-    shortLabel: 'P2',
-    gdc: 'gdc',
-    preferHl: false,
-    defaultEnabled: true,
-    defaultCount: 8,
-    defaultMinutes: 90,
-    hint: 'Calculator allowed (GDC)',
+  'igcse-additional': {
+    levels: [],
+    defaultLevel: 'default',
+    papersByLevel: {
+      default: [
+        {
+          id: 'p1',
+          label: 'Paper 1',
+          shortLabel: 'P1',
+          gdc: 'not gdc',
+          fullMarks: 80,
+          fullMinutes: 120,
+          hint: 'Non-calculator · 0606',
+        },
+        {
+          id: 'p2',
+          label: 'Paper 2',
+          shortLabel: 'P2',
+          gdc: 'gdc',
+          fullMarks: 80,
+          fullMinutes: 120,
+          hint: 'Calculator · 0606',
+        },
+      ],
+    },
   },
-  {
-    id: 'p3',
-    label: 'Paper 3',
-    shortLabel: 'P3',
-    gdc: 'gdc',
-    preferHl: true,
-    defaultEnabled: false,
-    defaultCount: 3,
-    defaultMinutes: 60,
-    hint: 'HL · Calculator allowed (GDC)',
+  'igcse-international': {
+    levels: [
+      { id: 'extended', label: 'Extended' },
+      { id: 'core', label: 'Core' },
+    ],
+    defaultLevel: 'extended',
+    papersByLevel: {
+      extended: [
+        {
+          id: 'p2',
+          label: 'Paper 2',
+          shortLabel: 'P2',
+          gdc: 'not gdc',
+          fullMarks: 75,
+          fullMinutes: 90,
+          hint: 'Extended · Non-calculator',
+        },
+        {
+          id: 'p4',
+          label: 'Paper 4',
+          shortLabel: 'P4',
+          gdc: 'gdc',
+          fullMarks: 75,
+          fullMinutes: 90,
+          hint: 'Extended · GDC',
+        },
+        {
+          id: 'p6',
+          label: 'Paper 6',
+          shortLabel: 'P6',
+          gdc: 'gdc',
+          fullMarks: 50,
+          fullMinutes: 90,
+          hint: 'Extended · Investigation & modelling',
+        },
+      ],
+      core: [
+        {
+          id: 'p1',
+          label: 'Paper 1',
+          shortLabel: 'P1',
+          gdc: 'not gdc',
+          fullMarks: 60,
+          fullMinutes: 75,
+          hint: 'Core · Non-calculator',
+        },
+        {
+          id: 'p3',
+          label: 'Paper 3',
+          shortLabel: 'P3',
+          gdc: 'gdc',
+          fullMarks: 60,
+          fullMinutes: 75,
+          hint: 'Core · GDC',
+        },
+        {
+          id: 'p5',
+          label: 'Paper 5',
+          shortLabel: 'P5',
+          gdc: 'gdc',
+          fullMarks: 40,
+          fullMinutes: 75,
+          hint: 'Core · Investigation',
+        },
+      ],
+    },
   },
-]
+}
 
-function createDefaultMockPaperSettings() {
+function getMockBlueprint(courseSlug) {
+  return mockExamBlueprints[courseSlug] || mockExamBlueprints['ibdp-aa']
+}
+
+function getMockPapersForCourse(courseSlug, level) {
+  const blueprint = getMockBlueprint(courseSlug)
+  const levelKey = blueprint.levels?.length ? level || blueprint.defaultLevel : 'default'
+  return blueprint.papersByLevel[levelKey] || blueprint.papersByLevel.default || []
+}
+
+function minutesFromTargetMarks(paper, targetMarks) {
+  const marks = Math.max(1, Number(targetMarks) || 1)
+  const fullMarks = Math.max(1, Number(paper.fullMarks) || 1)
+  const fullMinutes = Math.max(1, Number(paper.fullMinutes) || 1)
+  return Math.max(1, Math.round((marks * fullMinutes) / fullMarks))
+}
+
+function createDefaultMockPaperSettings(papers) {
   return Object.fromEntries(
-    mockPaperDefs.map((paper) => [
+    (papers || []).map((paper, index) => [
       paper.id,
       {
-        enabled: paper.defaultEnabled,
-        count: paper.defaultCount,
-        minutes: paper.defaultMinutes,
+        enabled: index === 0,
+        targetMarks: paper.fullMarks,
+        minutes: paper.fullMinutes,
       },
     ]),
   )
+}
+
+function sampleQuestionsToMarks(pool, targetMarks) {
+  const goal = Math.max(1, Number(targetMarks) || 1)
+  const shuffled = shuffleCopy(pool)
+  const picked = []
+  let sum = 0
+
+  for (const question of shuffled) {
+    const marks = Math.max(0, Number(question.marks) || 0)
+    if (marks <= 0) continue
+    if (sum >= goal) break
+    if (picked.length > 0 && sum >= goal * 0.85 && sum + marks > goal * 1.2) continue
+    picked.push(question)
+    sum += marks
+    if (sum >= goal) break
+  }
+
+  return picked
 }
 
 function SiteHeader({ user, cachedProfile, bare = false }) {
@@ -2722,8 +2885,11 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [selectedCourseSlug, setSelectedCourseSlug] = useState('ibdp-aa')
+  const [selectedLevel, setSelectedLevel] = useState(() => getMockBlueprint('ibdp-aa').defaultLevel)
   const [selectedUnitIds, setSelectedUnitIds] = useState([])
-  const [paperSettings, setPaperSettings] = useState(() => createDefaultMockPaperSettings())
+  const [paperSettings, setPaperSettings] = useState(() =>
+    createDefaultMockPaperSettings(getMockPapersForCourse('ibdp-aa', 'hl')),
+  )
   const [generatedPapers, setGeneratedPapers] = useState(null)
   const [activePaperId, setActivePaperId] = useState('p1')
   const [buildError, setBuildError] = useState('')
@@ -2733,8 +2899,18 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [timerSecondsLeft, setTimerSecondsLeft] = useState(0)
 
   const selectedCourse = courseCatalog.find((item) => item.slug === selectedCourseSlug) || courseCatalog[0]
+  const blueprint = getMockBlueprint(selectedCourseSlug)
+  const availableLevels = blueprint.levels || []
+  const activePapers = useMemo(
+    () => getMockPapersForCourse(selectedCourseSlug, selectedLevel),
+    [selectedCourseSlug, selectedLevel],
+  )
   const units = curriculum?.units ?? []
-  const supportsPaper3 = String(selectedCourse?.curriculumId || '').includes('ibdp')
+
+  function resetPaperSettingsFor(courseSlug, level) {
+    const papers = getMockPapersForCourse(courseSlug, level)
+    setPaperSettings(createDefaultMockPaperSettings(papers))
+  }
 
   useEffect(() => {
     let active = true
@@ -2760,7 +2936,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         setCurriculum(matchedCurriculum)
         setQuestionPool(questions)
         setSelectedUnitIds([])
-        setPaperSettings(createDefaultMockPaperSettings())
+        const nextLevel = getMockBlueprint(selectedCourse.slug).defaultLevel
+        setSelectedLevel(nextLevel)
+        resetPaperSettingsFor(selectedCourse.slug, nextLevel)
       } catch (error) {
         if (!active) return
         setLoadError(error?.message || 'Unable to load questions for the mock generator.')
@@ -2773,7 +2951,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     return () => {
       active = false
     }
-  }, [user, selectedCourse?.curriculumId])
+  }, [user, selectedCourse?.curriculumId, selectedCourse?.slug])
 
   useEffect(() => {
     if (!timerRunning) return undefined
@@ -2816,9 +2994,49 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     }))
   }
 
+  function setPaperEnabled(paperId, enabled) {
+    updatePaperSetting(paperId, { enabled })
+  }
+
+  function enableOnlyPaper(paperId) {
+    setPaperSettings((prev) => {
+      const next = { ...prev }
+      activePapers.forEach((paper) => {
+        next[paper.id] = {
+          ...(next[paper.id] || {
+            enabled: false,
+            targetMarks: paper.fullMarks,
+            minutes: paper.fullMinutes,
+          }),
+          enabled: paper.id === paperId,
+        }
+      })
+      return next
+    })
+  }
+
+  function onTargetMarksChange(paper, rawValue) {
+    const targetMarks = Math.max(1, Number(rawValue) || 1)
+    updatePaperSetting(paper.id, {
+      targetMarks,
+      minutes: minutesFromTargetMarks(paper, targetMarks),
+    })
+  }
+
+  function matchesSelectedLevel(question) {
+    if (selectedCourseSlug !== 'ibdp-aa') return true
+    const level = String(question.questionLevel || '').trim().toLowerCase()
+    if (selectedLevel === 'sl') {
+      return !level || level === 'sl'
+    }
+    // HL papers can use SL + HL items; P3 still prefers HL via preferHl.
+    return true
+  }
+
   function getPoolForPaper(paperDef) {
     const unitFiltered = questionPool.filter((question) => {
       if (!selectedUnitIds.includes(question.unitId)) return false
+      if (!matchesSelectedLevel(question)) return false
       return normalizeGdc(question.gdc) === paperDef.gdc
     })
 
@@ -2861,13 +3079,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
       return
     }
 
-    const enabledPapers = mockPaperDefs.filter((paper) => {
-      if (paper.id === 'p3' && !supportsPaper3) return false
-      return Boolean(paperSettings[paper.id]?.enabled)
-    })
-
+    const enabledPapers = activePapers.filter((paper) => Boolean(paperSettings[paper.id]?.enabled))
     if (enabledPapers.length === 0) {
-      setBuildError('Enable at least one paper (P1, P2, or P3).')
+      setBuildError('Enable at least one paper — a single paper is fine.')
       return
     }
 
@@ -2877,14 +3091,15 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
     enabledPapers.forEach((paperDef) => {
       const settings = paperSettings[paperDef.id]
-      const requested = Math.max(1, Number(settings.count) || 1)
-      const minutes = Math.max(1, Number(settings.minutes) || 1)
+      const targetMarks = Math.max(1, Number(settings.targetMarks) || paperDef.fullMarks)
+      const minutes = Math.max(1, Number(settings.minutes) || minutesFromTargetMarks(paperDef, targetMarks))
       const available = getPoolForPaper(paperDef).filter((question) => !usedIds.has(question.id))
-      const picked = sampleQuestions(available, requested)
+      const picked = sampleQuestionsToMarks(available, targetMarks)
       picked.forEach((question) => usedIds.add(question.id))
+      const totalMarks = picked.reduce((sum, question) => sum + (Number(question.marks) || 0), 0)
 
-      if (picked.length < requested) {
-        shortages.push(`${paperDef.label}: ${picked.length}/${requested} available`)
+      if (totalMarks < targetMarks * 0.75) {
+        shortages.push(`${paperDef.label}: ${totalMarks}/${targetMarks} marks available`)
       }
 
       nextPapers.push({
@@ -2894,14 +3109,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         gdc: paperDef.gdc,
         hint: paperDef.hint,
         minutes,
-        requested,
+        targetMarks,
         questions: picked,
-        totalMarks: picked.reduce((sum, question) => sum + (Number(question.marks) || 0), 0),
+        totalMarks,
       })
     })
 
     if (nextPapers.every((paper) => paper.questions.length === 0)) {
-      setBuildError('No matching questions found for the selected units and paper settings.')
+      setBuildError('No matching questions found for the selected course, level, units, and paper type.')
       return
     }
 
@@ -2909,14 +3124,16 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
       setBuildError(`Built with limited bank coverage — ${shortages.join('; ')}.`)
     }
 
+    const levelLabel = availableLevels.find((item) => item.id === selectedLevel)?.label
     setGeneratedPapers({
       courseTitle: selectedCourse.title,
+      levelLabel: levelLabel || '',
       unitIds: [...selectedUnitIds],
       unitNames: units.filter((unit) => selectedUnitIds.includes(unit.id)).map((unit) => unit.name),
       createdAt: new Date().toISOString(),
       papers: nextPapers,
     })
-    setActivePaperId(nextPapers[0]?.id || 'p1')
+    setActivePaperId(nextPapers[0]?.id || activePapers[0]?.id || 'p1')
     setTimerRunning(false)
     setTimerSecondsLeft((nextPapers[0]?.minutes || 0) * 60)
   }
@@ -2928,6 +3145,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   }
 
   const activeGeneratedPaper = generatedPapers?.papers?.find((paper) => paper.id === activePaperId) || generatedPapers?.papers?.[0]
+  const paceNote = activePapers[0]
+    ? `${activePapers[0].fullMarks} marks ≈ ${activePapers[0].fullMinutes} min`
+    : ''
 
   if (!authReady) {
     return (
@@ -2948,7 +3168,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
           <article className="auth-card mock-auth-card">
             <p className="eyebrow">Mock Generator</p>
             <h1>Build a custom exam paper</h1>
-            <p>Sign in to pick units and generate Paper 1 / 2 / 3 mocks from your question bank.</p>
+            <p>Sign in to pick a course, level, and units, then generate paper-style mocks from your question bank.</p>
             <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
               {loginPending ? 'Signing in...' : 'Continue with Google'}
             </button>
@@ -2969,14 +3189,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
             <p className="eyebrow">Exam Builder</p>
             <h1>Custom Mock Generator</h1>
             <p>
-              Choose units for a class test, then set question counts and timing for Paper 1 (Not GDC), Paper 2 (GDC),
-              and Paper 3 (HL · GDC).
+              Course-specific papers with official mark/time pacing. For AA, choose HL or SL. Enable one paper or several
+              — timing scales from the marks you set.
             </p>
           </div>
           {generatedPapers ? (
             <button
               type="button"
-              className="btn ghost"
+              className="btn mock-secondary-btn"
               onClick={() => {
                 setGeneratedPapers(null)
                 setBuildError('')
@@ -2994,15 +3214,18 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         {!loading && !loadError && !generatedPapers ? (
           <div className="mock-builder-grid">
             <article className="mock-panel">
-              <h2>1. Course &amp; units</h2>
+              <h2>1. Course, level &amp; units</h2>
               <label className="mock-field">
                 <span>Course</span>
                 <select
                   value={selectedCourseSlug}
                   onChange={(event) => {
-                    setSelectedCourseSlug(event.target.value)
+                    const nextSlug = event.target.value
+                    const nextLevel = getMockBlueprint(nextSlug).defaultLevel
+                    setSelectedCourseSlug(nextSlug)
+                    setSelectedLevel(nextLevel)
                     setSelectedUnitIds([])
-                    setPaperSettings(createDefaultMockPaperSettings())
+                    resetPaperSettingsFor(nextSlug, nextLevel)
                   }}
                 >
                   {courseCatalog.map((course) => (
@@ -3013,13 +3236,41 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                 </select>
               </label>
 
+              {availableLevels.length > 0 ? (
+                <div className="mock-level-row" role="group" aria-label="Course level">
+                  <span>Level</span>
+                  <div className="mock-level-chips">
+                    {availableLevels.map((level) => (
+                      <button
+                        key={level.id}
+                        type="button"
+                        className={`mock-level-chip ${selectedLevel === level.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedLevel(level.id)
+                          resetPaperSettingsFor(selectedCourseSlug, level.id)
+                          setBuildError('')
+                        }}
+                      >
+                        {level.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mock-unit-list">
                 {units.length === 0 ? (
                   <p className="muted-text">No units found for this course.</p>
                 ) : (
                   units.map((unit, index) => {
                     const checked = selectedUnitIds.includes(unit.id)
-                    const unitQuestionCount = questionPool.filter((question) => question.unitId === unit.id).length
+                    const unitQuestionCount = questionPool.filter((question) => {
+                      if (question.unitId !== unit.id) return false
+                      if (selectedCourseSlug !== 'ibdp-aa') return true
+                      const level = String(question.questionLevel || '').trim().toLowerCase()
+                      if (selectedLevel === 'sl') return !level || level === 'sl'
+                      return true
+                    }).length
                     return (
                       <label className={`mock-unit-option ${checked ? 'active' : ''}`} key={unit.id}>
                         <input type="checkbox" checked={checked} onChange={() => toggleUnit(unit.id)} />
@@ -3028,7 +3279,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                             Unit {index + 1}
                             {unit.name ? ` · ${unit.name.replace(/^Topic\s+\d+:\s*/i, '')}` : ''}
                           </strong>
-                          <small>{unitQuestionCount} questions in bank</small>
+                          <small>{unitQuestionCount} matching questions</small>
                         </span>
                       </label>
                     )
@@ -3038,53 +3289,71 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
               <div className="mock-unit-actions">
                 <button
                   type="button"
-                  className="btn ghost"
+                  className="btn mock-secondary-btn"
                   onClick={() => setSelectedUnitIds(units.map((unit) => unit.id))}
                   disabled={!units.length}
                 >
                   Select all
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSelectedUnitIds([])} disabled={!selectedUnitIds.length}>
+                <button
+                  type="button"
+                  className="btn mock-secondary-btn"
+                  onClick={() => setSelectedUnitIds([])}
+                  disabled={!selectedUnitIds.length}
+                >
                   Clear
                 </button>
               </div>
             </article>
 
             <article className="mock-panel">
-              <h2>2. Papers · time · counts</h2>
+              <h2>2. Papers · marks · time</h2>
+              <p className="mock-pace-note">
+                Official pace{paceNote ? `: ${paceNote}` : ''}. Enter target marks — time updates automatically. Enable
+                only the papers you need (one is enough).
+              </p>
               <div className="mock-paper-settings">
-                {mockPaperDefs.map((paperDef) => {
-                  if (paperDef.id === 'p3' && !supportsPaper3) return null
-                  const settings = paperSettings[paperDef.id]
+                {activePapers.map((paperDef) => {
+                  const settings = paperSettings[paperDef.id] || {
+                    enabled: false,
+                    targetMarks: paperDef.fullMarks,
+                    minutes: paperDef.fullMinutes,
+                  }
                   const available = selectedUnitIds.length ? getPoolForPaper(paperDef).length : 0
+                  const availableMarks = selectedUnitIds.length
+                    ? getPoolForPaper(paperDef).reduce((sum, question) => sum + (Number(question.marks) || 0), 0)
+                    : 0
                   return (
                     <div className={`mock-paper-row ${settings.enabled ? 'enabled' : ''}`} key={paperDef.id}>
                       <label className="mock-paper-toggle">
                         <input
                           type="checkbox"
                           checked={Boolean(settings.enabled)}
-                          onChange={(event) => updatePaperSetting(paperDef.id, { enabled: event.target.checked })}
+                          onChange={(event) => setPaperEnabled(paperDef.id, event.target.checked)}
                         />
                         <span>
                           <strong>{paperDef.label}</strong>
-                          <small>{paperDef.hint}</small>
+                          <small>
+                            {paperDef.hint} · full paper {paperDef.fullMarks} marks / {paperDef.fullMinutes} min
+                          </small>
                         </span>
                       </label>
+                      <button type="button" className="btn mock-only-btn" onClick={() => enableOnlyPaper(paperDef.id)}>
+                        Only this
+                      </button>
                       <label className="mock-field compact">
-                        <span>Questions</span>
+                        <span>Target marks</span>
                         <input
                           type="number"
                           min="1"
-                          max="40"
-                          value={settings.count}
+                          max="300"
+                          value={settings.targetMarks}
                           disabled={!settings.enabled}
-                          onChange={(event) =>
-                            updatePaperSetting(paperDef.id, { count: Math.max(1, Number(event.target.value) || 1) })
-                          }
+                          onChange={(event) => onTargetMarksChange(paperDef, event.target.value)}
                         />
                       </label>
                       <label className="mock-field compact">
-                        <span>Minutes</span>
+                        <span>Minutes (auto)</span>
                         <input
                           type="number"
                           min="1"
@@ -3097,7 +3366,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         />
                       </label>
                       <p className="mock-available">
-                        {selectedUnitIds.length ? `${available} available` : 'Select units'}
+                        {selectedUnitIds.length
+                          ? `${available} Q · ${availableMarks} marks in bank`
+                          : 'Select units'}
                       </p>
                     </div>
                   )
@@ -3117,7 +3388,10 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
           <div className="mock-exam-view">
             <div className="mock-exam-meta">
               <div>
-                <p className="eyebrow">{generatedPapers.courseTitle}</p>
+                <p className="eyebrow">
+                  {generatedPapers.courseTitle}
+                  {generatedPapers.levelLabel ? ` · ${generatedPapers.levelLabel}` : ''}
+                </p>
                 <h2>Your mock</h2>
                 <p>{generatedPapers.unitNames.join(' · ') || 'Selected units'}</p>
               </div>
@@ -3133,7 +3407,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     </button>
                   ) : null}
                   {timerRunning ? (
-                    <button type="button" className="btn ghost" onClick={() => setTimerRunning(false)}>
+                    <button type="button" className="btn mock-secondary-btn" onClick={() => setTimerRunning(false)}>
                       Pause
                     </button>
                   ) : null}
@@ -3155,7 +3429,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                 >
                   {paper.label}
                   <small>
-                    {paper.questions.length} Q · {paper.minutes} min · {paper.totalMarks} marks
+                    {paper.questions.length} Q · {paper.minutes} min · {paper.totalMarks}/{paper.targetMarks} marks
                   </small>
                 </button>
               ))}
@@ -3168,10 +3442,10 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     <h3>{activeGeneratedPaper.label}</h3>
                     <p>
                       {activeGeneratedPaper.hint} · {activeGeneratedPaper.minutes} minutes ·{' '}
-                      {activeGeneratedPaper.totalMarks} marks
+                      {activeGeneratedPaper.totalMarks} / {activeGeneratedPaper.targetMarks} marks
                     </p>
                   </div>
-                  <button type="button" className="btn ghost" onClick={buildMock}>
+                  <button type="button" className="btn mock-banner-btn" onClick={buildMock}>
                     Reshuffle questions
                   </button>
                 </div>
@@ -3195,11 +3469,11 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           {String(item.difficulty || 'medium')}
                         </span>
                       </div>
-                      {contentBlocksHaveMediaOrText(item.descriptionBlocks)
-                        ? renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
-                        : (
-                          <LatexText value={item.description} className="latex-text" />
-                        )}
+                      {contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
+                        renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
+                      ) : (
+                        <LatexText value={item.description} className="latex-text" />
+                      )}
                       {item.imageUrl ? (
                         <div className="content-image-block">
                           <button
@@ -3212,7 +3486,10 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           </button>
                         </div>
                       ) : null}
-                      {item.solution || item.solutionVideoLink || item.solutionImageUrl || contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+                      {item.solution ||
+                      item.solutionVideoLink ||
+                      item.solutionImageUrl ||
+                      contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
                         <button
                           type="button"
                           className="btn ghost text-btn"

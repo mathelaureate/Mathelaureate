@@ -4992,7 +4992,7 @@ body {
 
 .mock-paper-row {
   display: grid;
-  grid-template-columns: 1.4fr 0.7fr 0.7fr auto;
+  grid-template-columns: 1.5fr auto 0.7fr 0.7fr;
   gap: 0.65rem;
   align-items: end;
   border: 1px solid #d7e3ec;
@@ -5026,10 +5026,79 @@ body {
 
 .mock-available {
   margin: 0;
+  grid-column: 1 / -1;
   font-size: 0.78rem;
   color: #5c6f7d;
-  padding-bottom: 0.55rem;
+}
+
+.mock-pace-note {
+  margin: -0.2rem 0 0.85rem;
+  color: #5c6f7d;
+  font-size: 0.9rem;
+}
+
+.mock-level-row {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.mock-level-row > span {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #4a5d6b;
+}
+
+.mock-level-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.mock-level-chip {
+  border: 1px solid #c9d8e4;
+  background: #fff;
+  color: #0f2c4d;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mock-level-chip.active {
+  background: #0f2c4d;
+  border-color: #0f2c4d;
+  color: #fff;
+}
+
+.mock-secondary-btn,
+.mock-only-btn {
+  background: #fff !important;
+  border: 1px solid #b7cfe2 !important;
+  color: #0f2c4d !important;
+}
+
+.mock-secondary-btn:hover,
+.mock-only-btn:hover {
+  background: #eef5fb !important;
+}
+
+.mock-only-btn {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 10px;
   white-space: nowrap;
+}
+
+.mock-banner-btn {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  color: #fff !important;
+}
+
+.mock-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.24) !important;
 }
 
 .mock-build-btn {
@@ -5152,7 +5221,8 @@ body {
 }
 
 .mock-paper-banner .btn.ghost {
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
 
@@ -5175,7 +5245,6 @@ body {
 
 @media (max-width: 900px) {
   .mock-builder-grid,
-  .mock-paper-row,
   .mock-exam-meta {
     grid-template-columns: 1fr;
   }
@@ -5192,11 +5261,11 @@ body {
   }
 
   .mock-paper-row {
-    display: grid;
     grid-template-columns: 1fr 1fr;
   }
 
   .mock-paper-toggle,
+  .mock-only-btn,
   .mock-available {
     grid-column: 1 / -1;
   }
