@@ -3339,7 +3339,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
             <article className="mock-panel">
               <h2>2. Papers · marks · time</h2>
               <p className="mock-pace-note">
-                Official pace{paceNote ? `: ${paceNote}` : ''}. Enter target marks — time updates automatically. Enable
+                Official pace{paceNote ? `: ${paceNote}` : ''}. Enter target marks — time is set automatically. Enable
                 only the papers you need (one is enough).
               </p>
               <div className="mock-paper-settings">
@@ -3347,8 +3347,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                   const settings = paperSettings[paperDef.id] || {
                     enabled: false,
                     targetMarks: paperDef.fullMarks,
-                    minutes: paperDef.fullMinutes,
                   }
+                  const autoMinutes = minutesFromTargetMarks(paperDef, settings.targetMarks || paperDef.fullMarks)
                   const available = selectedUnitIds.length ? getPoolForPaper(paperDef).length : 0
                   const availableMarks = selectedUnitIds.length
                     ? getPoolForPaper(paperDef).reduce((sum, question) => sum + (Number(question.marks) || 0), 0)
@@ -3379,19 +3379,10 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           onChange={(event) => onTargetMarksChange(paperDef, event.target.value)}
                         />
                       </label>
-                      <label className="mock-field compact">
-                        <span>Minutes (auto)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="300"
-                          value={settings.minutes}
-                          disabled={!settings.enabled}
-                          onChange={(event) =>
-                            updatePaperSetting(paperDef.id, { minutes: Math.max(1, Number(event.target.value) || 1) })
-                          }
-                        />
-                      </label>
+                      <p className={`mock-auto-time ${settings.enabled ? '' : 'dimmed'}`}>
+                        <span>Time</span>
+                        <strong>{autoMinutes} min</strong>
+                      </p>
                       <p className="mock-available">
                         {selectedUnitIds.length
                           ? `${available} Q · ${availableMarks} marks in bank`
