@@ -965,6 +965,84 @@ function moveItem(list, fromIndex, toIndex) {
   return copy
 }
 
+function normalizeGdc(value) {
+  return String(value || 'not gdc').trim().toLowerCase() === 'gdc' ? 'gdc' : 'not gdc'
+}
+
+function shuffleCopy(items) {
+  const arr = [...items]
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
+}
+
+function sampleQuestions(pool, count) {
+  const n = Math.max(0, Math.min(Number(count) || 0, pool.length))
+  return shuffleCopy(pool).slice(0, n)
+}
+
+function formatMockClock(totalSeconds) {
+  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0))
+  const hours = Math.floor(safe / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+  const seconds = safe % 60
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+const mockPaperDefs = [
+  {
+    id: 'p1',
+    label: 'Paper 1',
+    shortLabel: 'P1',
+    gdc: 'not gdc',
+    preferHl: false,
+    defaultEnabled: true,
+    defaultCount: 8,
+    defaultMinutes: 90,
+    hint: 'No calculator (Not GDC)',
+  },
+  {
+    id: 'p2',
+    label: 'Paper 2',
+    shortLabel: 'P2',
+    gdc: 'gdc',
+    preferHl: false,
+    defaultEnabled: true,
+    defaultCount: 8,
+    defaultMinutes: 90,
+    hint: 'Calculator allowed (GDC)',
+  },
+  {
+    id: 'p3',
+    label: 'Paper 3',
+    shortLabel: 'P3',
+    gdc: 'gdc',
+    preferHl: true,
+    defaultEnabled: false,
+    defaultCount: 3,
+    defaultMinutes: 60,
+    hint: 'HL · Calculator allowed (GDC)',
+  },
+]
+
+function createDefaultMockPaperSettings() {
+  return Object.fromEntries(
+    mockPaperDefs.map((paper) => [
+      paper.id,
+      {
+        enabled: paper.defaultEnabled,
+        count: paper.defaultCount,
+        minutes: paper.defaultMinutes,
+      },
+    ]),
+  )
+}
+
 function SiteHeader({ user, cachedProfile, bare = false }) {
   const profileLabel =
     user?.displayName?.[0]?.toUpperCase() ||
@@ -993,6 +1071,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           </a>
           <a href="/#programs">Programs</a>
           <Link to="/events">Events</Link>
+          <Link to="/mock-generator">Mock Generator</Link>
           <Link to="/teachers-resources">Teachers &amp; Resources</Link>
           <a href="/#contact">Contact</a>
           {user || cachedProfile ? (
@@ -1191,11 +1270,11 @@ function HomePage({ user, cachedProfile }) {
                 <h3>Question Bank</h3>
                 <p>Difficulty-filtered practice for every subunit.</p>
               </article>
-              <article className="tool-card">
+              <Link className="tool-card tool-card-link" to="/mock-generator">
                 <span className="tool-icon tool-icon-exam" aria-hidden="true" />
                 <h3>Exam Preparation</h3>
-                <p>Targeted drills aligned to paper styles.</p>
-              </article>
+                <p>Build custom mocks by unit for Paper 1, 2, and 3.</p>
+              </Link>
             </div>
           </div>
         </div>
@@ -2565,6 +2644,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
                         Start Practice →
                       </button>
+                      <Link className="btn ghost rail-cta-btn mock-rail-link" to="/mock-generator">
+                        Build a Mock Paper →
+                      </Link>
                     </article>
                   </>
                 )
@@ -2618,6 +2700,582 @@ function CoursePage({ user, authReady, cachedProfile }) {
           </article>
         </section>
       ) : null}
+      {expandedImageUrl ? (
+        <section className="image-zoom-overlay" role="dialog" aria-modal="true" onClick={() => setExpandedImageUrl('')}>
+          <article className="image-zoom-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="icon-back-btn image-zoom-close" onClick={() => setExpandedImageUrl('')} aria-label="Close image view">
+              ×
+            </button>
+            <img src={expandedImageUrl} alt="Expanded content" />
+          </article>
+        </section>
+      ) : null}
+    </main>
+  )
+}
+
+function MockGeneratorPage({ user, authReady, cachedProfile }) {
+  const [loginPending, setLoginPending] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [curriculum, setCurriculum] = useState(null)
+  const [questionPool, setQuestionPool] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [selectedCourseSlug, setSelectedCourseSlug] = useState('ibdp-aa')
+  const [selectedUnitIds, setSelectedUnitIds] = useState([])
+  const [paperSettings, setPaperSettings] = useState(() => createDefaultMockPaperSettings())
+  const [generatedPapers, setGeneratedPapers] = useState(null)
+  const [activePaperId, setActivePaperId] = useState('p1')
+  const [buildError, setBuildError] = useState('')
+  const [activeSolutionItem, setActiveSolutionItem] = useState(null)
+  const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const [timerRunning, setTimerRunning] = useState(false)
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(0)
+
+  const selectedCourse = courseCatalog.find((item) => item.slug === selectedCourseSlug) || courseCatalog[0]
+  const units = curriculum?.units ?? []
+  const supportsPaper3 = String(selectedCourse?.curriculumId || '').includes('ibdp')
+
+  useEffect(() => {
+    let active = true
+
+    async function loadMockBank() {
+      if (!user || !selectedCourse?.curriculumId) return
+      setLoading(true)
+      setLoadError('')
+      setGeneratedPapers(null)
+      setBuildError('')
+
+      try {
+        const curriculaSnap = await getDoc(curriculaDocRef)
+        const courses = ensureRequiredCurricula(curriculaSnap.data()?.courses)
+        const matchedCurriculum = courses.find((item) => item.id === selectedCourse.curriculumId) || null
+
+        const recordsSnap = await getDocs(contentItemsCollectionRef)
+        const questions = recordsSnap.docs
+          .map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }))
+          .filter((item) => item.curriculumId === selectedCourse.curriculumId && item.itemType === 'question')
+
+        if (!active) return
+        setCurriculum(matchedCurriculum)
+        setQuestionPool(questions)
+        setSelectedUnitIds([])
+        setPaperSettings(createDefaultMockPaperSettings())
+      } catch (error) {
+        if (!active) return
+        setLoadError(error?.message || 'Unable to load questions for the mock generator.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    loadMockBank()
+    return () => {
+      active = false
+    }
+  }, [user, selectedCourse?.curriculumId])
+
+  useEffect(() => {
+    if (!timerRunning) return undefined
+    if (timerSecondsLeft <= 0) {
+      setTimerRunning(false)
+      return undefined
+    }
+    const id = window.setInterval(() => {
+      setTimerSecondsLeft((prev) => Math.max(0, prev - 1))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [timerRunning, timerSecondsLeft])
+
+  async function startGoogleLogin() {
+    setLoginPending(true)
+    setLoginError('')
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      setLoginError(error?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.')
+    } finally {
+      setLoginPending(false)
+    }
+  }
+
+  function toggleUnit(unitId) {
+    setSelectedUnitIds((prev) => (prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId]))
+  }
+
+  function updatePaperSetting(paperId, patch) {
+    setPaperSettings((prev) => ({
+      ...prev,
+      [paperId]: {
+        ...prev[paperId],
+        ...patch,
+      },
+    }))
+  }
+
+  function getPoolForPaper(paperDef) {
+    const unitFiltered = questionPool.filter((question) => {
+      if (!selectedUnitIds.includes(question.unitId)) return false
+      return normalizeGdc(question.gdc) === paperDef.gdc
+    })
+
+    if (!paperDef.preferHl) return unitFiltered
+
+    const hlOnly = unitFiltered.filter((question) => String(question.questionLevel || '').toLowerCase() === 'hl')
+    return hlOnly.length > 0 ? hlOnly : unitFiltered
+  }
+
+  function renderMockContentBlocks(blocks, keyPrefix) {
+    const normalizedBlocks = normalizeContentBlocks(blocks)
+    if (normalizedBlocks.length === 0) return null
+    return (
+      <div className="content-blocks-render">
+        {normalizedBlocks.map((block, index) =>
+          block.type === 'image' ? (
+            <div className="content-image-block" key={`${keyPrefix}-img-${index}`}>
+              <button
+                type="button"
+                className="image-open-btn"
+                onClick={() => setExpandedImageUrl(block.imageUrl)}
+                aria-label="Open image in full view"
+              >
+                <img src={block.imageUrl} alt={block.caption || 'Content visual'} style={getContentBlockImageStyle(block)} />
+              </button>
+              {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
+            </div>
+          ) : (
+            <LatexText key={`${keyPrefix}-txt-${index}`} value={block.text} className="latex-text" />
+          ),
+        )}
+      </div>
+    )
+  }
+
+  function buildMock() {
+    setBuildError('')
+    if (selectedUnitIds.length === 0) {
+      setBuildError('Select at least one unit to include in your mock.')
+      return
+    }
+
+    const enabledPapers = mockPaperDefs.filter((paper) => {
+      if (paper.id === 'p3' && !supportsPaper3) return false
+      return Boolean(paperSettings[paper.id]?.enabled)
+    })
+
+    if (enabledPapers.length === 0) {
+      setBuildError('Enable at least one paper (P1, P2, or P3).')
+      return
+    }
+
+    const usedIds = new Set()
+    const nextPapers = []
+    const shortages = []
+
+    enabledPapers.forEach((paperDef) => {
+      const settings = paperSettings[paperDef.id]
+      const requested = Math.max(1, Number(settings.count) || 1)
+      const minutes = Math.max(1, Number(settings.minutes) || 1)
+      const available = getPoolForPaper(paperDef).filter((question) => !usedIds.has(question.id))
+      const picked = sampleQuestions(available, requested)
+      picked.forEach((question) => usedIds.add(question.id))
+
+      if (picked.length < requested) {
+        shortages.push(`${paperDef.label}: ${picked.length}/${requested} available`)
+      }
+
+      nextPapers.push({
+        id: paperDef.id,
+        label: paperDef.label,
+        shortLabel: paperDef.shortLabel,
+        gdc: paperDef.gdc,
+        hint: paperDef.hint,
+        minutes,
+        requested,
+        questions: picked,
+        totalMarks: picked.reduce((sum, question) => sum + (Number(question.marks) || 0), 0),
+      })
+    })
+
+    if (nextPapers.every((paper) => paper.questions.length === 0)) {
+      setBuildError('No matching questions found for the selected units and paper settings.')
+      return
+    }
+
+    if (shortages.length) {
+      setBuildError(`Built with limited bank coverage — ${shortages.join('; ')}.`)
+    }
+
+    setGeneratedPapers({
+      courseTitle: selectedCourse.title,
+      unitIds: [...selectedUnitIds],
+      unitNames: units.filter((unit) => selectedUnitIds.includes(unit.id)).map((unit) => unit.name),
+      createdAt: new Date().toISOString(),
+      papers: nextPapers,
+    })
+    setActivePaperId(nextPapers[0]?.id || 'p1')
+    setTimerRunning(false)
+    setTimerSecondsLeft((nextPapers[0]?.minutes || 0) * 60)
+  }
+
+  function startPaperTimer(paper) {
+    setActivePaperId(paper.id)
+    setTimerSecondsLeft(paper.minutes * 60)
+    setTimerRunning(true)
+  }
+
+  const activeGeneratedPaper = generatedPapers?.papers?.find((paper) => paper.id === activePaperId) || generatedPapers?.papers?.[0]
+
+  if (!authReady) {
+    return (
+      <main className="site mock-page site-full">
+        <SiteHeader user={user} cachedProfile={cachedProfile} />
+        <section className="mock-shell">
+          <p>Checking your session...</p>
+        </section>
+      </main>
+    )
+  }
+
+  if (!user) {
+    return (
+      <main className="site mock-page site-full">
+        <SiteHeader user={user} cachedProfile={cachedProfile} />
+        <section className="mock-shell">
+          <article className="auth-card mock-auth-card">
+            <p className="eyebrow">Mock Generator</p>
+            <h1>Build a custom exam paper</h1>
+            <p>Sign in to pick units and generate Paper 1 / 2 / 3 mocks from your question bank.</p>
+            <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
+              {loginPending ? 'Signing in...' : 'Continue with Google'}
+            </button>
+            {loginError ? <p className="error-text">{loginError}</p> : null}
+          </article>
+        </section>
+      </main>
+    )
+  }
+
+  return (
+    <main className="site mock-page site-full">
+      <SiteHeader user={user} cachedProfile={cachedProfile} />
+
+      <section className="mock-shell">
+        <div className="mock-page-head">
+          <div>
+            <p className="eyebrow">Exam Builder</p>
+            <h1>Custom Mock Generator</h1>
+            <p>
+              Choose units for a class test, then set question counts and timing for Paper 1 (Not GDC), Paper 2 (GDC),
+              and Paper 3 (HL · GDC).
+            </p>
+          </div>
+          {generatedPapers ? (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => {
+                setGeneratedPapers(null)
+                setBuildError('')
+                setTimerRunning(false)
+              }}
+            >
+              ← Edit setup
+            </button>
+          ) : null}
+        </div>
+
+        {loading ? <p>Loading question bank...</p> : null}
+        {loadError ? <p className="error-text">{loadError}</p> : null}
+
+        {!loading && !loadError && !generatedPapers ? (
+          <div className="mock-builder-grid">
+            <article className="mock-panel">
+              <h2>1. Course &amp; units</h2>
+              <label className="mock-field">
+                <span>Course</span>
+                <select
+                  value={selectedCourseSlug}
+                  onChange={(event) => {
+                    setSelectedCourseSlug(event.target.value)
+                    setSelectedUnitIds([])
+                    setPaperSettings(createDefaultMockPaperSettings())
+                  }}
+                >
+                  {courseCatalog.map((course) => (
+                    <option key={course.slug} value={course.slug}>
+                      {course.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="mock-unit-list">
+                {units.length === 0 ? (
+                  <p className="muted-text">No units found for this course.</p>
+                ) : (
+                  units.map((unit, index) => {
+                    const checked = selectedUnitIds.includes(unit.id)
+                    const unitQuestionCount = questionPool.filter((question) => question.unitId === unit.id).length
+                    return (
+                      <label className={`mock-unit-option ${checked ? 'active' : ''}`} key={unit.id}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleUnit(unit.id)} />
+                        <span>
+                          <strong>
+                            Unit {index + 1}
+                            {unit.name ? ` · ${unit.name.replace(/^Topic\s+\d+:\s*/i, '')}` : ''}
+                          </strong>
+                          <small>{unitQuestionCount} questions in bank</small>
+                        </span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+              <div className="mock-unit-actions">
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => setSelectedUnitIds(units.map((unit) => unit.id))}
+                  disabled={!units.length}
+                >
+                  Select all
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setSelectedUnitIds([])} disabled={!selectedUnitIds.length}>
+                  Clear
+                </button>
+              </div>
+            </article>
+
+            <article className="mock-panel">
+              <h2>2. Papers · time · counts</h2>
+              <div className="mock-paper-settings">
+                {mockPaperDefs.map((paperDef) => {
+                  if (paperDef.id === 'p3' && !supportsPaper3) return null
+                  const settings = paperSettings[paperDef.id]
+                  const available = selectedUnitIds.length ? getPoolForPaper(paperDef).length : 0
+                  return (
+                    <div className={`mock-paper-row ${settings.enabled ? 'enabled' : ''}`} key={paperDef.id}>
+                      <label className="mock-paper-toggle">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(settings.enabled)}
+                          onChange={(event) => updatePaperSetting(paperDef.id, { enabled: event.target.checked })}
+                        />
+                        <span>
+                          <strong>{paperDef.label}</strong>
+                          <small>{paperDef.hint}</small>
+                        </span>
+                      </label>
+                      <label className="mock-field compact">
+                        <span>Questions</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="40"
+                          value={settings.count}
+                          disabled={!settings.enabled}
+                          onChange={(event) =>
+                            updatePaperSetting(paperDef.id, { count: Math.max(1, Number(event.target.value) || 1) })
+                          }
+                        />
+                      </label>
+                      <label className="mock-field compact">
+                        <span>Minutes</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="300"
+                          value={settings.minutes}
+                          disabled={!settings.enabled}
+                          onChange={(event) =>
+                            updatePaperSetting(paperDef.id, { minutes: Math.max(1, Number(event.target.value) || 1) })
+                          }
+                        />
+                      </label>
+                      <p className="mock-available">
+                        {selectedUnitIds.length ? `${available} available` : 'Select units'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {buildError ? <p className="error-text">{buildError}</p> : null}
+
+              <button type="button" className="btn primary mock-build-btn" onClick={buildMock}>
+                Generate mock paper
+              </button>
+            </article>
+          </div>
+        ) : null}
+
+        {!loading && generatedPapers ? (
+          <div className="mock-exam-view">
+            <div className="mock-exam-meta">
+              <div>
+                <p className="eyebrow">{generatedPapers.courseTitle}</p>
+                <h2>Your mock</h2>
+                <p>{generatedPapers.unitNames.join(' · ') || 'Selected units'}</p>
+              </div>
+              <div className="mock-timer-box">
+                <span className="mock-timer-label">Timer</span>
+                <strong className={timerSecondsLeft === 0 && !timerRunning ? '' : timerSecondsLeft <= 60 ? 'urgent' : ''}>
+                  {formatMockClock(timerSecondsLeft)}
+                </strong>
+                <div className="mock-timer-actions">
+                  {activeGeneratedPaper ? (
+                    <button type="button" className="btn primary" onClick={() => startPaperTimer(activeGeneratedPaper)}>
+                      {timerRunning ? 'Restart' : 'Start'} {activeGeneratedPaper.shortLabel} timer
+                    </button>
+                  ) : null}
+                  {timerRunning ? (
+                    <button type="button" className="btn ghost" onClick={() => setTimerRunning(false)}>
+                      Pause
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="mock-paper-tabs" role="tablist">
+              {generatedPapers.papers.map((paper) => (
+                <button
+                  key={paper.id}
+                  type="button"
+                  role="tab"
+                  className={`mock-paper-tab ${activeGeneratedPaper?.id === paper.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActivePaperId(paper.id)
+                    if (!timerRunning) setTimerSecondsLeft(paper.minutes * 60)
+                  }}
+                >
+                  {paper.label}
+                  <small>
+                    {paper.questions.length} Q · {paper.minutes} min · {paper.totalMarks} marks
+                  </small>
+                </button>
+              ))}
+            </div>
+
+            {activeGeneratedPaper ? (
+              <section className="mock-paper-body">
+                <div className="mock-paper-banner">
+                  <div>
+                    <h3>{activeGeneratedPaper.label}</h3>
+                    <p>
+                      {activeGeneratedPaper.hint} · {activeGeneratedPaper.minutes} minutes ·{' '}
+                      {activeGeneratedPaper.totalMarks} marks
+                    </p>
+                  </div>
+                  <button type="button" className="btn ghost" onClick={buildMock}>
+                    Reshuffle questions
+                  </button>
+                </div>
+
+                {activeGeneratedPaper.questions.length === 0 ? (
+                  <article className="lesson-card">
+                    <h3>No questions available</h3>
+                    <p>Add more {activeGeneratedPaper.gdc === 'gdc' ? 'GDC' : 'Not GDC'} questions for the selected units.</p>
+                  </article>
+                ) : (
+                  activeGeneratedPaper.questions.map((item, index) => (
+                    <article className="lesson-card lesson-card-question" key={`${activeGeneratedPaper.id}-${item.id}`}>
+                      <h3 className="question-number-title">Question {index + 1}</h3>
+                      <div className="question-meta-row">
+                        <span className="meta-chip">{String(item.gdc || 'Not GDC').toUpperCase()}</span>
+                        <span className="meta-chip">{item.marks || 0} marks</span>
+                        {String(item.questionLevel || '').trim() ? (
+                          <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+                        ) : null}
+                        <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+                          {String(item.difficulty || 'medium')}
+                        </span>
+                      </div>
+                      {contentBlocksHaveMediaOrText(item.descriptionBlocks)
+                        ? renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
+                        : (
+                          <LatexText value={item.description} className="latex-text" />
+                        )}
+                      {item.imageUrl ? (
+                        <div className="content-image-block">
+                          <button
+                            type="button"
+                            className="image-open-btn"
+                            onClick={() => setExpandedImageUrl(item.imageUrl)}
+                            aria-label="Open image in full view"
+                          >
+                            <img src={item.imageUrl} alt="Question visual" style={getRecordImageStyle(item)} />
+                          </button>
+                        </div>
+                      ) : null}
+                      {item.solution || item.solutionVideoLink || item.solutionImageUrl || contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+                        <button
+                          type="button"
+                          className="btn ghost text-btn"
+                          onClick={() => setActiveSolutionItem({ ...item, questionNumber: index + 1 })}
+                        >
+                          View Solution
+                        </button>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {activeSolutionItem ? (
+        <section className="solution-modal-overlay" role="dialog" aria-modal="true" onClick={() => setActiveSolutionItem(null)}>
+          <article className="solution-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="solution-modal-head">
+              <h3>Solution</h3>
+              <button type="button" className="icon-back-btn" onClick={() => setActiveSolutionItem(null)} aria-label="Close solution popup">
+                ×
+              </button>
+            </div>
+            <h4 className="question-number-title">Question {activeSolutionItem.questionNumber || ''}</h4>
+            {activeSolutionItem.solution && !contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks) ? (
+              <div className="solution-box">
+                <LatexText value={activeSolutionItem.solution} className="latex-text" />
+              </div>
+            ) : null}
+            {contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks)
+              ? renderMockContentBlocks(activeSolutionItem.solutionBlocks, `mock-sol-${activeSolutionItem.id}`)
+              : null}
+            {activeSolutionItem.solutionImageUrl ? (
+              <div className="content-image-block">
+                <button
+                  type="button"
+                  className="image-open-btn"
+                  onClick={() => setExpandedImageUrl(activeSolutionItem.solutionImageUrl)}
+                  aria-label="Open solution image in full view"
+                >
+                  <img src={activeSolutionItem.solutionImageUrl} alt="Solution visual" />
+                </button>
+              </div>
+            ) : null}
+            {activeSolutionItem.solutionVideoLink && toYouTubeEmbedUrl(activeSolutionItem.solutionVideoLink) ? (
+              <div className="solution-video-wrap">
+                <h4>Video Solution</h4>
+                <iframe
+                  title={`mock-video-solution-${activeSolutionItem.id}`}
+                  src={toYouTubeEmbedUrl(activeSolutionItem.solutionVideoLink)}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            ) : null}
+          </article>
+        </section>
+      ) : null}
+
       {expandedImageUrl ? (
         <section className="image-zoom-overlay" role="dialog" aria-modal="true" onClick={() => setExpandedImageUrl('')}>
           <article className="image-zoom-modal" onClick={(event) => event.stopPropagation()}>
@@ -2755,6 +3413,18 @@ function ProfilePage({ user, cachedProfile }) {
             <div>
               <h3>Explore Catalog</h3>
               <p>Discover new tracks and masterclasses.</p>
+            </div>
+            <span className="quick-link-arrow" aria-hidden="true">
+              →
+            </span>
+          </Link>
+          <Link className="quick-link-card" to="/mock-generator">
+            <span className="quick-link-icon" aria-hidden="true">
+              ▤
+            </span>
+            <div>
+              <h3>Mock Generator</h3>
+              <p>Build P1 / P2 / P3 papers from selected units.</p>
             </div>
             <span className="quick-link-arrow" aria-hidden="true">
               →
@@ -5030,6 +5700,7 @@ function App() {
         <Route path="/teachers-resources" element={<TeachersResourcesPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/terms-of-use" element={<TermsOfUsePage user={user} cachedProfile={cachedProfile} />} />
+        <Route path="/mock-generator" element={<MockGeneratorPage user={user} authReady={authReady} cachedProfile={cachedProfile} />} />
         <Route
           path="/courses/:slug"
           element={
