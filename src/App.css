@@ -3518,21 +3518,12 @@ body {
   font-size: 0.85rem;
 }
 
-.course-page .lesson-card-lesson:nth-child(2) {
-  background: #eef8f5;
-  border-color: #c5e4db;
-  border-left: 4px solid #0b7a75;
-  position: relative;
-}
+/* Second lesson card uses default lesson styles (not teal — that is reserved for objectives). */
 
-.course-page .lesson-card-lesson:nth-child(2)::before {
-  content: '◎';
-  position: absolute;
-  top: 0.85rem;
-  right: 0.95rem;
-  color: #0b7a75;
-  font-size: 1rem;
-  font-weight: 700;
+.course-page .lesson-card-lesson:not(.lesson-card-objectives):not(.lesson-card-overview) {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  border-color: #dbe6ee;
+  border-left: 4px solid #1b6ea8;
 }
 
 .course-page .lesson-card-question {
@@ -4466,9 +4457,10 @@ body {
 }
 
 .lesson-card-objectives {
-  background: #eef8f5 !important;
-  border: 1px solid #c5e4db !important;
+  background: linear-gradient(180deg, #f3fbf8 0%, #e6f5f0 100%) !important;
+  border: 1px solid #b7ddd3 !important;
   border-left: 4px solid #0b7a75 !important;
+  box-shadow: 0 10px 24px rgba(11, 122, 117, 0.08);
   position: relative;
 }
 
