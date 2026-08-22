@@ -3487,7 +3487,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     <article className="lesson-card lesson-card-question" key={`${activeGeneratedPaper.id}-${item.id}`}>
                       <h3 className="question-number-title">Question {index + 1}</h3>
                       <div className="question-meta-row">
-                        <span className="meta-chip">{String(item.gdc || 'Not GDC').toUpperCase()}</span>
+                        <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
                         <span className="meta-chip">{item.marks || 0} marks</span>
                         {String(item.questionLevel || '').trim() ? (
                           <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
