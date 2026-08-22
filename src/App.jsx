@@ -1187,23 +1187,74 @@ function createDefaultMockPaperSettings(papers) {
   )
 }
 
-function sampleQuestionsToMarks(pool, targetMarks) {
-  const goal = Math.max(1, Number(targetMarks) || 1)
-  const shuffled = shuffleCopy(pool)
+function normalizeMockDifficulty(value) {
+  const difficulty = String(value || 'medium').trim().toLowerCase()
+  if (difficulty === 'easy' || difficulty === 'hard') return difficulty
+  return 'medium'
+}
+
+function sampleFromPoolToMarks(pool, markBudget, usedIds) {
+  const budget = Math.max(0, Number(markBudget) || 0)
+  if (budget <= 0) return { picked: [], sum: 0 }
+
   const picked = []
   let sum = 0
 
-  for (const question of shuffled) {
+  for (const question of shuffleCopy(pool)) {
+    if (usedIds.has(question.id)) continue
     const marks = Math.max(0, Number(question.marks) || 0)
     if (marks <= 0) continue
-    if (sum >= goal) break
-    if (picked.length > 0 && sum >= goal * 0.85 && sum + marks > goal * 1.2) continue
+    if (sum >= budget) break
+    if (picked.length > 0 && sum >= budget * 0.85 && sum + marks > budget * 1.2) continue
     picked.push(question)
+    usedIds.add(question.id)
     sum += marks
-    if (sum >= goal) break
   }
 
-  return picked
+  return { picked, sum }
+}
+
+function sampleQuestionsToMarks(pool, targetMarks) {
+  const goal = Math.max(1, Number(targetMarks) || 1)
+  const byDifficulty = { easy: [], medium: [], hard: [] }
+
+  pool.forEach((question) => {
+    byDifficulty[normalizeMockDifficulty(question.difficulty)].push(question)
+  })
+
+  // Exam-style mix: ~25% easy, ~45% medium, ~30% hard (by marks).
+  let easyBudget = Math.round(goal * 0.25)
+  let mediumBudget = Math.round(goal * 0.45)
+  let hardBudget = Math.max(0, goal - easyBudget - mediumBudget)
+
+  if (goal >= 12) {
+    easyBudget = Math.max(1, easyBudget)
+    mediumBudget = Math.max(1, mediumBudget)
+    hardBudget = Math.max(1, hardBudget)
+    const allocated = easyBudget + mediumBudget + hardBudget
+    if (allocated !== goal) {
+      mediumBudget = Math.max(1, mediumBudget + (goal - allocated))
+    }
+  }
+
+  const usedIds = new Set()
+  const easyPick = sampleFromPoolToMarks(byDifficulty.easy, easyBudget, usedIds)
+  const mediumPick = sampleFromPoolToMarks(byDifficulty.medium, mediumBudget, usedIds)
+  const hardPick = sampleFromPoolToMarks(byDifficulty.hard, hardBudget, usedIds)
+
+  let picked = [...easyPick.picked, ...mediumPick.picked, ...hardPick.picked]
+  let sum = easyPick.sum + mediumPick.sum + hardPick.sum
+
+  if (sum < goal) {
+    const fill = sampleFromPoolToMarks(pool, goal - sum, usedIds)
+    picked = [...picked, ...fill.picked]
+    sum += fill.sum
+  }
+
+  const difficultyOrder = { easy: 0, medium: 1, hard: 2 }
+  return picked.sort(
+    (a, b) => difficultyOrder[normalizeMockDifficulty(a.difficulty)] - difficultyOrder[normalizeMockDifficulty(b.difficulty)],
+  )
 }
 
 function SiteHeader({ user, cachedProfile, bare = false }) {
