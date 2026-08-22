@@ -2731,19 +2731,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                             ) : null
                           ) : null}
                           {activeTab === 'question' ? (
-                            <div className="question-card-head">
-                              <h3 className="question-number-title">Question {index + 1}</h3>
-                              <div className="question-meta-row">
-                                <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                                <span className="meta-chip">{item.marks || 0} marks</span>
-                                {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
-                                  <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
-                                ) : null}
-                                <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-                                  {String(item.difficulty || 'medium')}
-                                </span>
-                              </div>
-                            </div>
+                            <h3 className="question-number-title">Question {index + 1}</h3>
                           ) : objectivesItem ? (
                             <div className="objectives-head">
                               <span className="objectives-badge" aria-hidden="true">
@@ -2760,6 +2748,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           ) : (
                             <LatexText value={item.title} className="latex-heading" />
                           )}
+                          {activeTab === 'question' ? (
+                            <div className="question-meta-row">
+                              <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                              <span className="meta-chip">{item.marks || 0} marks</span>
+                              {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
+                                <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+                              ) : null}
+                              <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+                                {String(item.difficulty || 'medium')}
+                              </span>
+                            </div>
+                          ) : null}
                           {objectivesItem ? (
                             <>
                               <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
@@ -3487,18 +3487,16 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     </div>
                     {activeGeneratedPaper.questions.map((item, index) => (
                     <article className="lesson-card lesson-card-question" key={`${activeGeneratedPaper.id}-${item.id}`}>
-                      <div className="question-card-head">
-                        <h3 className="question-number-title">Question {index + 1}</h3>
-                        <div className="question-meta-row">
-                          <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                          <span className="meta-chip">{item.marks || 0} marks</span>
-                          {String(item.questionLevel || '').trim() ? (
-                            <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
-                          ) : null}
-                          <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-                            {String(item.difficulty || 'medium')}
-                          </span>
-                        </div>
+                      <h3 className="question-number-title">Question {index + 1}</h3>
+                      <div className="question-meta-row">
+                        <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                        <span className="meta-chip">{item.marks || 0} marks</span>
+                        {String(item.questionLevel || '').trim() ? (
+                          <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+                        ) : null}
+                        <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+                          {String(item.difficulty || 'medium')}
+                        </span>
                       </div>
                       {contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
                         renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
@@ -5590,16 +5588,14 @@ function AdminPage() {
                     <div className="record-top">
                       <span className="pill">question</span>
                     </div>
-                    <div className="question-card-head">
-                      <h3 className="question-number-title">Question Preview</h3>
-                      <div className="question-meta-row">
-                        <span className="meta-chip">{normalizeGdc(questionGdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                        <span className="meta-chip">{questionMarks} marks</span>
-                        {isCurrentAdminIbdpCourse ? <span className="meta-chip">{String(questionLevel).toUpperCase()}</span> : null}
-                        <span className={`meta-chip difficulty-${String(questionDifficulty || 'medium').toLowerCase()}`}>
-                          {questionDifficulty}
-                        </span>
-                      </div>
+                    <h3 className="question-number-title">Question Preview</h3>
+                    <div className="question-meta-row">
+                      <span className="meta-chip">{normalizeGdc(questionGdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                      <span className="meta-chip">{questionMarks} marks</span>
+                      {isCurrentAdminIbdpCourse ? <span className="meta-chip">{String(questionLevel).toUpperCase()}</span> : null}
+                      <span className={`meta-chip difficulty-${String(questionDifficulty || 'medium').toLowerCase()}`}>
+                        {questionDifficulty}
+                      </span>
                     </div>
                     <LatexText value={contentBlocksToPlainText(descriptionBlocks) || 'Question statement preview'} className="latex-text" />
                     <div className="solution-box">
