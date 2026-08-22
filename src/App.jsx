@@ -3049,23 +3049,6 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     updatePaperSetting(paperId, { enabled })
   }
 
-  function enableOnlyPaper(paperId) {
-    setPaperSettings((prev) => {
-      const next = { ...prev }
-      activePapers.forEach((paper) => {
-        next[paper.id] = {
-          ...(next[paper.id] || {
-            enabled: false,
-            targetMarks: paper.fullMarks,
-            minutes: paper.fullMinutes,
-          }),
-          enabled: paper.id === paperId,
-        }
-      })
-      return next
-    })
-  }
-
   function onTargetMarksChange(paper, rawValue) {
     const targetMarks = Math.max(1, Number(rawValue) || 1)
     updatePaperSetting(paper.id, {
@@ -3389,9 +3372,6 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           </small>
                         </span>
                       </label>
-                      <button type="button" className="btn mock-only-btn" onClick={() => enableOnlyPaper(paperDef.id)}>
-                        Only this
-                      </button>
                       <label className="mock-field compact">
                         <span>Target marks</span>
                         <input

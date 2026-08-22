@@ -4992,7 +4992,7 @@ body {
 
 .mock-paper-row {
   display: grid;
-  grid-template-columns: 1.5fr auto 0.7fr 0.7fr;
+  grid-template-columns: 1.5fr 0.7fr 0.7fr;
   gap: 0.65rem;
   align-items: end;
   border: 1px solid #d7e3ec;
@@ -5072,23 +5072,14 @@ body {
   color: #fff;
 }
 
-.mock-secondary-btn,
-.mock-only-btn {
+.mock-secondary-btn {
   background: #fff !important;
   border: 1px solid #b7cfe2 !important;
   color: #0f2c4d !important;
 }
 
-.mock-secondary-btn:hover,
-.mock-only-btn:hover {
+.mock-secondary-btn:hover {
   background: #eef5fb !important;
-}
-
-.mock-only-btn {
-  padding: 0.45rem 0.7rem;
-  font-size: 0.8rem;
-  border-radius: 10px;
-  white-space: nowrap;
 }
 
 .mock-banner-btn {
@@ -5265,7 +5256,6 @@ body {
   }
 
   .mock-paper-toggle,
-  .mock-only-btn,
   .mock-available {
     grid-column: 1 / -1;
   }
