@@ -1171,6 +1171,32 @@ nav button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+}
+
+.admin-header-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.editor-account-note,
+.editor-scope-note {
+  margin: 0.45rem 0 0;
+  color: #5c6b74;
+  font-size: 0.9rem;
+}
+
+.editor-auth-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+.admin-editor-mode .panel h2 {
+  color: #0f2c4d;
 }
 
 .paywall-actions {

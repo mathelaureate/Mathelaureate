@@ -357,6 +357,9 @@ const defaultCurricula = [
 
 const adminPasscode = (import.meta.env.VITE_ADMIN_PASSCODE || '').trim()
 const adminPasscodeKey = 'mathelaureate-admin-passcode-ok'
+const editorPasscode = (import.meta.env.VITE_EDITOR_PASSCODE || '').trim()
+const editorPasscodeKey = 'mathelaureate-editor-passcode-ok'
+const editorAllowedEmail = (import.meta.env.VITE_EDITOR_EMAIL || 'mathelaureate.content@gmail.com').trim().toLowerCase()
 const adminEventsOptionId = '__events_management__'
 const adminTeachersResourcesOptionId = '__teachers_resources_management__'
 const profileCacheKey = 'mathelaureate-profile-cache'
@@ -3793,6 +3796,47 @@ function AdminPasscodeGate({ setUnlocked }) {
   )
 }
 
+function EditorPasscodeGate({ setUnlocked }) {
+  const [passcode, setPasscode] = useState('')
+  const [error, setError] = useState('')
+  const isEditorPasscodeConfigured = Boolean(editorPasscode)
+
+  function unlock() {
+    if (!isEditorPasscodeConfigured) {
+      setError('Editor passcode is not configured. Add VITE_EDITOR_PASSCODE in .env.local.')
+      return
+    }
+    if (passcode === editorPasscode) {
+      sessionStorage.setItem(editorPasscodeKey, 'true')
+      setUnlocked(true)
+      setError('')
+      return
+    }
+    setError('Incorrect passcode.')
+  }
+
+  return (
+    <section className="panel passcode-card">
+      <h2>Content Editor Access</h2>
+      <p>Enter the editor passcode. This account can only add new lessons and questions.</p>
+      <input
+        type="password"
+        placeholder="Editor passcode"
+        value={passcode}
+        onChange={(event) => setPasscode(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') unlock()
+        }}
+      />
+      {!isEditorPasscodeConfigured ? <p className="error-text">Editor passcode is not configured.</p> : null}
+      {error && <p className="error-text">{error}</p>}
+      <button className="btn primary" type="button" onClick={unlock} disabled={!isEditorPasscodeConfigured}>
+        Unlock Editor
+      </button>
+    </section>
+  )
+}
+
 function ProtectedAdmin() {
   const [passcodeUnlocked, setPasscodeUnlocked] = useState(() => sessionStorage.getItem(adminPasscodeKey) === 'true')
 
@@ -3804,10 +3848,97 @@ function ProtectedAdmin() {
     )
   }
 
-  return <AdminPage />
+  return <AdminPage mode="admin" />
 }
 
-function AdminPage() {
+function ProtectedEditor() {
+  const [passcodeUnlocked, setPasscodeUnlocked] = useState(() => sessionStorage.getItem(editorPasscodeKey) === 'true')
+  const [authUser, setAuthUser] = useState(() => auth.currentUser)
+  const [authReady, setAuthReady] = useState(false)
+  const [loginPending, setLoginPending] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setAuthUser(nextUser)
+      setAuthReady(true)
+    })
+    return unsubscribe
+  }, [])
+
+  async function startGoogleLogin() {
+    setLoginPending(true)
+    setLoginError('')
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      setLoginError(error?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.')
+    } finally {
+      setLoginPending(false)
+    }
+  }
+
+  if (!passcodeUnlocked) {
+    return (
+      <main className="admin site-full">
+        <EditorPasscodeGate setUnlocked={setPasscodeUnlocked} />
+      </main>
+    )
+  }
+
+  if (!authReady) {
+    return (
+      <main className="admin site-full">
+        <section className="panel passcode-card">
+          <p>Checking editor session...</p>
+        </section>
+      </main>
+    )
+  }
+
+  const signedEmail = String(authUser?.email || '').trim().toLowerCase()
+  const isAllowedEditor = Boolean(signedEmail) && signedEmail === editorAllowedEmail
+
+  if (!authUser || !isAllowedEditor) {
+    return (
+      <main className="admin site-full">
+        <section className="panel passcode-card">
+          <h2>Editor Google Sign-in</h2>
+          <p>
+            Sign in with the dedicated content-editor Google account only:
+            <br />
+            <strong>{editorAllowedEmail}</strong>
+          </p>
+          <p className="muted-text">This role can add lessons/questions. It cannot edit, delete, or change course structure.</p>
+          {authUser && !isAllowedEditor ? (
+            <p className="error-text">
+              Signed in as {authUser.email}, which is not the editor account. Sign out and use {editorAllowedEmail}.
+            </p>
+          ) : null}
+          {loginError ? <p className="error-text">{loginError}</p> : null}
+          <div className="editor-auth-actions">
+            {authUser ? (
+              <button type="button" className="btn ghost" onClick={() => signOut(auth)}>
+                Sign out
+              </button>
+            ) : null}
+            <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
+              {loginPending ? 'Signing in...' : 'Continue with Google'}
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  return <AdminPage mode="editor" />
+}
+
+function AdminPage({ mode = 'admin' }) {
+  const isEditorMode = mode === 'editor'
   const [curricula, setCurricula] = useState(defaultCurricula)
   const [records, setRecords] = useState([])
   const [isDataLoading, setIsDataLoading] = useState(true)
@@ -3892,8 +4023,8 @@ function AdminPage() {
     () => curricula.find((curriculum) => curriculum.id === curriculumId) ?? curricula[0],
     [curricula, curriculumId],
   )
-  const isEventsManagementSelected = adminSelection === adminEventsOptionId
-  const isTeachersResourcesSelected = adminSelection === adminTeachersResourcesOptionId
+  const isEventsManagementSelected = !isEditorMode && adminSelection === adminEventsOptionId
+  const isTeachersResourcesSelected = !isEditorMode && adminSelection === adminTeachersResourcesOptionId
   const isCurrentAdminIbdpCourse = curriculumId === 'ibdp-aa-hl' || curriculumId === 'ibdp-ai-hl'
   const selectedUnit = useMemo(
     () => selectedCurriculum?.units.find((unit) => unit.id === unitId) ?? selectedCurriculum?.units[0],
@@ -4035,6 +4166,10 @@ function AdminPage() {
   }, [])
 
   async function persistCurricula(updated) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot change course structure.')
+      return
+    }
     const normalized = normalizeCurriculaOrdering(updated)
     setCurricula(normalized)
     await setDoc(curriculaDocRef, { courses: normalized })
@@ -4045,6 +4180,10 @@ function AdminPage() {
   }
 
   async function persistPaywall(nextConfig) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot change paywall settings.')
+      return
+    }
     setIsPaywallSaving(true)
     setPaywallConfig(nextConfig)
     try {
@@ -4058,6 +4197,10 @@ function AdminPage() {
   }
 
   async function persistEvents(nextEvents) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot manage events.')
+      return
+    }
     const normalized = normalizeEvents(nextEvents)
     setEvents(normalized)
     setIsEventSaving(true)
@@ -4072,6 +4215,10 @@ function AdminPage() {
   }
 
   async function persistTeachersResourcesPosts(nextPosts) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot manage teachers resources.')
+      return
+    }
     const normalized = normalizeTeachersResourcesPosts(nextPosts)
     setTeachersResourcesPosts(normalized)
     setIsTeachersResourcesSaving(true)
@@ -4142,6 +4289,9 @@ function AdminPage() {
   }
 
   function onCurriculumChange(nextId) {
+    if (isEditorMode && (nextId === adminEventsOptionId || nextId === adminTeachersResourcesOptionId)) {
+      return
+    }
     if (nextId === adminEventsOptionId || nextId === adminTeachersResourcesOptionId) {
       setAdminSelection(nextId)
       return
@@ -4308,6 +4458,10 @@ function AdminPage() {
   }
 
   async function deleteSelectedTopic() {
+    if (isEditorMode) {
+      setDataError('Content editors cannot delete topics.')
+      return
+    }
     if (!selectedCurriculum || !unitId) return
     const units = selectedCurriculum.units || []
     if (units.length <= 1) {
@@ -4373,6 +4527,10 @@ function AdminPage() {
   }
 
   async function deleteSelectedSubtopic() {
+    if (isEditorMode) {
+      setDataError('Content editors cannot delete subtopics.')
+      return
+    }
     if (!selectedCurriculum || !selectedUnit || !subunit) return
     const subunits = selectedUnit.subunits || []
     if (subunits.length <= 1) {
@@ -4710,6 +4868,8 @@ function AdminPage() {
       subunit,
       sortOrder: maxSortOrder + 1,
       createdAt: new Date().toISOString(),
+      createdByEmail: String(auth.currentUser?.email || '').trim().toLowerCase(),
+      createdByRole: isEditorMode ? 'editor' : 'admin',
     }
     try {
       const docRef = await addDoc(contentItemsCollectionRef, newRecord)
@@ -4813,6 +4973,8 @@ function AdminPage() {
           subunit,
           sortOrder: baseSortOrder + index + 1,
           createdAt: new Date(Date.now() + index).toISOString(),
+          createdByEmail: String(auth.currentUser?.email || '').trim().toLowerCase(),
+          createdByRole: isEditorMode ? 'editor' : 'admin',
         }
 
         const docRef = await addDoc(contentItemsCollectionRef, newRecord)
@@ -4831,6 +4993,10 @@ function AdminPage() {
   }
 
   async function removeRecord(id) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot delete content.')
+      return
+    }
     const record = records.find((item) => item.id === id)
     const label = record?.title ? `"${record.title}"` : 'this content item'
     const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
@@ -4846,6 +5012,10 @@ function AdminPage() {
   }
 
   function beginEditRecord(record) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot edit existing content.')
+      return
+    }
     setEditingRecordId(record.id)
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
@@ -4888,6 +5058,10 @@ function AdminPage() {
   }
 
   async function saveRecordEdits() {
+    if (isEditorMode) {
+      setDataError('Content editors cannot edit existing content.')
+      return
+    }
     if (!editingRecordId || !editingRecordType) return
     const editingRecord = records.find((item) => item.id === editingRecordId) || null
     const editDescriptionBlocksEnabled = contentBlocksHaveMediaOrText(editDescriptionBlocks)
@@ -4987,6 +5161,10 @@ function AdminPage() {
   }
 
   async function reorderStoredItems(targetIndex) {
+    if (isEditorMode) {
+      setDataError('Content editors cannot reorder content.')
+      return
+    }
     if (dragRecordIndex === null || dragRecordIndex === targetIndex) return
     const reordered = moveItem(activeStoredRecords, dragRecordIndex, targetIndex)
     const reorderedWithOrder = reordered.map((item, index) => ({ ...item, sortOrder: index + 1 }))
@@ -5129,27 +5307,43 @@ function AdminPage() {
   const isSubunitLockedInAdmin = (paywallConfig.lockedSubunits?.[paywallCourseId] || []).includes(selectedPaywallSubunitKey)
 
   return (
-    <main className="admin site-full">
+    <main className={`admin site-full ${isEditorMode ? 'admin-editor-mode' : ''}`}>
       <header className="admin-header">
         <div>
-          <h1>Admin Dashboard</h1>
-          <p>Manage course topics/subtopics and upload mapped lessons, questions, and resources.</p>
+          <h1>{isEditorMode ? 'Content Editor' : 'Admin Dashboard'}</h1>
+          <p>
+            {isEditorMode
+              ? 'Add-only access: upload new lessons and questions. Editing, deleting, and structure changes are blocked.'
+              : 'Manage course topics/subtopics and upload mapped lessons, questions, and resources.'}
+          </p>
+          {isEditorMode ? (
+            <p className="editor-account-note">
+              Signed in as <strong>{auth.currentUser?.email || editorAllowedEmail}</strong>
+            </p>
+          ) : null}
         </div>
-        <Link className="btn ghost" to="/">
-          Back to Website
-        </Link>
+        <div className="admin-header-actions">
+          {isEditorMode ? (
+            <button type="button" className="btn ghost" onClick={() => signOut(auth)}>
+              Sign out
+            </button>
+          ) : null}
+          <Link className="btn ghost" to="/">
+            Back to Website
+          </Link>
+        </div>
       </header>
       {isDataLoading && <p>Loading course data...</p>}
       {dataError && <p className="error-text">{dataError}</p>}
 
       <section className="admin-grid">
         <aside className="panel">
-          <h2>Course Structure</h2>
+          <h2>{isEditorMode ? 'Select placement' : 'Course Structure'}</h2>
           <label>
             Course
             <select value={adminSelection} onChange={(event) => onCurriculumChange(event.target.value)}>
-              <option value={adminEventsOptionId}>Events Management</option>
-              <option value={adminTeachersResourcesOptionId}>Teachers &amp; Resources</option>
+              {!isEditorMode ? <option value={adminEventsOptionId}>Events Management</option> : null}
+              {!isEditorMode ? <option value={adminTeachersResourcesOptionId}>Teachers &amp; Resources</option> : null}
               {curricula.map((curriculum) => (
                 <option value={curriculum.id} key={curriculum.id}>
                   {curriculum.name}
@@ -5169,9 +5363,11 @@ function AdminPage() {
               ))}
             </select>
           </label>
+          {!isEditorMode ? (
           <button className="btn danger" type="button" onClick={deleteSelectedTopic} disabled={isDeletingTopic || !(selectedCurriculum?.units?.length > 1)}>
             {isDeletingTopic ? 'Deleting topic...' : 'Delete Selected Topic'}
           </button>
+          ) : null}
           <label>
             Subtopic
             <select value={subunit} onChange={(event) => setSubunit(event.target.value)}>
@@ -5182,6 +5378,7 @@ function AdminPage() {
               ))}
             </select>
           </label>
+          {!isEditorMode ? (
           <button
             className="btn danger"
             type="button"
@@ -5190,7 +5387,10 @@ function AdminPage() {
           >
             {isDeletingSubtopic ? 'Deleting subtopic...' : 'Delete Selected Subtopic'}
           </button>
+          ) : null}
 
+          {!isEditorMode ? (
+          <>
           <form onSubmit={addTopic}>
             <label>
               Add Topic
@@ -5267,7 +5467,11 @@ function AdminPage() {
             </li>
               ))}
           </ul>
-        </div>
+          </div>
+          </>
+          ) : (
+            <p className="muted-text editor-scope-note">Choose where new content should be added. Structure changes are admin-only.</p>
+          )}
             </>
           ) : (
             <p>Select a course to manage topics, subtopics, and content items.</p>
@@ -5424,6 +5628,7 @@ function AdminPage() {
           ) : (
           <>
 
+          {!isEditorMode ? (
           <section className="panel">
             <h2>Paywall Controls</h2>
             <label>
@@ -5477,9 +5682,10 @@ function AdminPage() {
               </button>
             </div>
           </section>
+          ) : null}
 
           <form className="panel" onSubmit={submitItem}>
-            <h2>Create Content Item</h2>
+            <h2>{isEditorMode ? 'Add Content Item' : 'Create Content Item'}</h2>
             <label>
               Item Type
               <select value={itemType} onChange={(event) => setItemType(event.target.value)}>
@@ -5725,14 +5931,15 @@ function AdminPage() {
                     <article
                       className="record"
                       key={record.id}
-                      draggable
-                      onDragStart={() => setDragRecordIndex(index)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => reorderStoredItems(index)}
-                      onDragEnd={() => setDragRecordIndex(null)}
+                      draggable={!isEditorMode}
+                      onDragStart={isEditorMode ? undefined : () => setDragRecordIndex(index)}
+                      onDragOver={isEditorMode ? undefined : (event) => event.preventDefault()}
+                      onDrop={isEditorMode ? undefined : () => reorderStoredItems(index)}
+                      onDragEnd={isEditorMode ? undefined : () => setDragRecordIndex(null)}
                     >
                       <div className="record-top">
                         <span className="pill">{record.itemType}</span>
+                        {!isEditorMode ? (
                         <div className="record-actions">
                           <button type="button" onClick={() => beginEditRecord(record)}>
                             Edit
@@ -5741,6 +5948,9 @@ function AdminPage() {
                             Delete
                           </button>
                         </div>
+                        ) : (
+                          <small className="muted-text">View only</small>
+                        )}
                       </div>
                       {record.itemType === 'question' ? (
                         <h3>{`Question ${index + 1}`}</h3>
@@ -5762,7 +5972,7 @@ function AdminPage() {
                       {record.itemType === 'question' && record.solutionVideoLink ? <small>Video solution added</small> : null}
                       {record.itemType === 'question' && record.solutionImageUrl ? <small>Solution image added</small> : null}
                       {record.itemType === 'lesson' && record.geogebraLink ? <small>GeoGebra added</small> : null}
-                      <small>Drag to reorder</small>
+                      {!isEditorMode ? <small>Drag to reorder</small> : null}
                       {record.imageUrl ? (
                         <div className="admin-record-image">
                           <img src={record.imageUrl} alt="Uploaded content" style={getRecordImageStyle(record)} />
@@ -6022,6 +6232,7 @@ function App() {
         />
         <Route path="/profile" element={<ProfilePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/admin" element={<ProtectedAdmin />} />
+        <Route path="/editor" element={<ProtectedEditor />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

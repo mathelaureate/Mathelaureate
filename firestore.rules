@@ -11,12 +11,20 @@ service cloud.firestore {
         && request.auth.token.email == "mathelaureate@gmail.com";
     }
 
+    // Dedicated copy-paste editor account — create-only, never update/delete.
+    // Keep this email in sync with VITE_EDITOR_EMAIL in the app env.
+    function isContentEditor() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == "mathelaureate.content@gmail.com";
+    }
+
     match /userPayments/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;
     }
 
-    // App-level config docs.
+    // App-level config docs (curricula, paywall, events, etc.).
     match /appData/{docId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -25,7 +33,8 @@ service cloud.firestore {
     // Course content shown to students.
     match /courseContentItems/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || isContentEditor();
+      allow update, delete: if isAdmin();
     }
 
     // Per-user progress and profile-style state.
