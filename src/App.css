@@ -1219,7 +1219,7 @@ nav button:hover {
   font-weight: 600;
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']),
 textarea,
 select {
   width: 100%;
@@ -1229,6 +1229,34 @@ select {
   background: #fff;
   color: #14212b;
   font-family: inherit;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.12rem 0 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: #1b6ea8;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  appearance: auto;
+}
+
+input[type='checkbox']:focus,
+input[type='checkbox']:focus-visible,
+input[type='radio']:focus,
+input[type='radio']:focus-visible {
+  outline: 2px solid rgba(27, 110, 168, 0.35);
+  outline-offset: 2px;
+  box-shadow: none;
+  background: transparent;
+  border-color: transparent;
 }
 
 .dnd-block {
@@ -1936,13 +1964,13 @@ nav button {
   border-radius: 14px;
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']),
 textarea,
 select {
   border-color: #c9d8db;
 }
 
-input:focus,
+input:not([type='checkbox']):not([type='radio']):focus,
 textarea:focus,
 select:focus {
   outline: 2px solid rgba(11, 122, 117, 0.18);
@@ -2058,7 +2086,7 @@ nav button {
   margin-bottom: 0.35rem;
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']),
 textarea,
 select {
   padding: 0.66rem 0.78rem;
@@ -2734,7 +2762,7 @@ nav button:hover {
   background: linear-gradient(180deg, #ffffff 0%, #fafcfc 100%);
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']),
 textarea,
 select {
   border-radius: 10px;
@@ -2742,7 +2770,7 @@ select {
   transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 
-input:focus,
+input:not([type='checkbox']):not([type='radio']):focus,
 textarea:focus,
 select:focus {
   background: #ffffff;
@@ -5026,6 +5054,16 @@ body {
   padding: 0.7rem 0.8rem;
   cursor: pointer;
   background: #f9fbfd;
+}
+
+.mock-unit-option input[type='checkbox'],
+.mock-paper-toggle input[type='checkbox'] {
+  margin-top: 0.2rem;
+}
+
+.mock-unit-option:has(input[type='checkbox']:focus-visible),
+.mock-paper-row:has(input[type='checkbox']:focus-visible) {
+  box-shadow: 0 0 0 2px rgba(27, 110, 168, 0.18);
 }
 
 .mock-unit-option.active {
