@@ -1217,15 +1217,16 @@ function sampleFromPoolToMarks(pool, markBudget, usedIds) {
   const picked = []
   let sum = 0
 
+  // Never overshoot: only take a question if it still fits under the budget.
   for (const question of shuffleCopy(pool)) {
     if (usedIds.has(question.id)) continue
     const marks = Math.max(0, Number(question.marks) || 0)
-    if (marks <= 0) continue
-    if (sum >= budget) break
-    if (picked.length > 0 && sum >= budget * 0.85 && sum + marks > budget * 1.2) continue
+    if (marks <= 0 || marks > budget) continue
+    if (sum + marks > budget) continue
     picked.push(question)
     usedIds.add(question.id)
     sum += marks
+    if (sum === budget) break
   }
 
   return { picked, sum }
@@ -1262,10 +1263,10 @@ function sampleQuestionsToMarks(pool, targetMarks) {
   let picked = [...easyPick.picked, ...mediumPick.picked, ...hardPick.picked]
   let sum = easyPick.sum + mediumPick.sum + hardPick.sum
 
+  // Fill leftover marks without going over the target.
   if (sum < goal) {
     const fill = sampleFromPoolToMarks(pool, goal - sum, usedIds)
     picked = [...picked, ...fill.picked]
-    sum += fill.sum
   }
 
   const difficultyOrder = { easy: 0, medium: 1, hard: 2 }
@@ -3067,8 +3068,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   }
 
   function onTargetMarksChange(paper, rawValue) {
-    const targetMarks = Math.max(1, Number(rawValue) || 1)
-    updatePaperSetting(paper.id, { targetMarks })
+    const cleaned = String(rawValue ?? '').replace(/[^\d]/g, '')
+    if (cleaned === '') {
+      updatePaperSetting(paper.id, { targetMarks: '' })
+      return
+    }
+    const next = Number(cleaned)
+    if (!Number.isFinite(next)) return
+    updatePaperSetting(paper.id, { targetMarks: Math.min(300, next) })
   }
 
   function matchesSelectedLevel(question) {
@@ -3236,10 +3243,6 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
           <div>
             <p className="eyebrow">Exam Builder</p>
             <h1>Custom Mock Generator</h1>
-            <p>
-              Course-specific papers with official mark/time pacing. For AA, choose HL or SL. Enable one paper or several
-              — timing scales from the marks you set.
-            </p>
           </div>
           {generatedPapers ? (
             <button
@@ -3356,17 +3359,17 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
             <article className="mock-panel">
               <h2>2. Papers · marks · time</h2>
-              <p className="mock-pace-note">
-                Official pace{paceNote ? `: ${paceNote}` : ''}. Enter target marks — time is set automatically. Enable
-                only the papers you need (one is enough).
-              </p>
               <div className="mock-paper-settings">
                 {activePapers.map((paperDef) => {
                   const settings = paperSettings[paperDef.id] || {
                     enabled: false,
                     targetMarks: paperDef.fullMarks,
                   }
-                  const autoMinutes = minutesFromTargetMarks(paperDef, settings.targetMarks || paperDef.fullMarks)
+                  const marksValue = settings.targetMarks === '' || settings.targetMarks == null ? '' : String(settings.targetMarks)
+                  const autoMinutes = minutesFromTargetMarks(
+                    paperDef,
+                    Number(settings.targetMarks) > 0 ? settings.targetMarks : paperDef.fullMarks,
+                  )
                   const available = selectedUnitIds.length ? getPoolForPaper(paperDef).length : 0
                   const availableMarks = selectedUnitIds.length
                     ? getPoolForPaper(paperDef).reduce((sum, question) => sum + (Number(question.marks) || 0), 0)
@@ -3389,10 +3392,12 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                       <label className="mock-field compact">
                         <span>Target marks</span>
                         <input
-                          type="number"
-                          min="1"
-                          max="300"
-                          value={settings.targetMarks}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          autoComplete="off"
+                          placeholder={String(paperDef.fullMarks)}
+                          value={marksValue}
                           disabled={!settings.enabled}
                           onChange={(event) => onTargetMarksChange(paperDef, event.target.value)}
                         />
