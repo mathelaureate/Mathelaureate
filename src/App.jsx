@@ -3200,9 +3200,6 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   }
 
   const activeGeneratedPaper = generatedPapers?.papers?.find((paper) => paper.id === activePaperId) || generatedPapers?.papers?.[0]
-  const paceNote = activePapers[0]
-    ? `${activePapers[0].fullMarks} marks ≈ ${activePapers[0].fullMinutes} min`
-    : ''
 
   if (!authReady) {
     return (
