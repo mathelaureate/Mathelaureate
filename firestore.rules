@@ -16,7 +16,7 @@ service cloud.firestore {
     function isContentEditor() {
       return signedIn()
         && request.auth.token.email_verified == true
-        && request.auth.token.email == "mathelaureate.content@gmail.com";
+        && request.auth.token.email == "editor.mathelaureate@gmail.com";
     }
 
     match /userPayments/{uid} {
