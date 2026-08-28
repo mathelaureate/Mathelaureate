@@ -24,7 +24,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // App-level config docs (curricula, paywall, events, etc.).
+    // App-level config docs (curricula, paywall, IA, etc.).
     match /appData/{docId} {
       allow read: if true;
       allow write: if isAdmin();
