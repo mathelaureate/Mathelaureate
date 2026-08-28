@@ -360,13 +360,13 @@ const adminPasscodeKey = 'mathelaureate-admin-passcode-ok'
 const editorPasscode = (import.meta.env.VITE_EDITOR_PASSCODE || '').trim()
 const editorPasscodeKey = 'mathelaureate-editor-passcode-ok'
 const editorAllowedEmail = (import.meta.env.VITE_EDITOR_EMAIL || 'editor.mathelaureate@gmail.com').trim().toLowerCase()
-const adminEventsOptionId = '__events_management__'
+const adminIaOptionId = '__ia_management__'
 const adminTeachersResourcesOptionId = '__teachers_resources_management__'
 const profileCacheKey = 'mathelaureate-profile-cache'
 const curriculaDocRef = doc(db, 'appData', 'curricula')
 const contentItemsCollectionRef = collection(db, 'courseContentItems')
 const paywallDocRef = doc(db, 'appData', 'paywall')
-const eventsDocRef = doc(db, 'appData', 'events')
+const iaDocRef = doc(db, 'appData', 'ia')
 const teachersResourcesDocRef = doc(db, 'appData', 'teachersResources')
 const paymentApiBaseUrl = (import.meta.env.VITE_PAYMENT_API_BASE_URL || '/api').replace(/\/$/, '')
 
@@ -378,21 +378,23 @@ function normalizePaywallConfig(raw) {
   }
 }
 
-function normalizeEvents(raw) {
+function normalizeIaItems(raw) {
   if (!Array.isArray(raw)) return []
   return raw
     .map((item) => ({
-      id: item?.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: item?.id || `ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: String(item?.title || '').trim(),
-      date: String(item?.date || '').trim(),
+      course: String(item?.course || '').trim(),
+      topic: String(item?.topic || '').trim(),
       summary: String(item?.summary || '').trim(),
       description: String(item?.description || '').trim(),
       link: String(item?.link || '').trim(),
       imageUrl: String(item?.imageUrl || '').trim(),
       imagePath: String(item?.imagePath || '').trim(),
+      createdAt: String(item?.createdAt || ''),
     }))
-    .filter((item) => item.title && item.date)
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .filter((item) => item.title)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
 }
 
 function normalizeTeachersResourcesPosts(raw) {
@@ -1302,7 +1304,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
             Home
           </a>
           <a href="/#programs">Programs</a>
-          <Link to="/events">Events</Link>
+          <Link to="/ia">IA</Link>
           <Link to="/mock-generator">Mock Generator</Link>
           <Link to="/teachers-resources">Teachers &amp; Resources</Link>
           <a href="/#contact">Contact</a>
@@ -1654,7 +1656,7 @@ function HomePage({ user, cachedProfile }) {
             <h4>About</h4>
             <a href="/#home">Our Mission</a>
             <Link to="/teachers-resources">Teachers &amp; Resources</Link>
-            <Link to="/events">Events</Link>
+            <Link to="/ia">IA</Link>
           </div>
           <div className="home-footer-column">
             <h4>Programs</h4>
@@ -1725,106 +1727,106 @@ function ProgramsPage({ user, cachedProfile }) {
   )
 }
 
-function EventsPage({ user, cachedProfile }) {
-  const [events, setEvents] = useState([])
-  const [loadingEvents, setLoadingEvents] = useState(true)
-  const [eventsError, setEventsError] = useState('')
-  const [activeEvent, setActiveEvent] = useState(null)
+function IaPage({ user, cachedProfile }) {
+  const [iaItems, setIaItems] = useState([])
+  const [loadingIa, setLoadingIa] = useState(true)
+  const [iaError, setIaError] = useState('')
+  const [activeIa, setActiveIa] = useState(null)
 
   useEffect(() => {
     let active = true
 
-    async function loadEvents() {
-      setLoadingEvents(true)
-      setEventsError('')
+    async function loadIaItems() {
+      setLoadingIa(true)
+      setIaError('')
       try {
-        const eventsSnap = await getDoc(eventsDocRef)
-        const items = normalizeEvents(eventsSnap.data()?.items)
+        const iaSnap = await getDoc(iaDocRef)
+        const items = normalizeIaItems(iaSnap.data()?.items)
         if (!active) return
-        setEvents(items)
+        setIaItems(items)
       } catch (error) {
         if (!active) return
-        setEventsError(error?.message || 'Unable to load events.')
+        setIaError(error?.message || 'Unable to load IA examples.')
       } finally {
-        if (active) setLoadingEvents(false)
+        if (active) setLoadingIa(false)
       }
     }
 
-    loadEvents()
+    loadIaItems()
     return () => {
       active = false
     }
   }, [])
 
   return (
-    <main className="site site-full events-page">
+    <main className="site site-full events-page ia-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="panel-section events-panel">
         <div className="events-page-head">
-          <h1>Events</h1>
-          <p>Upcoming workshops, bootcamps, and revision sessions for IBDP and IGCSE students.</p>
+          <h1>Internal Assessment</h1>
+          <p>Sample IAs, topic ideas, and guidance for IBDP Mathematics.</p>
         </div>
-        {loadingEvents ? <p>Loading events...</p> : null}
-        {eventsError ? <p className="error-text">{eventsError}</p> : null}
-        {!loadingEvents && events.length === 0 ? (
+        {loadingIa ? <p>Loading IA examples...</p> : null}
+        {iaError ? <p className="error-text">{iaError}</p> : null}
+        {!loadingIa && iaItems.length === 0 ? (
           <div className="events-empty">
-            <h2>No upcoming events yet</h2>
-            <p>New workshops and revision sessions will appear here soon.</p>
+            <h2>No IA examples yet</h2>
+            <p>Sample investigations and topic guides will appear here soon.</p>
           </div>
         ) : null}
         <div className="showcase-grid showcase-grid-horizontal events-horizontal-list">
-          {events.map((event) => (
+          {iaItems.map((item) => (
             <button
-              key={event.id}
+              key={item.id}
               type="button"
               className="showcase-card showcase-card-button event-row-card"
-              onClick={() => setActiveEvent(event)}
+              onClick={() => setActiveIa(item)}
             >
               <div className="showcase-image-wrap">
-                {event.imageUrl ? (
-                  <img src={event.imageUrl} alt={event.title} className="showcase-image" />
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.title} className="showcase-image" />
                 ) : (
-                  <div className="showcase-image-fallback">Event</div>
+                  <div className="showcase-image-fallback">IA</div>
                 )}
               </div>
               <div className="showcase-body">
                 <div className="event-row-meta">
-                  <small className="showcase-label">Event</small>
-                  <small className="event-row-date">{event.date || 'Date TBA'}</small>
+                  <small className="showcase-label">{item.course || 'IA'}</small>
+                  {item.topic ? <small className="event-row-date">{item.topic}</small> : null}
                 </div>
-                <h3>{event.title}</h3>
-                <LatexText value={event.summary || event.description} className="showcase-description" />
+                <h3>{item.title}</h3>
+                <LatexText value={item.summary || item.description} className="showcase-description" />
                 <span className="showcase-link">View details →</span>
               </div>
             </button>
           ))}
         </div>
       </section>
-      {activeEvent ? (
-        <section className="event-modal-overlay" role="dialog" aria-modal="true" onClick={() => setActiveEvent(null)}>
+      {activeIa ? (
+        <section className="event-modal-overlay" role="dialog" aria-modal="true" onClick={() => setActiveIa(null)}>
           <article className="event-modal" onClick={(event) => event.stopPropagation()}>
             <div className="event-modal-head">
-              <h3>{activeEvent.title}</h3>
+              <h3>{activeIa.title}</h3>
               <button
                 type="button"
                 className="event-modal-close-btn"
-                onClick={() => setActiveEvent(null)}
-                aria-label="Close event popup"
+                onClick={() => setActiveIa(null)}
+                aria-label="Close IA popup"
               >
                 &times;
               </button>
             </div>
-            {activeEvent.imageUrl ? (
-              <img src={activeEvent.imageUrl} alt={activeEvent.title} className="event-modal-image" />
-            ) : null}
-            <small className="event-modal-date">{activeEvent.date}</small>
-            <LatexText value={activeEvent.description || activeEvent.summary} className="latex-text" />
-            {activeEvent.link ? (
-              <a className="btn primary" href={activeEvent.link} target="_blank" rel="noreferrer">
-                Open event link
+            {activeIa.imageUrl ? <img src={activeIa.imageUrl} alt={activeIa.title} className="event-modal-image" /> : null}
+            <small className="event-modal-date">
+              {[activeIa.course, activeIa.topic].filter(Boolean).join(' · ') || 'Internal Assessment'}
+            </small>
+            <LatexText value={activeIa.description || activeIa.summary} className="latex-text" />
+            {activeIa.link ? (
+              <a className="btn primary" href={activeIa.link} target="_blank" rel="noreferrer">
+                Open IA resource
               </a>
             ) : (
-              <small>Link coming soon.</small>
+              <small>Resource link coming soon.</small>
             )}
           </article>
         </section>
@@ -3742,13 +3744,13 @@ function ProfilePage({ user, cachedProfile }) {
               →
             </span>
           </Link>
-          <Link className="quick-link-card" to="/events">
+          <Link className="quick-link-card" to="/ia">
             <span className="quick-link-icon" aria-hidden="true">
               ◎
             </span>
             <div>
-              <h3>Events</h3>
-              <p>Workshops, bootcamps, and revision sessions.</p>
+              <h3>Internal Assessment</h3>
+              <p>Sample IAs, topic ideas, and guidance.</p>
             </div>
             <span className="quick-link-arrow" aria-hidden="true">
               →
@@ -3978,17 +3980,18 @@ function AdminPage({ mode = 'admin' }) {
   const [paywallSubunit, setPaywallSubunit] = useState(defaultCurricula[0]?.units?.[0]?.subunits?.[0] ?? '')
   const [paywallPriceInput, setPaywallPriceInput] = useState('')
   const [isPaywallSaving, setIsPaywallSaving] = useState(false)
-  const [events, setEvents] = useState([])
+  const [iaItems, setIaItems] = useState([])
   const [teachersResourcesPosts, setTeachersResourcesPosts] = useState([])
   const [adminSelection, setAdminSelection] = useState(curricula[0]?.id ?? '')
-  const [eventTitle, setEventTitle] = useState('')
-  const [eventDate, setEventDate] = useState('')
-  const [eventSummary, setEventSummary] = useState('')
-  const [eventDescription, setEventDescription] = useState('')
-  const [eventLink, setEventLink] = useState('')
-  const [eventImageFile, setEventImageFile] = useState(null)
-  const [eventImagePreviewUrl, setEventImagePreviewUrl] = useState('')
-  const [isEventSaving, setIsEventSaving] = useState(false)
+  const [iaTitle, setIaTitle] = useState('')
+  const [iaCourse, setIaCourse] = useState('IBDP AA HL')
+  const [iaTopic, setIaTopic] = useState('')
+  const [iaSummary, setIaSummary] = useState('')
+  const [iaDescription, setIaDescription] = useState('')
+  const [iaLink, setIaLink] = useState('')
+  const [iaImageFile, setIaImageFile] = useState(null)
+  const [iaImagePreviewUrl, setIaImagePreviewUrl] = useState('')
+  const [isIaSaving, setIsIaSaving] = useState(false)
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
   const [resourcePostLink, setResourcePostLink] = useState('')
@@ -4025,7 +4028,7 @@ function AdminPage({ mode = 'admin' }) {
     () => curricula.find((curriculum) => curriculum.id === curriculumId) ?? curricula[0],
     [curricula, curriculumId],
   )
-  const isEventsManagementSelected = !isEditorMode && adminSelection === adminEventsOptionId
+  const isIaManagementSelected = !isEditorMode && adminSelection === adminIaOptionId
   const isTeachersResourcesSelected = !isEditorMode && adminSelection === adminTeachersResourcesOptionId
   const isCurrentAdminIbdpCourse = curriculumId === 'ibdp-aa-hl' || curriculumId === 'ibdp-ai-hl'
   const selectedUnit = useMemo(
@@ -4131,15 +4134,15 @@ function AdminPage({ mode = 'admin' }) {
           .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
         const paywallSnap = await getDoc(paywallDocRef)
         const nextPaywallConfig = normalizePaywallConfig(paywallSnap.data())
-        const eventsSnap = await getDoc(eventsDocRef)
-        const nextEvents = normalizeEvents(eventsSnap.data()?.items)
+        const iaSnap = await getDoc(iaDocRef)
+        const nextIaItems = normalizeIaItems(iaSnap.data()?.items)
         const teachersResourcesSnap = await getDoc(teachersResourcesDocRef)
         const nextTeachersResourcesPosts = normalizeTeachersResourcesPosts(teachersResourcesSnap.data()?.items)
 
         if (!active) return
         setCurricula(courses)
         setRecords(fetchedRecords)
-        setEvents(nextEvents)
+        setIaItems(nextIaItems)
         setTeachersResourcesPosts(nextTeachersResourcesPosts)
         setCurriculumId(courses[0]?.id ?? '')
         setAdminSelection(courses[0]?.id ?? '')
@@ -4198,21 +4201,21 @@ function AdminPage({ mode = 'admin' }) {
     }
   }
 
-  async function persistEvents(nextEvents) {
+  async function persistIaItems(nextItems) {
     if (isEditorMode) {
-      setDataError('Content editors cannot manage events.')
+      setDataError('Content editors cannot manage IA examples.')
       return
     }
-    const normalized = normalizeEvents(nextEvents)
-    setEvents(normalized)
-    setIsEventSaving(true)
+    const normalized = normalizeIaItems(nextItems)
+    setIaItems(normalized)
+    setIsIaSaving(true)
     try {
-      await setDoc(eventsDocRef, { items: normalized }, { merge: true })
+      await setDoc(iaDocRef, { items: normalized }, { merge: true })
       setDataError('')
     } catch (error) {
-      setDataError(error?.message || 'Unable to save events.')
+      setDataError(error?.message || 'Unable to save IA examples.')
     } finally {
-      setIsEventSaving(false)
+      setIsIaSaving(false)
     }
   }
 
@@ -4291,10 +4294,10 @@ function AdminPage({ mode = 'admin' }) {
   }
 
   function onCurriculumChange(nextId) {
-    if (isEditorMode && (nextId === adminEventsOptionId || nextId === adminTeachersResourcesOptionId)) {
+    if (isEditorMode && (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId)) {
       return
     }
-    if (nextId === adminEventsOptionId || nextId === adminTeachersResourcesOptionId) {
+    if (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId) {
       setAdminSelection(nextId)
       return
     }
@@ -5189,56 +5192,59 @@ function AdminPage({ mode = 'admin' }) {
     }
   }
 
-  async function submitEvent(event) {
+  async function submitIaItem(event) {
     event.preventDefault()
-    if (!eventTitle.trim() || !eventDate) return
+    if (!iaTitle.trim()) return
     let imageUrl = ''
     let imagePath = ''
-    if (eventImageFile) {
+    if (iaImageFile) {
       if (!supabaseConfigured) {
         setDataError('Supabase not configured. Add Supabase env values before uploading images.')
         return
       }
       try {
-        setIsEventSaving(true)
-        const uploadResult = await uploadImageToSupabase(eventImageFile, 'events')
+        setIsIaSaving(true)
+        const uploadResult = await uploadImageToSupabase(iaImageFile, 'ia')
         imageUrl = uploadResult.publicUrl
         imagePath = uploadResult.path
       } catch (error) {
-        setIsEventSaving(false)
-        setDataError(error?.message || 'Unable to upload event image to Supabase.')
+        setIsIaSaving(false)
+        setDataError(error?.message || 'Unable to upload IA image to Supabase.')
         return
       }
     }
     const next = [
-      ...events,
       {
-        id: `event-${Date.now()}`,
-        title: eventTitle.trim(),
-        date: eventDate,
-        summary: eventSummary.trim(),
-        description: eventDescription.trim(),
-        link: eventLink.trim(),
+        id: `ia-${Date.now()}`,
+        title: iaTitle.trim(),
+        course: iaCourse.trim(),
+        topic: iaTopic.trim(),
+        summary: iaSummary.trim(),
+        description: iaDescription.trim(),
+        link: iaLink.trim(),
         imageUrl,
         imagePath,
+        createdAt: new Date().toISOString(),
       },
+      ...iaItems,
     ]
-    await persistEvents(next)
-    setEventTitle('')
-    setEventDate('')
-    setEventSummary('')
-    setEventDescription('')
-    setEventLink('')
-    setEventImageFile(null)
-    setEventImagePreviewUrl('')
+    await persistIaItems(next)
+    setIaTitle('')
+    setIaCourse('IBDP AA HL')
+    setIaTopic('')
+    setIaSummary('')
+    setIaDescription('')
+    setIaLink('')
+    setIaImageFile(null)
+    setIaImagePreviewUrl('')
   }
 
-  async function removeEvent(eventId) {
-    const eventItem = events.find((item) => item.id === eventId)
-    const label = eventItem?.title ? `"${eventItem.title}"` : 'this event'
+  async function removeIaItem(itemId) {
+    const iaItem = iaItems.find((item) => item.id === itemId)
+    const label = iaItem?.title ? `"${iaItem.title}"` : 'this IA'
     const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
     if (!confirmed) return
-    await persistEvents(events.filter((item) => item.id !== eventId))
+    await persistIaItems(iaItems.filter((item) => item.id !== itemId))
   }
 
   function onResourcePostImageChange(event) {
@@ -5247,10 +5253,10 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostImagePreviewUrl(file ? URL.createObjectURL(file) : '')
   }
 
-  function onEventImageChange(event) {
+  function onIaImageChange(event) {
     const file = event.target.files?.[0] || null
-    setEventImageFile(file)
-    setEventImagePreviewUrl(file ? URL.createObjectURL(file) : '')
+    setIaImageFile(file)
+    setIaImagePreviewUrl(file ? URL.createObjectURL(file) : '')
   }
 
   async function submitTeachersResourcePost(event) {
@@ -5344,7 +5350,7 @@ function AdminPage({ mode = 'admin' }) {
           <label>
             Course
             <select value={adminSelection} onChange={(event) => onCurriculumChange(event.target.value)}>
-              {!isEditorMode ? <option value={adminEventsOptionId}>Events Management</option> : null}
+              {!isEditorMode ? <option value={adminIaOptionId}>IA Management</option> : null}
               {!isEditorMode ? <option value={adminTeachersResourcesOptionId}>Teachers &amp; Resources</option> : null}
               {curricula.map((curriculum) => (
                 <option value={curriculum.id} key={curriculum.id}>
@@ -5353,7 +5359,7 @@ function AdminPage({ mode = 'admin' }) {
               ))}
             </select>
           </label>
-          {!isEventsManagementSelected && !isTeachersResourcesSelected ? (
+          {!isIaManagementSelected && !isTeachersResourcesSelected ? (
             <>
           <label>
             Topic
@@ -5481,67 +5487,81 @@ function AdminPage({ mode = 'admin' }) {
         </aside>
 
         <div className="stack">
-          {isEventsManagementSelected ? (
+          {isIaManagementSelected ? (
           <section className="panel">
-            <h2>Events Management</h2>
-            <form onSubmit={submitEvent}>
+            <h2>IA Management</h2>
+            <form onSubmit={submitIaItem}>
               <label>
-                Event Title
-                <input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} required />
+                IA Title
+                <input value={iaTitle} onChange={(event) => setIaTitle(event.target.value)} required />
               </label>
               <label>
-                Event Date
-                <input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required />
+                Course
+                <select value={iaCourse} onChange={(event) => setIaCourse(event.target.value)}>
+                  <option value="IBDP AA HL">IBDP AA HL</option>
+                  <option value="IBDP AA SL">IBDP AA SL</option>
+                  <option value="IBDP AI HL">IBDP AI HL</option>
+                  <option value="IBDP AI SL">IBDP AI SL</option>
+                  <option value="General">General</option>
+                </select>
               </label>
               <label>
-                Event Summary (shown on card)
+                Topic / Focus
+                <input
+                  value={iaTopic}
+                  onChange={(event) => setIaTopic(event.target.value)}
+                  placeholder="e.g. Calculus modelling, Statistics, Geometry"
+                />
+              </label>
+              <label>
+                Summary (shown on card)
                 <textarea
                   rows={2}
-                  value={eventSummary}
-                  onChange={(event) => setEventSummary(event.target.value)}
-                  placeholder="Short summary shown on event card (HTML supported)"
+                  value={iaSummary}
+                  onChange={(event) => setIaSummary(event.target.value)}
+                  placeholder="Short summary shown on the IA card"
                 />
               </label>
               <label>
                 Description (optional full text)
                 <textarea
                   rows={4}
-                  value={eventDescription}
-                  onChange={(event) => setEventDescription(event.target.value)}
-                  placeholder="Long-form event details (HTML supported)"
+                  value={iaDescription}
+                  onChange={(event) => setIaDescription(event.target.value)}
+                  placeholder="Longer IA details, tips, or outline"
                 />
               </label>
               <label>
-                Event Link (optional)
-                <input value={eventLink} onChange={(event) => setEventLink(event.target.value)} placeholder="https://..." />
+                Resource Link (optional)
+                <input value={iaLink} onChange={(event) => setIaLink(event.target.value)} placeholder="https://..." />
               </label>
               <label>
-                Event Image (optional)
-                <input type="file" accept="image/*" onChange={onEventImageChange} />
+                Cover Image (optional)
+                <input type="file" accept="image/*" onChange={onIaImageChange} />
               </label>
-              {eventImagePreviewUrl ? (
+              {iaImagePreviewUrl ? (
                 <div className="image-preview-block">
-                  <img src={eventImagePreviewUrl} alt="Event preview" />
+                  <img src={iaImagePreviewUrl} alt="IA preview" />
                 </div>
               ) : null}
-              <button className="btn primary" type="submit" disabled={isEventSaving}>
-                {isEventSaving ? 'Saving event...' : 'Add Event'}
+              <button className="btn primary" type="submit" disabled={isIaSaving}>
+                {isIaSaving ? 'Saving IA...' : 'Add IA'}
               </button>
             </form>
             <div className="records">
-              {events.length === 0 ? (
-                <p className="empty">No events added yet.</p>
+              {iaItems.length === 0 ? (
+                <p className="empty">No IA examples added yet.</p>
               ) : (
-                events.map((item) => (
+                iaItems.map((item) => (
                   <article key={item.id} className="record">
                     <div className="record-top">
-                      <span className="pill">event</span>
-                      <button type="button" onClick={() => removeEvent(item.id)}>
+                      <span className="pill">ia</span>
+                      <button type="button" onClick={() => removeIaItem(item.id)}>
                         Delete
                       </button>
                     </div>
                     <h3>{item.title}</h3>
-                    <small>{item.date}</small>
+                    <small>{[item.course, item.topic].filter(Boolean).join(' · ')}</small>
                     {item.summary ? <LatexText value={item.summary} className="latex-text" /> : null}
                     {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
                     {item.imageUrl ? (
@@ -5551,7 +5571,7 @@ function AdminPage({ mode = 'admin' }) {
                     ) : null}
                     {item.link ? (
                       <a href={item.link} target="_blank" rel="noreferrer">
-                        Open event link
+                        Open IA resource
                       </a>
                     ) : null}
                   </article>
@@ -6191,9 +6211,9 @@ function App() {
         if (!paywallSnap.exists()) {
           await setDoc(paywallDocRef, normalizePaywallConfig())
         }
-        const eventsSnap = await getDoc(eventsDocRef)
-        if (!eventsSnap.exists()) {
-          await setDoc(eventsDocRef, { items: [] })
+        const iaSnap = await getDoc(iaDocRef)
+        if (!iaSnap.exists()) {
+          await setDoc(iaDocRef, { items: [] })
         }
         const teachersResourcesSnap = await getDoc(teachersResourcesDocRef)
         if (!teachersResourcesSnap.exists()) {
@@ -6217,7 +6237,8 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />
-        <Route path="/events" element={<EventsPage user={user} cachedProfile={cachedProfile} />} />
+        <Route path="/ia" element={<IaPage user={user} cachedProfile={cachedProfile} />} />
+        <Route path="/events" element={<Navigate to="/ia" replace />} />
         <Route path="/teachers-resources" element={<TeachersResourcesPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/terms-of-use" element={<TermsOfUsePage user={user} cachedProfile={cachedProfile} />} />
