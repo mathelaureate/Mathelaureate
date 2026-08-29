@@ -2818,7 +2818,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           ) : null}
                           {activeTab === 'lesson' && item.geogebraLink ? (
                             <div className="geogebra-block">
-                              <strong>Interactive Graph</strong>
                               <iframe
                                 title={`geogebra-${item.id}`}
                                 src={toGeoGebraEmbedUrl(item.geogebraLink)}
