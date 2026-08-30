@@ -1749,6 +1749,10 @@ input[type='radio']:focus-visible {
   --page-max: 74rem;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body,
 #root {

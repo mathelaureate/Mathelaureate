@@ -1404,9 +1404,9 @@ function HomePage({ user, cachedProfile }) {
               examples, and exam-focused practice.
             </p>
             <div className="hero-actions">
-              <Link to="/programs" className="btn primary">
+              <a href="#programs" className="btn primary">
                 Start Learning →
-              </Link>
+              </a>
               <a href="#programs" className="btn ghost">
                 Explore Courses
               </a>
