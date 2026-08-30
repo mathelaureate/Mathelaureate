@@ -1995,23 +1995,27 @@ function iaLevelFromCourse(course) {
   return ''
 }
 
-function getIaCardHeading(item) {
-  const title = String(item?.title || '').trim()
-  const topic = String(item?.topic || '').trim()
-  const summary = String(item?.summary || '').trim()
-  const description = String(item?.description || '').trim()
-  // If title was stored truncated, prefer the full idea text.
-  if (/\.\.\.\s*$/.test(title)) {
-    const fuller = [summary, topic, description].sort((a, b) => b.length - a.length)[0] || ''
-    if (fuller.length > title.length) return fuller
-  }
-  return title
-}
-
 const IA_TITLE_MAX_WORDS = 20
 const IA_TOPIC_MAX_WORDS = 8
-const IA_SUMMARY_MAX_WORDS = 40
+const IA_SUMMARY_MAX_WORDS = 120
 const IA_DESCRIPTION_MAX_WORDS = 50
+
+function normalizeIaText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function iaStudentSummary(item) {
+  const summary = String(item?.summary || '').trim()
+  if (!summary) return ''
+  const title = normalizeIaText(item?.title)
+  const body = normalizeIaText(summary)
+  if (title && (body === title || body.startsWith(title) || title.startsWith(body))) return ''
+  return summary
+}
 
 function countWords(value) {
   return String(value || '').trim().split(/\s+/).filter(Boolean).length
@@ -2043,7 +2047,7 @@ function IaCardPreview({ item }) {
   return (
     <div className="ia-grid-card-fallback">
       <span>IA</span>
-      <p>{item.title}</p>
+      <p>{item.topic || item.course || 'IA example'}</p>
     </div>
   )
 }
@@ -2228,15 +2232,12 @@ function IaPage({ user, cachedProfile }) {
                 {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
               </div>
               <div className="ia-grid-card-body">
-                <h2 className="ia-card-title">{getIaCardHeading(item)}</h2>
                 <div className="ia-idea-meta">
                   <span className="ia-meta-chip">IA</span>
                   {iaLevelFromCourse(item.course) ? (
                     <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
                   ) : null}
-                  {item.topic && item.topic.length <= 40 ? (
-                    <span className="ia-meta-chip">{item.topic}</span>
-                  ) : null}
+                  {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
                 </div>
               </div>
             </Link>
@@ -2310,8 +2311,8 @@ function IaDetailPage({ user, cachedProfile }) {
 
   const unlocked = iaItem ? hasIaAccess(userPayments, iaItem.id) : false
   const previewPages = iaItem?.previewPages || 1
-  const iaDisplayTitle = iaItem ? getIaCardHeading(iaItem) : ''
   const iaUnlockPrice = iaItem ? resolveIaUnlockPrice(iaItem, paywallConfig.defaultIaUnlockPriceInr) : 0
+  const iaPurchaseLabel = iaItem?.topic || iaItem?.course || 'IA exemplar'
   const subscriptionPrice = paywallConfig.fullSubscription.priceInr
   const subscriptionDurationLabel = formatAccessDuration(paywallConfig.fullSubscription.durationDays)
 
@@ -2342,8 +2343,8 @@ function IaDetailPage({ user, cachedProfile }) {
       user: buyer,
       productType: 'ia',
       iaId: iaItem.id,
-      courseTitle: iaDisplayTitle || iaItem.title,
-      description: `Unlock IA: ${iaDisplayTitle || iaItem.title}`,
+      courseTitle: iaPurchaseLabel,
+      description: `Unlock IA · ${iaPurchaseLabel}`,
       onPaymentsUpdated: setUserPayments,
       onError: setPaymentError,
       onBusyChange: setPaymentBusy,
@@ -2396,10 +2397,10 @@ function IaDetailPage({ user, cachedProfile }) {
                 {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
               </div>
 
-              {iaItem.summary ? (
+              {iaStudentSummary(iaItem) ? (
                 <div className="ia-summary-card">
                   <h3>Summary</h3>
-                  <LatexText value={iaItem.summary} className="latex-text" />
+                  <LatexText value={iaStudentSummary(iaItem)} className="latex-text" />
                 </div>
               ) : null}
 
@@ -6537,10 +6538,10 @@ function AdminPage({ mode = 'admin' }) {
                   rows={2}
                   value={iaSummary}
                   onChange={(event) => setIaSummary(limitWords(event.target.value, IA_SUMMARY_MAX_WORDS))}
-                  placeholder="Short summary only — this is what students see on the left"
+                  placeholder="Short student-facing summary. Not the research question."
                 />
                 <small className="muted-text">
-                  Do not paste the full RQ. {countWords(iaSummary)} / {IA_SUMMARY_MAX_WORDS} words
+                  {countWords(iaSummary)} / {IA_SUMMARY_MAX_WORDS} words
                 </small>
               </label>
               <label>
