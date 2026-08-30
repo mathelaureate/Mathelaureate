@@ -2008,6 +2008,22 @@ function getIaCardHeading(item) {
   return title
 }
 
+const IA_TITLE_MAX_WORDS = 20
+const IA_TOPIC_MAX_WORDS = 8
+const IA_SUMMARY_MAX_WORDS = 40
+const IA_DESCRIPTION_MAX_WORDS = 50
+
+function countWords(value) {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).length
+}
+
+function limitWords(value, maxWords) {
+  const raw = String(value ?? '')
+  const words = raw.trim().split(/\s+/).filter(Boolean)
+  if (words.length <= maxWords) return raw
+  return words.slice(0, maxWords).join(' ')
+}
+
 function IaCardPreview({ item }) {
   if (item.imageUrl) {
     return <img src={item.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
@@ -2370,7 +2386,6 @@ function IaDetailPage({ user, cachedProfile }) {
                 <span aria-hidden="true"> • </span>
                 <span>Math AA</span>
               </p>
-              <h1>{iaDisplayTitle || iaItem.title}</h1>
               <div className="ia-idea-meta">
                 <span className="ia-meta-chip">IA</span>
                 <span className="ia-meta-chip">Math AA</span>
@@ -2381,10 +2396,10 @@ function IaDetailPage({ user, cachedProfile }) {
                 {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
               </div>
 
-              {iaItem.summary || iaItem.description ? (
+              {iaItem.summary ? (
                 <div className="ia-summary-card">
                   <h3>Summary</h3>
-                  <LatexText value={iaItem.description || iaItem.summary} className="latex-text" />
+                  <LatexText value={iaItem.summary} className="latex-text" />
                 </div>
               ) : null}
 
@@ -5982,6 +5997,22 @@ function AdminPage({ mode = 'admin' }) {
   async function submitIaItem(event) {
     event.preventDefault()
     if (!iaTitle.trim()) return
+    if (countWords(iaTitle) > IA_TITLE_MAX_WORDS) {
+      setDataError(`Research question must be ${IA_TITLE_MAX_WORDS} words or fewer.`)
+      return
+    }
+    if (countWords(iaTopic) > IA_TOPIC_MAX_WORDS) {
+      setDataError(`Topic must be ${IA_TOPIC_MAX_WORDS} words or fewer.`)
+      return
+    }
+    if (countWords(iaSummary) > IA_SUMMARY_MAX_WORDS) {
+      setDataError(`Summary must be ${IA_SUMMARY_MAX_WORDS} words or fewer.`)
+      return
+    }
+    if (countWords(iaDescription) > IA_DESCRIPTION_MAX_WORDS) {
+      setDataError(`Description must be ${IA_DESCRIPTION_MAX_WORDS} words or fewer.`)
+      return
+    }
     const previewPages = Math.min(20, Math.max(1, Math.floor(Number(iaPreviewPages) || 1)))
     const unlockPriceInr = Number(iaUnlockPrice || 0)
     if (!Number.isFinite(unlockPriceInr) || unlockPriceInr < 0) {
@@ -6084,11 +6115,11 @@ function AdminPage({ mode = 'admin' }) {
   function startEditIaItem(item) {
     if (!item?.id) return
     setEditingIaId(item.id)
-    setIaTitle(item.title || '')
+    setIaTitle(limitWords(item.title || '', IA_TITLE_MAX_WORDS))
     setIaCourse(iaAaCourses.includes(item.course) ? item.course : 'IBDP AA HL')
-    setIaTopic(item.topic || '')
-    setIaSummary(item.summary || '')
-    setIaDescription(item.description || '')
+    setIaTopic(limitWords(item.topic || '', IA_TOPIC_MAX_WORDS))
+    setIaSummary(limitWords(item.summary || '', IA_SUMMARY_MAX_WORDS))
+    setIaDescription(limitWords(item.description || '', IA_DESCRIPTION_MAX_WORDS))
     setIaLink(item.link || '')
     setIaPreviewPages(String(item.previewPages || 1))
     setIaUnlockPrice(String(item.unlockPriceInr ?? ''))
@@ -6473,7 +6504,14 @@ function AdminPage({ mode = 'admin' }) {
             <form onSubmit={submitIaItem}>
               <label>
                 IA Idea / Research Question
-                <input value={iaTitle} onChange={(event) => setIaTitle(event.target.value)} required />
+                <input
+                  value={iaTitle}
+                  onChange={(event) => setIaTitle(limitWords(event.target.value, IA_TITLE_MAX_WORDS))}
+                  required
+                />
+                <small className="muted-text">
+                  Keep it short. {countWords(iaTitle)} / {IA_TITLE_MAX_WORDS} words
+                </small>
               </label>
               <label>
                 Course
@@ -6486,27 +6524,36 @@ function AdminPage({ mode = 'admin' }) {
                 Topic / Focus
                 <input
                   value={iaTopic}
-                  onChange={(event) => setIaTopic(event.target.value)}
-                  placeholder="e.g. Calculus modelling, Statistics, Geometry"
+                  onChange={(event) => setIaTopic(limitWords(event.target.value, IA_TOPIC_MAX_WORDS))}
+                  placeholder="e.g. Calculus, Statistics"
                 />
+                <small className="muted-text">
+                  {countWords(iaTopic)} / {IA_TOPIC_MAX_WORDS} words
+                </small>
               </label>
               <label>
-                Summary (detail view)
+                Summary
                 <textarea
                   rows={2}
                   value={iaSummary}
-                  onChange={(event) => setIaSummary(event.target.value)}
-                  placeholder="Short summary shown in the IA detail view"
+                  onChange={(event) => setIaSummary(limitWords(event.target.value, IA_SUMMARY_MAX_WORDS))}
+                  placeholder="Short summary only — this is what students see on the left"
                 />
+                <small className="muted-text">
+                  Do not paste the full RQ. {countWords(iaSummary)} / {IA_SUMMARY_MAX_WORDS} words
+                </small>
               </label>
               <label>
-                Description (optional full text)
+                Description (optional)
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={iaDescription}
-                  onChange={(event) => setIaDescription(event.target.value)}
-                  placeholder="Longer IA details, tips, or outline"
+                  onChange={(event) => setIaDescription(limitWords(event.target.value, IA_DESCRIPTION_MAX_WORDS))}
+                  placeholder="Optional extra note. Keep it brief."
                 />
+                <small className="muted-text">
+                  {countWords(iaDescription)} / {IA_DESCRIPTION_MAX_WORDS} words
+                </small>
               </label>
               <label>
                 Resource Link (optional)
