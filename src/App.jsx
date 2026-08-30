@@ -455,6 +455,7 @@ function normalizeTeachersResourcesPosts(raw) {
       id: item?.id || `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: String(item?.title || '').trim(),
       description: String(item?.description || '').trim(),
+      category: String(item?.category || item?.topic || 'Guides').trim() || 'Guides',
       link: String(item?.link || '').trim(),
       imageUrl: String(item?.imageUrl || '').trim(),
       imagePath: String(item?.imagePath || '').trim(),
@@ -2421,10 +2422,27 @@ function IaDetailPage({ user, cachedProfile }) {
   )
 }
 
+const teachersResourceCategories = ['All', 'Guides', 'Worksheets', 'Videos', 'Classroom', 'Assessments', 'Other']
+
+function TeachersResourceCardPreview({ post }) {
+  if (post.imageUrl) {
+    return <img src={post.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
+  }
+  return (
+    <div className="ia-grid-card-fallback">
+      <span>Resource</span>
+      <p>{post.title}</p>
+    </div>
+  )
+}
+
 function TeachersResourcesPage({ user, cachedProfile }) {
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [postsError, setPostsError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('All')
+  const topicRailRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -2451,39 +2469,252 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     }
   }, [])
 
+  const categoryChips = useMemo(() => {
+    const fromPosts = posts.map((post) => post.category).filter(Boolean)
+    return [...new Set([...teachersResourceCategories, ...fromPosts])]
+  }, [posts])
+
+  const filteredPosts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return posts.filter((post) => {
+      if (categoryFilter !== 'All' && String(post.category || '').toLowerCase() !== categoryFilter.toLowerCase()) {
+        return false
+      }
+      if (!query) return true
+      const haystack = [post.title, post.description, post.category].join(' ').toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [posts, searchQuery, categoryFilter])
+
+  function clearFilters() {
+    setCategoryFilter('All')
+    setSearchQuery('')
+  }
+
+  function scrollTopics(direction) {
+    const node = topicRailRef.current
+    if (!node) return
+    node.scrollBy({ left: direction * 240, behavior: 'smooth' })
+  }
+
   return (
-    <main className="site site-full">
+    <main className="site site-full ia-page tr-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Teachers &amp; Resources</h1>
-        <p>Updates, curated links, and classroom-ready materials shared as resource posts.</p>
-        {loadingPosts ? <p>Loading resources...</p> : null}
-        {postsError ? <p className="error-text">{postsError}</p> : null}
-        {!loadingPosts && posts.length === 0 ? <p>No resource posts yet.</p> : null}
-        <div className="showcase-grid showcase-grid-horizontal">
-          {posts.map((post) => (
-            <article key={post.id} className="showcase-card">
-              <div className="showcase-image-wrap">
-                {post.imageUrl ? <img src={post.imageUrl} alt={post.title} className="showcase-image" /> : <div className="showcase-image-fallback">Resource</div>}
-              </div>
-              <div className="showcase-body">
-                <small className="showcase-label">Teachers &amp; Resources</small>
-                <h3>{post.title}</h3>
-                <LatexText value={post.description} className="showcase-description" />
-                {post.link ? (
-                  <a className="showcase-link" href={post.link} target="_blank" rel="noreferrer">
-                    Open resource
-                  </a>
-                ) : (
-                  <span className="showcase-link disabled">No external link</span>
-                )}
-              </div>
-              <div className="showcase-footer">
-                <small>{formatMetaDate(post.createdAt) || 'Resource update'}</small>
-              </div>
-            </article>
-          ))}
+
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="ia-breadcrumb">
+            <Link to="/">Home</Link>
+            <span aria-hidden="true"> • </span>
+            <span>Teachers &amp; Resources</span>
+          </p>
+          <h1>Teachers &amp; Resources</h1>
+          <p className="ia-hero-sub">Browse classroom-ready guides, worksheets, and teaching materials on Mathelaureate</p>
+          <div className="ia-search-bar">
+            <span className="ia-search-chip">Resources</span>
+            <span className="ia-search-chip">Teachers</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search guides, worksheets, classroom ideas..."
+              aria-label="Search teachers resources"
+            />
+          </div>
+          <p className="ia-hero-hint">Everything opens on this site — click a card to read the full resource.</p>
         </div>
+      </section>
+
+      <section className="ia-browse-layout">
+        <aside className="ia-filters-panel">
+          <div className="ia-filters-head">
+            <h2>Filters</h2>
+            <button type="button" className="ia-clear-filters" onClick={clearFilters}>
+              Clear All
+            </button>
+          </div>
+          <div className="ia-filter-group">
+            <h3>Category</h3>
+            {teachersResourceCategories
+              .filter((category) => category !== 'All')
+              .map((category) => (
+                <label className="ia-check" key={category}>
+                  <input
+                    type="radio"
+                    name="tr-category"
+                    checked={categoryFilter === category}
+                    onChange={() => setCategoryFilter(category)}
+                  />
+                  <span>{category}</span>
+                </label>
+              ))}
+            <label className="ia-check">
+              <input
+                type="radio"
+                name="tr-category"
+                checked={categoryFilter === 'All'}
+                onChange={() => setCategoryFilter('All')}
+              />
+              <span>All</span>
+            </label>
+          </div>
+        </aside>
+
+        <div className="ia-browse-main">
+          <div className="ia-resource-row">
+            <Link className="ia-resource-link" to="/#programs">
+              <span className="ia-resource-dot ia-resource-dot-blue" />
+              Question bank
+            </Link>
+            <Link className="ia-resource-link" to="/ia">
+              <span className="ia-resource-dot ia-resource-dot-sky" />
+              IA examples
+            </Link>
+            <Link className="ia-resource-link" to="/mock-generator">
+              <span className="ia-resource-dot ia-resource-dot-green" />
+              Mock generator
+            </Link>
+          </div>
+
+          <div className="ia-topic-block">
+            <div className="ia-topic-label">Category</div>
+            <div className="ia-topic-rail-wrap">
+              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(-1)} aria-label="Scroll categories left">
+                ‹
+              </button>
+              <div className="ia-topic-rail" ref={topicRailRef}>
+                {categoryChips.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={`ia-topic-chip${categoryFilter === category ? ' is-active' : ''}`}
+                    onClick={() => setCategoryFilter(category)}
+                  >
+                    <span className="ia-topic-icon" aria-hidden="true" />
+                    <span>{category}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(1)} aria-label="Scroll categories right">
+                ›
+              </button>
+            </div>
+          </div>
+
+          {loadingPosts ? <p className="ia-status">Loading resources...</p> : null}
+          {postsError ? <p className="error-text">{postsError}</p> : null}
+          {!loadingPosts && posts.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No resources yet</h2>
+              <p>Teacher guides and classroom materials will appear here soon.</p>
+            </div>
+          ) : null}
+          {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No matches</h2>
+              <p>Try a different search or category.</p>
+            </div>
+          ) : null}
+
+          <div className="ia-card-grid">
+            {filteredPosts.map((post) => (
+              <Link
+                key={post.id}
+                to={`/teachers-resources/${encodeURIComponent(post.id)}`}
+                className="ia-grid-card"
+              >
+                <div className="ia-grid-card-preview">
+                  <TeachersResourceCardPreview post={post} />
+                </div>
+                <div className="ia-grid-card-body">
+                  <h2>{post.title}</h2>
+                  <div className="ia-idea-meta">
+                    <span className="ia-meta-chip">Resource</span>
+                    {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function TeachersResourceDetailPage({ user, cachedProfile }) {
+  const { postId } = useParams()
+  const navigate = useNavigate()
+  const [post, setPost] = useState(null)
+  const [loadingPost, setLoadingPost] = useState(true)
+  const [postError, setPostError] = useState('')
+
+  useEffect(() => {
+    let active = true
+
+    async function loadPost() {
+      setLoadingPost(true)
+      setPostError('')
+      try {
+        const postsSnap = await getDoc(teachersResourcesDocRef)
+        const items = normalizeTeachersResourcesPosts(postsSnap.data()?.items)
+        const matched = items.find((item) => item.id === postId) || null
+        if (!active) return
+        setPost(matched)
+        if (!matched) setPostError('This resource could not be found.')
+      } catch (error) {
+        if (!active) return
+        setPostError(error?.message || 'Unable to load this resource.')
+      } finally {
+        if (active) setLoadingPost(false)
+      }
+    }
+
+    loadPost()
+    return () => {
+      active = false
+    }
+  }, [postId])
+
+  return (
+    <main className="site site-full ia-page ia-detail-page tr-page">
+      <SiteHeader user={user} cachedProfile={cachedProfile} />
+      <section className="ia-detail-shell">
+        <button type="button" className="ia-back-link" onClick={() => navigate('/teachers-resources')}>
+          ← Back to Teachers &amp; Resources
+        </button>
+
+        {loadingPost ? <p className="ia-status">Loading resource...</p> : null}
+        {postError ? <p className="error-text">{postError}</p> : null}
+
+        {post ? (
+          <article className="ia-detail-panel">
+            <p className="ia-breadcrumb">
+              <Link to="/">Home</Link>
+              <span aria-hidden="true"> • </span>
+              <Link to="/teachers-resources">Teachers &amp; Resources</Link>
+              <span aria-hidden="true"> • </span>
+              <span>{post.category || 'Resource'}</span>
+            </p>
+            <h1>{post.title}</h1>
+            <div className="ia-idea-meta">
+              <span className="ia-meta-chip">Resource</span>
+              {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
+              {formatMetaDate(post.createdAt) ? <span className="ia-meta-chip">{formatMetaDate(post.createdAt)}</span> : null}
+            </div>
+            {post.imageUrl ? (
+              <div className="tr-detail-image">
+                <img src={post.imageUrl} alt={post.title} />
+              </div>
+            ) : null}
+            <LatexText value={post.description} className="latex-text tr-detail-body" />
+            {post.link && isSafeUrl(post.link) ? (
+              <a className="btn ghost" href={post.link} target="_blank" rel="noreferrer">
+                Related link
+              </a>
+            ) : null}
+          </article>
+        ) : null}
       </section>
     </main>
   )
@@ -4516,6 +4747,7 @@ function AdminPage({ mode = 'admin' }) {
   const [fullSubscriptionDaysInput, setFullSubscriptionDaysInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_DAYS))
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
+  const [resourcePostCategory, setResourcePostCategory] = useState('Guides')
   const [resourcePostLink, setResourcePostLink] = useState('')
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
@@ -5889,6 +6121,7 @@ function AdminPage({ mode = 'admin' }) {
         id: `tr-${Date.now()}`,
         title: resourcePostTitle.trim(),
         description: resourcePostDescription.trim(),
+        category: resourcePostCategory.trim() || 'Guides',
         link: resourcePostLink.trim(),
         imageUrl,
         imagePath,
@@ -5899,6 +6132,7 @@ function AdminPage({ mode = 'admin' }) {
     await persistTeachersResourcesPosts(nextPosts)
     setResourcePostTitle('')
     setResourcePostDescription('')
+    setResourcePostCategory('Guides')
     setResourcePostLink('')
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
@@ -6226,17 +6460,29 @@ function AdminPage({ mode = 'admin' }) {
                 <input value={resourcePostTitle} onChange={(event) => setResourcePostTitle(event.target.value)} required />
               </label>
               <label>
-                Description (HTML supported)
+                Category
+                <select value={resourcePostCategory} onChange={(event) => setResourcePostCategory(event.target.value)}>
+                  {teachersResourceCategories
+                    .filter((category) => category !== 'All')
+                    .map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                Full content (shown on site)
                 <textarea
-                  rows={4}
+                  rows={6}
                   value={resourcePostDescription}
                   onChange={(event) => setResourcePostDescription(event.target.value)}
-                  placeholder="Add post summary/content (HTML supported)"
+                  placeholder="Write the full resource content students/teachers will read on Mathelaureate"
                   required
                 />
               </label>
               <label>
-                Resource Link (optional)
+                Related link (optional)
                 <input
                   value={resourcePostLink}
                   onChange={(event) => setResourcePostLink(event.target.value)}
@@ -6244,7 +6490,7 @@ function AdminPage({ mode = 'admin' }) {
                 />
               </label>
               <label>
-                Image Upload (optional)
+                Preview image (card thumbnail — recommended)
                 <input type="file" accept="image/*" onChange={onResourcePostImageChange} />
               </label>
               {resourcePostImagePreviewUrl ? (
@@ -6269,6 +6515,7 @@ function AdminPage({ mode = 'admin' }) {
                       </button>
                     </div>
                     <h3>{item.title}</h3>
+                    <small>{item.category || 'Guides'}</small>
                     <LatexText value={item.description} className="latex-text" />
                     {item.imageUrl ? (
                       <div className="admin-record-image">
@@ -6277,7 +6524,7 @@ function AdminPage({ mode = 'admin' }) {
                     ) : null}
                     {item.link ? (
                       <a href={item.link} target="_blank" rel="noreferrer">
-                        Open resource
+                        Related link
                       </a>
                     ) : null}
                   </article>
@@ -6904,6 +7151,10 @@ function App() {
         <Route path="/ia/:iaId" element={<IaDetailPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/events" element={<Navigate to="/ia" replace />} />
         <Route path="/teachers-resources" element={<TeachersResourcesPage user={user} cachedProfile={cachedProfile} />} />
+        <Route
+          path="/teachers-resources/:postId"
+          element={<TeachersResourceDetailPage user={user} cachedProfile={cachedProfile} />}
+        />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/terms-of-use" element={<TermsOfUsePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/mock-generator" element={<MockGeneratorPage user={user} authReady={authReady} cachedProfile={cachedProfile} />} />
