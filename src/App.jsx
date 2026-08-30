@@ -12,7 +12,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'fir
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { auth, db } from './firebase'
-import { supabaseConfigured, uploadImageToSupabase } from './supabase'
+import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import './App.css'
 
 const defaultCurricula = [
@@ -369,32 +369,83 @@ const paywallDocRef = doc(db, 'appData', 'paywall')
 const iaDocRef = doc(db, 'appData', 'ia')
 const teachersResourcesDocRef = doc(db, 'appData', 'teachersResources')
 const paymentApiBaseUrl = (import.meta.env.VITE_PAYMENT_API_BASE_URL || '/api').replace(/\/$/, '')
+const FULL_SUBSCRIPTION_PRODUCT_ID = 'platform-full'
+const FULL_SUBSCRIPTION_DEFAULT_PRICE_INR = 1499
+const FULL_SUBSCRIPTION_DEFAULT_DAYS = 90
 
 function normalizePaywallConfig(raw) {
+  const fullSubscriptionRaw = raw?.fullSubscription && typeof raw.fullSubscription === 'object' ? raw.fullSubscription : {}
+  const priceInr = Number(fullSubscriptionRaw.priceInr)
+  const durationDays = Number(fullSubscriptionRaw.durationDays)
   return {
     coursePrices: raw?.coursePrices && typeof raw.coursePrices === 'object' ? raw.coursePrices : {},
     lockedUnits: raw?.lockedUnits && typeof raw.lockedUnits === 'object' ? raw.lockedUnits : {},
     lockedSubunits: raw?.lockedSubunits && typeof raw.lockedSubunits === 'object' ? raw.lockedSubunits : {},
+    fullSubscription: {
+      priceInr:
+        Number.isFinite(priceInr) && priceInr > 0 ? priceInr : FULL_SUBSCRIPTION_DEFAULT_PRICE_INR,
+      durationDays:
+        Number.isFinite(durationDays) && durationDays > 0 ? durationDays : FULL_SUBSCRIPTION_DEFAULT_DAYS,
+      label: String(fullSubscriptionRaw.label || 'Mathelaureate Full Access (3 months)').trim(),
+    },
   }
 }
 
 function normalizeIaItems(raw) {
   if (!Array.isArray(raw)) return []
   return raw
-    .map((item) => ({
-      id: item?.id || `ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: String(item?.title || '').trim(),
-      course: String(item?.course || '').trim(),
-      topic: String(item?.topic || '').trim(),
-      summary: String(item?.summary || '').trim(),
-      description: String(item?.description || '').trim(),
-      link: String(item?.link || '').trim(),
-      imageUrl: String(item?.imageUrl || '').trim(),
-      imagePath: String(item?.imagePath || '').trim(),
-      createdAt: String(item?.createdAt || ''),
-    }))
+    .map((item) => {
+      const previewPagesRaw = Number(item?.previewPages)
+      const unlockPriceRaw = Number(item?.unlockPriceInr)
+      return {
+        id: item?.id || `ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: String(item?.title || '').trim(),
+        course: String(item?.course || '').trim(),
+        topic: String(item?.topic || '').trim(),
+        summary: String(item?.summary || '').trim(),
+        description: String(item?.description || '').trim(),
+        link: String(item?.link || '').trim(),
+        imageUrl: String(item?.imageUrl || '').trim(),
+        imagePath: String(item?.imagePath || '').trim(),
+        pdfUrl: String(item?.pdfUrl || '').trim(),
+        pdfPath: String(item?.pdfPath || '').trim(),
+        pdfFileName: String(item?.pdfFileName || '').trim(),
+        previewPages:
+          Number.isFinite(previewPagesRaw) && previewPagesRaw > 0 ? Math.min(20, Math.floor(previewPagesRaw)) : 1,
+        unlockPriceInr:
+          Number.isFinite(unlockPriceRaw) && unlockPriceRaw > 0 ? unlockPriceRaw : 0,
+        createdAt: String(item?.createdAt || ''),
+      }
+    })
     .filter((item) => item.title)
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+}
+
+function normalizeUserPayments(raw) {
+  return {
+    courses: raw?.courses && typeof raw.courses === 'object' ? raw.courses : {},
+    iaUnlocks: raw?.iaUnlocks && typeof raw.iaUnlocks === 'object' ? raw.iaUnlocks : {},
+    subscription: raw?.subscription && typeof raw.subscription === 'object' ? raw.subscription : null,
+  }
+}
+
+function hasActiveSubscription(payments) {
+  const subscription = payments?.subscription
+  if (!subscription?.active || !subscription?.expiresAt) return false
+  const expiresAt = new Date(subscription.expiresAt).getTime()
+  return Number.isFinite(expiresAt) && expiresAt > Date.now()
+}
+
+function hasCourseAccess(payments, courseId) {
+  if (!courseId) return false
+  if (hasActiveSubscription(payments)) return true
+  return Boolean(payments?.courses?.[courseId]?.paid)
+}
+
+function hasIaAccess(payments, iaId) {
+  if (!iaId) return false
+  if (hasActiveSubscription(payments)) return true
+  return Boolean(payments?.iaUnlocks?.[iaId]?.paid)
 }
 
 function normalizeTeachersResourcesPosts(raw) {
@@ -423,6 +474,135 @@ async function ensureRazorpayLoaded() {
     script.onerror = () => resolve(false)
     document.body.appendChild(script)
   })
+}
+
+async function startProductPurchase({
+  user,
+  productType = 'course',
+  courseId = '',
+  courseSlug = '',
+  courseTitle = '',
+  iaId = '',
+  description = '',
+  onPaymentsUpdated,
+  onError,
+  onBusyChange,
+}) {
+  if (!user) {
+    onError?.('Sign in required to purchase.')
+    return
+  }
+
+  onBusyChange?.(true)
+  onError?.('')
+
+  const scriptReady = await ensureRazorpayLoaded()
+  if (!scriptReady) {
+    onBusyChange?.(false)
+    onError?.('Unable to load Razorpay checkout. Please try again.')
+    return
+  }
+
+  let idToken = ''
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    onBusyChange?.(false)
+    onError?.('Unable to verify your login session. Please sign in again.')
+    return
+  }
+
+  const countryCodeHint = (await detectUserCountryCode()) || 'IN'
+  let orderPayload = null
+
+  try {
+    const createOrderResponse = await fetch(`${paymentApiBaseUrl}/create-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        productType,
+        courseId,
+        courseSlug,
+        courseTitle,
+        iaId,
+        countryCodeHint,
+      }),
+    })
+    const createOrderPayload = await createOrderResponse.json().catch(() => ({}))
+    if (!createOrderResponse.ok) {
+      throw new Error(createOrderPayload?.error || 'Unable to create payment order.')
+    }
+    orderPayload = createOrderPayload
+  } catch (error) {
+    onBusyChange?.(false)
+    onError?.(error?.message || 'Unable to create payment order.')
+    return
+  }
+
+  if (!orderPayload?.keyId || !orderPayload?.orderId) {
+    onBusyChange?.(false)
+    onError?.('Payment configuration is incomplete. Please contact support.')
+    return
+  }
+
+  const options = {
+    key: orderPayload.keyId,
+    amount: Number(orderPayload.amount || 0),
+    currency: orderPayload.currency || 'INR',
+    order_id: orderPayload.orderId,
+    name: 'Mathelaureate',
+    description: description || courseTitle || 'Mathelaureate access',
+    prefill: {
+      name: user.displayName || '',
+      email: user.email || '',
+    },
+    handler: async function onPaymentSuccess(response) {
+      try {
+        const verifyResponse = await fetch(`${paymentApiBaseUrl}/verify-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            productType,
+            courseId,
+            courseSlug,
+            courseTitle,
+            iaId,
+            razorpay_order_id: response?.razorpay_order_id || '',
+            razorpay_payment_id: response?.razorpay_payment_id || '',
+            razorpay_signature: response?.razorpay_signature || '',
+          }),
+        })
+        const verifyPayload = await verifyResponse.json().catch(() => ({}))
+        if (!verifyResponse.ok) {
+          throw new Error(verifyPayload?.error || 'Payment verification failed.')
+        }
+
+        const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
+        const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
+        onPaymentsUpdated?.(nextPayments)
+        onError?.('')
+      } catch (error) {
+        onError?.(error?.message || 'Payment verification failed.')
+      } finally {
+        onBusyChange?.(false)
+      }
+    },
+    modal: {
+      ondismiss: () => onBusyChange?.(false),
+    },
+    theme: {
+      color: '#0f2c4d',
+    },
+  }
+
+  const checkout = new window.Razorpay(options)
+  checkout.open()
 }
 
 function escapeHtml(value) {
@@ -1736,6 +1916,11 @@ function IaPage({ user, cachedProfile }) {
   const [activeIa, setActiveIa] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [courseFilter, setCourseFilter] = useState('All')
+  const [userPayments, setUserPayments] = useState(() => normalizeUserPayments())
+  const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
+  const [paymentBusy, setPaymentBusy] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -1744,10 +1929,12 @@ function IaPage({ user, cachedProfile }) {
       setLoadingIa(true)
       setIaError('')
       try {
-        const iaSnap = await getDoc(iaDocRef)
+        const [iaSnap, paywallSnap] = await Promise.all([getDoc(iaDocRef), getDoc(paywallDocRef)])
         const items = normalizeIaItems(iaSnap.data()?.items)
+        const nextPaywall = normalizePaywallConfig(paywallSnap.data())
         if (!active) return
         setIaItems(items)
+        setPaywallConfig(nextPaywall)
       } catch (error) {
         if (!active) return
         setIaError(error?.message || 'Unable to load IA examples.')
@@ -1762,6 +1949,27 @@ function IaPage({ user, cachedProfile }) {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    async function loadPayments() {
+      if (!user?.uid) {
+        if (active) setUserPayments(normalizeUserPayments())
+        return
+      }
+      try {
+        const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
+        if (!active) return
+        setUserPayments(normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {}))
+      } catch {
+        if (active) setUserPayments(normalizeUserPayments())
+      }
+    }
+    loadPayments()
+    return () => {
+      active = false
+    }
+  }, [user?.uid])
+
   const filteredIaItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return iaItems.filter((item) => {
@@ -1771,6 +1979,66 @@ function IaPage({ user, cachedProfile }) {
       return haystack.includes(query)
     })
   }, [iaItems, searchQuery, courseFilter])
+
+  const subscriptionPrice = paywallConfig.fullSubscription.priceInr
+  const unlocked = activeIa ? hasIaAccess(userPayments, activeIa.id) : false
+  const previewPages = activeIa?.previewPages || 1
+  const previewHeightPx = Math.max(320, previewPages * 980)
+  const pdfEmbedUrl = activeIa?.pdfUrl
+    ? `${activeIa.pdfUrl}#toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
+    : ''
+
+  async function signInForPurchase() {
+    setAuthBusy(true)
+    setPaymentError('')
+    try {
+      const provider = new GoogleAuthProvider()
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      setPaymentError(error?.message || 'Unable to sign in.')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  async function purchaseIaUnlock() {
+    if (!activeIa) return
+    if (!user) {
+      await signInForPurchase()
+      return
+    }
+    if (!activeIa.unlockPriceInr || activeIa.unlockPriceInr <= 0) {
+      setPaymentError('This IA does not have an unlock price configured yet.')
+      return
+    }
+    await startProductPurchase({
+      user,
+      productType: 'ia',
+      iaId: activeIa.id,
+      courseTitle: activeIa.title,
+      description: `Unlock IA: ${activeIa.title}`,
+      onPaymentsUpdated: setUserPayments,
+      onError: setPaymentError,
+      onBusyChange: setPaymentBusy,
+    })
+  }
+
+  async function purchaseFullSubscription() {
+    if (!user) {
+      await signInForPurchase()
+      return
+    }
+    await startProductPurchase({
+      user,
+      productType: 'subscription',
+      courseId: FULL_SUBSCRIPTION_PRODUCT_ID,
+      courseTitle: paywallConfig.fullSubscription.label,
+      description: paywallConfig.fullSubscription.label,
+      onPaymentsUpdated: setUserPayments,
+      onError: setPaymentError,
+      onBusyChange: setPaymentBusy,
+    })
+  }
 
   return (
     <main className="site site-full ia-page">
@@ -1820,20 +2088,34 @@ function IaPage({ user, cachedProfile }) {
 
         <div className="ia-idea-list">
           {filteredIaItems.map((item) => (
-            <button key={item.id} type="button" className="ia-idea-card" onClick={() => setActiveIa(item)}>
+            <button
+              key={item.id}
+              type="button"
+              className="ia-idea-card"
+              onClick={() => {
+                setPaymentError('')
+                setActiveIa(item)
+              }}
+            >
               <h2 className="ia-idea-title">{item.title}</h2>
               <div className="ia-idea-meta">
                 <span className="ia-meta-chip">IA</span>
                 {item.course ? <span className="ia-meta-chip">{item.course}</span> : null}
                 {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
+                {hasIaAccess(userPayments, item.id) ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
               </div>
             </button>
           ))}
         </div>
       </section>
       {activeIa ? (
-        <section className="event-modal-overlay" role="dialog" aria-modal="true" onClick={() => setActiveIa(null)}>
-          <article className="event-modal" onClick={(event) => event.stopPropagation()}>
+        <section
+          className="event-modal-overlay ia-detail-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setActiveIa(null)}
+        >
+          <article className="event-modal ia-detail-modal" onClick={(event) => event.stopPropagation()}>
             <div className="event-modal-head">
               <h3>{activeIa.title}</h3>
               <button
@@ -1845,18 +2127,85 @@ function IaPage({ user, cachedProfile }) {
                 &times;
               </button>
             </div>
-            {activeIa.imageUrl ? <img src={activeIa.imageUrl} alt={activeIa.title} className="event-modal-image" /> : null}
             <small className="event-modal-date">
               {[activeIa.course, activeIa.topic].filter(Boolean).join(' · ') || 'Internal Assessment'}
             </small>
-            <LatexText value={activeIa.description || activeIa.summary} className="latex-text" />
-            {activeIa.link ? (
-              <a className="btn primary" href={activeIa.link} target="_blank" rel="noreferrer">
-                Open IA resource
-              </a>
+            {activeIa.summary || activeIa.description ? (
+              <LatexText value={activeIa.description || activeIa.summary} className="latex-text" />
+            ) : null}
+
+            {activeIa.pdfUrl ? (
+              <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
+                <div
+                  className="ia-pdf-frame-wrap"
+                  style={unlocked ? undefined : { maxHeight: `${previewHeightPx}px` }}
+                  onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
+                >
+                  <iframe
+                    title={`ia-pdf-${activeIa.id}`}
+                    src={pdfEmbedUrl}
+                    className="ia-pdf-frame"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                  {!unlocked ? <div className="ia-pdf-fade" aria-hidden="true" /> : null}
+                </div>
+                {!unlocked ? (
+                  <div className="ia-pdf-gate">
+                    <h4>Unlock the full IA</h4>
+                    <p>
+                      Preview shows the first {previewPages} page{previewPages === 1 ? '' : 's'}. Unlock this IA or get
+                      full Mathelaureate access for question bank, mocks, notes, and all IA PDFs.
+                    </p>
+                    {!user ? (
+                      <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
+                        {authBusy ? 'Signing in...' : 'Sign in to continue'}
+                      </button>
+                    ) : null}
+                    <div className="ia-pay-actions">
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={purchaseIaUnlock}
+                        disabled={paymentBusy || !activeIa.unlockPriceInr}
+                      >
+                        {paymentBusy
+                          ? 'Processing...'
+                          : activeIa.unlockPriceInr
+                            ? `Unlock this IA · INR ${activeIa.unlockPriceInr}`
+                            : 'IA price not set'}
+                      </button>
+                      <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
+                        Full access · INR {subscriptionPrice} / 3 months
+                      </button>
+                    </div>
+                    {paymentError ? <p className="error-text">{paymentError}</p> : null}
+                    <p className="ia-pay-note">
+                      Payments are verified server-side. Access is tied to your signed-in account.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="ia-pdf-unlocked-bar">
+                    <a className="btn primary" href={activeIa.pdfUrl} target="_blank" rel="noreferrer noopener">
+                      Open / download PDF
+                    </a>
+                    {hasActiveSubscription(userPayments) ? (
+                      <small>Included with your Mathelaureate subscription</small>
+                    ) : (
+                      <small>Unlocked for your account</small>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
-              <small>Resource link coming soon.</small>
+              <p className="muted-text">No PDF uploaded for this IA yet.</p>
             )}
+
+            {activeIa.link && unlocked ? (
+              <a className="btn ghost" href={activeIa.link} target="_blank" rel="noreferrer">
+                Open related resource
+              </a>
+            ) : null}
           </article>
         </section>
       ) : null}
@@ -2052,6 +2401,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [selectedDifficulties, setSelectedDifficulties] = useState([])
   const [activeSolutionItem, setActiveSolutionItem] = useState(null)
   const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
+  const [userPayments, setUserPayments] = useState(() => normalizeUserPayments())
   const [paidCourses, setPaidCourses] = useState({})
   const [paymentBusy, setPaymentBusy] = useState(false)
   const [paymentError, setPaymentError] = useState('')
@@ -2085,7 +2435,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
         const paywallSnap = await getDoc(paywallDocRef)
         const nextPaywallConfig = normalizePaywallConfig(paywallSnap.data())
         const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
-        const nextPaidCourses = paymentSnap.exists() ? paymentSnap.data()?.courses || {} : {}
+        const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
+        const nextPaidCourses = nextPayments.courses
 
         const progressRef = doc(db, 'userCourseProgress', user.uid)
         const progressSnap = await getDoc(progressRef)
@@ -2128,6 +2479,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
         setCurriculum(matchedCurriculum)
         setCourseItems(filteredItems)
         setPaywallConfig(nextPaywallConfig)
+        setUserPayments(nextPayments)
         setPaidCourses(nextPaidCourses)
         setVisitedSubunitKeys(
           Array.isArray(lastViewedCourse?.visitedSubunits)
@@ -2215,8 +2567,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
     typeof window !== 'undefined'
       ? `${window.location.origin}/courses/${course.slug}?unit=${encodeURIComponent(selectedUnit?.id || '')}&subunit=${encodeURIComponent(currentSubunit || '')}&tab=${encodeURIComponent(activeTab)}`
       : ''
-  const paidForCurrentCourse = Boolean(paidCourses?.[course.curriculumId]?.paid)
+  const paidForCurrentCourse = hasCourseAccess(userPayments, course.curriculumId)
   const coursePrice = Number(paywallConfig.coursePrices?.[course.curriculumId] || 0)
+  const subscriptionPrice = Number(paywallConfig.fullSubscription?.priceInr || FULL_SUBSCRIPTION_DEFAULT_PRICE_INR)
   const lockedUnits = paywallConfig.lockedUnits?.[course.curriculumId] || []
   const lockedSubunits = paywallConfig.lockedSubunits?.[course.curriculumId] || []
   const currentSubunitLockKey = `${selectedUnit?.id}::${currentSubunit}`
@@ -2298,120 +2651,42 @@ function CoursePage({ user, authReady, cachedProfile }) {
   }
 
   async function startCoursePurchase() {
-    setPaymentError('')
     if (!user || !course.curriculumId) return
     if (!coursePrice || coursePrice <= 0) {
       setPaymentError('Pricing is not configured for this course yet.')
       return
     }
-
-    setPaymentBusy(true)
-    const scriptReady = await ensureRazorpayLoaded()
-    if (!scriptReady) {
-      setPaymentBusy(false)
-      setPaymentError('Unable to load Razorpay checkout. Please try again.')
-      return
-    }
-
-    let orderPayload = null
-    const countryCodeHint = (await detectUserCountryCode()) || 'IN'
-    let idToken = ''
-
-    try {
-      idToken = await user.getIdToken()
-    } catch {
-      setPaymentBusy(false)
-      setPaymentError('Unable to verify your login session. Please sign in again.')
-      return
-    }
-
-    try {
-      const createOrderResponse = await fetch(`${paymentApiBaseUrl}/create-order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          courseId: course.curriculumId,
-          courseSlug: course.slug,
-          courseTitle: course.title,
-          countryCodeHint,
-        }),
-      })
-      const createOrderPayload = await createOrderResponse.json().catch(() => ({}))
-      if (!createOrderResponse.ok) {
-        throw new Error(createOrderPayload?.error || 'Unable to create payment order.')
-      }
-      orderPayload = createOrderPayload
-    } catch (error) {
-      setPaymentBusy(false)
-      setPaymentError(error?.message || 'Unable to create payment order.')
-      return
-    }
-    if (!orderPayload?.keyId || !orderPayload?.orderId) {
-      setPaymentBusy(false)
-      setPaymentError('Payment configuration is incomplete. Please contact support.')
-      return
-    }
-
-    const options = {
-      key: orderPayload?.keyId || '',
-      amount: Number(orderPayload?.amount || 0),
-      currency: orderPayload?.currency || 'INR',
-      order_id: orderPayload?.orderId,
-      name: 'Mathelaureate',
+    await startProductPurchase({
+      user,
+      productType: 'course',
+      courseId: course.curriculumId,
+      courseSlug: course.slug,
+      courseTitle: course.title,
       description: `${course.title} course access`,
-      prefill: {
-        name: user.displayName || '',
-        email: user.email || '',
+      onPaymentsUpdated: (nextPayments) => {
+        setUserPayments(nextPayments)
+        setPaidCourses(nextPayments.courses || {})
       },
-      handler: async function onPaymentSuccess(response) {
-        try {
-          const verifyResponse = await fetch(`${paymentApiBaseUrl}/verify-payment`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({
-              courseId: course.curriculumId,
-              courseSlug: course.slug,
-              courseTitle: course.title,
-              razorpay_order_id: response?.razorpay_order_id || '',
-              razorpay_payment_id: response?.razorpay_payment_id || '',
-              razorpay_signature: response?.razorpay_signature || '',
-            }),
-          })
-          if (!verifyResponse.ok) {
-            const verifyPayload = await verifyResponse.json().catch(() => ({}))
-            throw new Error(verifyPayload?.error || 'Payment verification failed.')
-          }
-
-          const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
-          const nextPaidCourses = paymentSnap.exists() ? paymentSnap.data()?.courses || {} : {}
-          setPaidCourses(nextPaidCourses)
-          setPaymentError('')
-        } catch (error) {
-          setPaymentError(error?.message || 'Payment verification failed.')
-        } finally {
-          setPaymentBusy(false)
-        }
-      },
-      modal: {
-        ondismiss: () => setPaymentBusy(false),
-      },
-      theme: {
-        color: '#0b7a75',
-      },
-    }
-
-    const instance = new window.Razorpay(options)
-    instance.on('payment.failed', () => {
-      setPaymentError('Payment was not completed. Please try again.')
-      setPaymentBusy(false)
+      onError: setPaymentError,
+      onBusyChange: setPaymentBusy,
     })
-    instance.open()
+  }
+
+  async function startFullSubscriptionPurchase() {
+    if (!user) return
+    await startProductPurchase({
+      user,
+      productType: 'subscription',
+      courseId: FULL_SUBSCRIPTION_PRODUCT_ID,
+      courseTitle: paywallConfig.fullSubscription.label,
+      description: paywallConfig.fullSubscription.label,
+      onPaymentsUpdated: (nextPayments) => {
+        setUserPayments(nextPayments)
+        setPaidCourses(nextPayments.courses || {})
+      },
+      onError: setPaymentError,
+      onBusyChange: setPaymentBusy,
+    })
   }
 
   function toggleDifficultyFilter(level) {
@@ -2705,12 +2980,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
               {isCurrentSelectionLocked ? (
                 <article className="lesson-card paywall-card">
                   <h3>Premium Content</h3>
-                  <p>This unit/subunit is locked. Purchase this course to unlock all premium sections.</p>
-                  {coursePrice > 0 ? <p className="paywall-price">INR {coursePrice}</p> : <p>Price not configured yet.</p>}
+                  <p>This unit/subunit is locked. Unlock this course, or get full Mathelaureate access for 3 months.</p>
+                  {coursePrice > 0 ? <p className="paywall-price">Course unlock · INR {coursePrice}</p> : <p>Course price not configured yet.</p>}
+                  <p className="paywall-price">Full access · INR {subscriptionPrice} / 3 months</p>
                   {paymentError ? <p className="error-text">{paymentError}</p> : null}
-                  <button type="button" className="btn primary" onClick={startCoursePurchase} disabled={paymentBusy || coursePrice <= 0}>
-                    {paymentBusy ? 'Opening Checkout...' : 'Unlock with Razorpay'}
-                  </button>
+                  <div className="ia-pay-actions">
+                    <button type="button" className="btn primary" onClick={startCoursePurchase} disabled={paymentBusy || coursePrice <= 0}>
+                      {paymentBusy ? 'Opening Checkout...' : 'Unlock this course'}
+                    </button>
+                    <button type="button" className="btn ghost" onClick={startFullSubscriptionPurchase} disabled={paymentBusy}>
+                      Full access · INR {subscriptionPrice}
+                    </button>
+                  </div>
                 </article>
               ) : (
                 <>
@@ -4017,9 +4298,14 @@ function AdminPage({ mode = 'admin' }) {
   const [iaSummary, setIaSummary] = useState('')
   const [iaDescription, setIaDescription] = useState('')
   const [iaLink, setIaLink] = useState('')
+  const [iaPreviewPages, setIaPreviewPages] = useState('1')
+  const [iaUnlockPrice, setIaUnlockPrice] = useState('')
+  const [iaPdfFile, setIaPdfFile] = useState(null)
   const [iaImageFile, setIaImageFile] = useState(null)
   const [iaImagePreviewUrl, setIaImagePreviewUrl] = useState('')
   const [isIaSaving, setIsIaSaving] = useState(false)
+  const [fullSubscriptionPriceInput, setFullSubscriptionPriceInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_PRICE_INR))
+  const [fullSubscriptionDaysInput, setFullSubscriptionDaysInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_DAYS))
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
   const [resourcePostLink, setResourcePostLink] = useState('')
@@ -4183,6 +4469,8 @@ function AdminPage({ mode = 'admin' }) {
         setPaywallUnitId(initialUnit?.id ?? '')
         setPaywallSubunit(initialUnit?.subunits?.[0] ?? '')
         setPaywallPriceInput(String(nextPaywallConfig.coursePrices?.[initialCourseId] || ''))
+        setFullSubscriptionPriceInput(String(nextPaywallConfig.fullSubscription.priceInr))
+        setFullSubscriptionDaysInput(String(nextPaywallConfig.fullSubscription.durationDays))
       } catch (error) {
         if (!active) return
         setDataError(error?.message || 'Unable to load data from Firestore.')
@@ -4287,6 +4575,29 @@ function AdminPage({ mode = 'admin' }) {
       coursePrices: {
         ...paywallConfig.coursePrices,
         [paywallCourseId]: nextPrice,
+      },
+    }
+    await persistPaywall(nextConfig)
+  }
+
+  async function saveFullSubscriptionSettings() {
+    const priceInr = Number(fullSubscriptionPriceInput || 0)
+    const durationDays = Number(fullSubscriptionDaysInput || 0)
+    if (!Number.isFinite(priceInr) || priceInr <= 0) {
+      setDataError('Full subscription price must be greater than 0.')
+      return
+    }
+    if (!Number.isFinite(durationDays) || durationDays <= 0) {
+      setDataError('Full subscription duration must be greater than 0 days.')
+      return
+    }
+    const nextConfig = {
+      ...paywallConfig,
+      fullSubscription: {
+        ...paywallConfig.fullSubscription,
+        priceInr,
+        durationDays: Math.floor(durationDays),
+        label: 'Mathelaureate Full Access (3 months)',
       },
     }
     await persistPaywall(nextConfig)
@@ -5223,24 +5534,47 @@ function AdminPage({ mode = 'admin' }) {
   async function submitIaItem(event) {
     event.preventDefault()
     if (!iaTitle.trim()) return
+    const previewPages = Math.min(20, Math.max(1, Math.floor(Number(iaPreviewPages) || 1)))
+    const unlockPriceInr = Number(iaUnlockPrice || 0)
+    if (!Number.isFinite(unlockPriceInr) || unlockPriceInr < 0) {
+      setDataError('Unlock price must be a valid number.')
+      return
+    }
+    if (!iaPdfFile) {
+      setDataError('Upload a PDF for this IA.')
+      return
+    }
+
     let imageUrl = ''
     let imagePath = ''
-    if (iaImageFile) {
-      if (!supabaseConfigured) {
-        setDataError('Supabase not configured. Add Supabase env values before uploading images.')
-        return
-      }
-      try {
-        setIsIaSaving(true)
+    let pdfUrl = ''
+    let pdfPath = ''
+    let pdfFileName = ''
+
+    if (!supabaseConfigured) {
+      setDataError('Supabase not configured. Add Supabase env values before uploading files.')
+      return
+    }
+
+    try {
+      setIsIaSaving(true)
+      setDataError('')
+      const pdfUpload = await uploadPdfToSupabase(iaPdfFile, 'ia-pdfs')
+      pdfUrl = pdfUpload.publicUrl
+      pdfPath = pdfUpload.path
+      pdfFileName = String(iaPdfFile.name || 'ia.pdf').slice(0, 180)
+
+      if (iaImageFile) {
         const uploadResult = await uploadImageToSupabase(iaImageFile, 'ia')
         imageUrl = uploadResult.publicUrl
         imagePath = uploadResult.path
-      } catch (error) {
-        setIsIaSaving(false)
-        setDataError(error?.message || 'Unable to upload IA image to Supabase.')
-        return
       }
+    } catch (error) {
+      setIsIaSaving(false)
+      setDataError(error?.message || 'Unable to upload IA files to Supabase.')
+      return
     }
+
     const next = [
       {
         id: `ia-${Date.now()}`,
@@ -5252,6 +5586,11 @@ function AdminPage({ mode = 'admin' }) {
         link: iaLink.trim(),
         imageUrl,
         imagePath,
+        pdfUrl,
+        pdfPath,
+        pdfFileName,
+        previewPages,
+        unlockPriceInr,
         createdAt: new Date().toISOString(),
       },
       ...iaItems,
@@ -5263,6 +5602,9 @@ function AdminPage({ mode = 'admin' }) {
     setIaSummary('')
     setIaDescription('')
     setIaLink('')
+    setIaPreviewPages('1')
+    setIaUnlockPrice('')
+    setIaPdfFile(null)
     setIaImageFile(null)
     setIaImagePreviewUrl('')
   }
@@ -5285,6 +5627,30 @@ function AdminPage({ mode = 'admin' }) {
     const file = event.target.files?.[0] || null
     setIaImageFile(file)
     setIaImagePreviewUrl(file ? URL.createObjectURL(file) : '')
+  }
+
+  function onIaPdfChange(event) {
+    const file = event.target.files?.[0] || null
+    if (!file) {
+      setIaPdfFile(null)
+      return
+    }
+    const mime = String(file.type || '').toLowerCase()
+    const name = String(file.name || '').toLowerCase()
+    if (mime !== 'application/pdf' && !name.endsWith('.pdf')) {
+      setDataError('Only PDF files are allowed for IA uploads.')
+      event.target.value = ''
+      setIaPdfFile(null)
+      return
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setDataError('PDF must be 25MB or smaller.')
+      event.target.value = ''
+      setIaPdfFile(null)
+      return
+    }
+    setDataError('')
+    setIaPdfFile(file)
   }
 
   async function submitTeachersResourcePost(event) {
@@ -5564,6 +5930,35 @@ function AdminPage({ mode = 'admin' }) {
                 <input value={iaLink} onChange={(event) => setIaLink(event.target.value)} placeholder="https://..." />
               </label>
               <label>
+                IA PDF (required)
+                <input type="file" accept="application/pdf,.pdf" onChange={onIaPdfChange} required />
+              </label>
+              {iaPdfFile ? <small className="muted-text">Selected: {iaPdfFile.name}</small> : null}
+              <label>
+                Free preview pages
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
+                  value={iaPreviewPages}
+                  onChange={(event) => setIaPreviewPages(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Unlock this IA price (INR)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={iaUnlockPrice}
+                  onChange={(event) => setIaUnlockPrice(event.target.value)}
+                  placeholder="e.g. 199"
+                  required
+                />
+              </label>
+              <label>
                 Cover Image (optional)
                 <input type="file" accept="image/*" onChange={onIaImageChange} />
               </label>
@@ -5590,8 +5985,18 @@ function AdminPage({ mode = 'admin' }) {
                     </div>
                     <h3>{item.title}</h3>
                     <small>{[item.course, item.topic].filter(Boolean).join(' · ')}</small>
+                    <small>
+                      Preview {item.previewPages} page{item.previewPages === 1 ? '' : 's'} · Unlock INR{' '}
+                      {item.unlockPriceInr || 0}
+                      {item.pdfFileName ? ` · ${item.pdfFileName}` : ''}
+                    </small>
                     {item.summary ? <LatexText value={item.summary} className="latex-text" /> : null}
                     {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
+                    {item.pdfUrl ? (
+                      <a href={item.pdfUrl} target="_blank" rel="noreferrer">
+                        Open uploaded PDF
+                      </a>
+                    ) : null}
                     {item.imageUrl ? (
                       <div className="admin-record-image">
                         <img src={item.imageUrl} alt={item.title} />
@@ -5720,9 +6125,34 @@ function AdminPage({ mode = 'admin' }) {
                 onChange={(event) => setPaywallPriceInput(event.target.value)}
               />
             </label>
+            <label>
+              Full subscription price (INR)
+              <input
+                type="number"
+                min={1}
+                value={fullSubscriptionPriceInput}
+                onChange={(event) => setFullSubscriptionPriceInput(event.target.value)}
+              />
+            </label>
+            <label>
+              Full subscription duration (days)
+              <input
+                type="number"
+                min={1}
+                value={fullSubscriptionDaysInput}
+                onChange={(event) => setFullSubscriptionDaysInput(event.target.value)}
+              />
+            </label>
+            <p className="muted-text">
+              Full access unlocks question bank, mocks, notes, course locks, and all IA PDFs for the duration above
+              (default INR 1499 / 90 days).
+            </p>
             <div className="paywall-actions">
               <button type="button" className="btn primary" onClick={saveCoursePrice} disabled={isPaywallSaving}>
                 {isPaywallSaving ? 'Saving...' : 'Save Course Price'}
+              </button>
+              <button type="button" className="btn ghost" onClick={saveFullSubscriptionSettings} disabled={isPaywallSaving}>
+                Save Full Subscription
               </button>
               <button type="button" className={`btn ${isUnitLockedInAdmin ? 'primary' : 'ghost'}`} onClick={toggleUnitLock}>
                 {isUnitLockedInAdmin ? 'Unlock Unit' : 'Lock Unit'}

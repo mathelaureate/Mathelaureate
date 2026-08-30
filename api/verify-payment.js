@@ -1,6 +1,8 @@
 import crypto from 'node:crypto'
 import { applyVerifiedPayment, getAuthUserFromRequest, readRequestBody, sendJson } from './_lib/payment.js'
 
+const ALLOWED_PRODUCT_TYPES = new Set(['course', 'ia', 'subscription'])
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     sendJson(response, 405, { error: 'Method not allowed' })
@@ -15,13 +17,28 @@ export default async function handler(request, response) {
     }
 
     const body = await readRequestBody(request)
+    const productType = String(body?.productType || 'course').trim().toLowerCase() || 'course'
+    if (!ALLOWED_PRODUCT_TYPES.has(productType)) {
+      sendJson(response, 400, { error: 'Invalid product type.' })
+      return
+    }
+
     const courseId = String(body?.courseId || '').trim()
     const courseSlug = String(body?.courseSlug || '').trim()
     const courseTitle = String(body?.courseTitle || '').trim()
+    const iaId = String(body?.iaId || '').trim()
     const orderId = String(body?.razorpay_order_id || '').trim()
     const paymentId = String(body?.razorpay_payment_id || '').trim()
     const signature = String(body?.razorpay_signature || '').trim()
-    if (!courseId || !orderId || !paymentId || !signature) {
+    if (!orderId || !paymentId || !signature) {
+      sendJson(response, 400, { error: 'Invalid verification payload.' })
+      return
+    }
+    if (productType === 'course' && !courseId) {
+      sendJson(response, 400, { error: 'Invalid verification payload.' })
+      return
+    }
+    if (productType === 'ia' && !iaId) {
       sendJson(response, 400, { error: 'Invalid verification payload.' })
       return
     }
@@ -43,12 +60,20 @@ export default async function handler(request, response) {
       email: authUser.email || '',
       orderId,
       paymentId,
-      expectedCourseId: courseId,
+      expectedProductType: productType,
+      expectedCourseId: productType === 'course' ? courseId : '',
+      expectedIaId: productType === 'ia' ? iaId : '',
       courseSlugOverride: courseSlug,
       courseTitleOverride: courseTitle,
     })
 
-    sendJson(response, 200, { ok: true, alreadyPaid: result.alreadyPaid, courses: result.courses })
+    sendJson(response, 200, {
+      ok: true,
+      alreadyPaid: result.alreadyPaid,
+      courses: result.courses,
+      iaUnlocks: result.iaUnlocks,
+      subscription: result.subscription,
+    })
   } catch (error) {
     sendJson(response, 500, { error: error?.message || 'Unable to verify payment.' })
   }

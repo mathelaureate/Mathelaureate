@@ -15,22 +15,41 @@ export const supabase =
       })
     : null
 
-export async function uploadImageToSupabase(file, folder = 'content') {
+const IMAGE_MAX_BYTES = 8 * 1024 * 1024
+const PDF_MAX_BYTES = 25 * 1024 * 1024
+
+function sanitizeExtension(fileName, fallback) {
+  const extension = String(fileName || '')
+    .split('.')
+    .pop()
+    ?.toLowerCase()
+  return String(extension || '')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 8) || fallback
+}
+
+async function uploadToSupabase(file, folder, { allowedMimeTypes, maxBytes, fallbackExt }) {
   if (!supabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.')
   }
   if (!file) {
-    throw new Error('No image selected.')
+    throw new Error('No file selected.')
+  }
+  if (maxBytes && file.size > maxBytes) {
+    throw new Error(`File is too large. Max size is ${Math.round(maxBytes / (1024 * 1024))}MB.`)
+  }
+  const mime = String(file.type || '').toLowerCase()
+  if (allowedMimeTypes?.length && !allowedMimeTypes.includes(mime)) {
+    throw new Error(`Unsupported file type: ${mime || 'unknown'}.`)
   }
 
-  const extension = file.name?.split('.').pop()?.toLowerCase() || 'png'
-  const safeExt = extension.replace(/[^a-z0-9]/g, '') || 'png'
+  const safeExt = sanitizeExtension(file.name, fallbackExt)
   const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExt}`
 
   const { error: uploadError } = await supabase.storage.from(supabaseBucket).upload(path, file, {
     upsert: false,
     cacheControl: '3600',
-    contentType: file.type || 'application/octet-stream',
+    contentType: mime || 'application/octet-stream',
   })
   if (uploadError) throw uploadError
 
@@ -39,4 +58,24 @@ export async function uploadImageToSupabase(file, folder = 'content') {
     path,
     publicUrl: data?.publicUrl || '',
   }
+}
+
+export async function uploadImageToSupabase(file, folder = 'content') {
+  return uploadToSupabase(file, folder, {
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    maxBytes: IMAGE_MAX_BYTES,
+    fallbackExt: 'png',
+  })
+}
+
+export async function uploadPdfToSupabase(file, folder = 'ia-pdfs') {
+  const name = String(file?.name || '').toLowerCase()
+  if (!name.endsWith('.pdf') && String(file?.type || '').toLowerCase() !== 'application/pdf') {
+    throw new Error('Only PDF files are allowed.')
+  }
+  return uploadToSupabase(file, folder, {
+    allowedMimeTypes: ['application/pdf'],
+    maxBytes: PDF_MAX_BYTES,
+    fallbackExt: 'pdf',
+  })
 }
