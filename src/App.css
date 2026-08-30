@@ -5503,7 +5503,12 @@ body {
 
 .ia-pdf-viewer.is-unlocked .ia-pdf-frame-wrap {
   max-height: none;
-  overflow-y: hidden;
+  overflow: hidden;
+}
+
+.ia-pdf-viewer.is-unlocked .ia-pdf-frame {
+  height: min(88vh, 1680px);
+  min-height: 80vh;
 }
 
 .ia-pdf-frame {

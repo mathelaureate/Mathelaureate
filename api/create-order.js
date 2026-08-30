@@ -63,10 +63,12 @@ export default async function handler(request, response) {
     const resolvedTitle = courseTitle || charge.title || resolvedCourseId
 
     const razorpay = getRazorpayClient()
+    const receiptSeed = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const receipt = `${productType.slice(0, 3)}_${String(authUser.uid).slice(-8)}_${receiptSeed}`.slice(0, 40)
     const order = await razorpay.orders.create({
       amount: Math.round(charge.amount * 100),
       currency: charge.currency,
-      receipt: `${authUser.uid}-${productType}-${Date.now()}`.slice(0, 40),
+      receipt,
       notes: {
         uid: authUser.uid,
         productType,

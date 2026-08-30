@@ -389,16 +389,23 @@ async function resolveBaseInrPrice({ productType, courseId, iaId }) {
 
   if (productType === 'ia') {
     if (!iaId) throw new Error('iaId is required for IA purchases.')
-    const data = await readIaDocData()
+    const [data, paywall] = await Promise.all([readIaDocData(), readPaywallDocData()])
     const items = Array.isArray(data?.items) ? data.items : []
     const item = items.find((entry) => String(entry?.id || '') === String(iaId))
     if (!item) throw new Error('IA item not found.')
     const rawPrice = Number(item.unlockPriceInr || 0)
-    if (!Number.isFinite(rawPrice) || rawPrice <= 0) {
+    const defaultPrice = Number(paywall?.defaultIaUnlockPriceInr || 0)
+    const price =
+      Number.isFinite(rawPrice) && rawPrice > 0
+        ? rawPrice
+        : Number.isFinite(defaultPrice) && defaultPrice > 0
+          ? defaultPrice
+          : 0
+    if (!price) {
       throw new Error('Pricing is not configured for this IA.')
     }
     return {
-      baseInrPrice: rawPrice,
+      baseInrPrice: price,
       productId: `ia:${iaId}`,
       iaId,
       title: String(item.title || 'IA unlock').slice(0, 120),
@@ -423,7 +430,7 @@ export async function computeChargeForCountry({ productType = 'course', courseId
 
   const money = isIndia
     ? {
-        amount: amountInr,
+        amount: Math.max(1, amountInr),
         amountInr,
         currency: 'INR',
         countryCode: normalizedCountry,
@@ -431,7 +438,8 @@ export async function computeChargeForCountry({ productType = 'course', courseId
     : await (async () => {
         const inrPerUsd = await fetchInrPerUsd()
         return {
-          amount: Number((amountInr / inrPerUsd).toFixed(2)),
+          // Razorpay rejects USD charges under $1, which cheap IA unlocks hit after FX.
+          amount: Math.max(1, Number((amountInr / inrPerUsd).toFixed(2))),
           amountInr,
           currency: 'USD',
           countryCode: normalizedCountry,

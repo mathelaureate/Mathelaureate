@@ -416,6 +416,13 @@ function friendlyPaymentError(message) {
   return msg || 'Unable to process payment.'
 }
 
+function resolveIaUnlockPrice(item, defaultPrice = 0) {
+  const raw = Number(item?.unlockPriceInr)
+  if (Number.isFinite(raw) && raw > 0) return raw
+  const fallback = Number(defaultPrice)
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 0
+}
+
 function normalizeIaItems(raw) {
   if (!Array.isArray(raw)) return []
   return raw
@@ -609,7 +616,7 @@ async function startProductPurchase({
           throw new Error(friendlyPaymentError(verifyPayload?.error || 'Payment verification failed.'))
         }
 
-        if (verifyPayload?.courses || verifyPayload?.iaUnlocks || verifyPayload?.subscription) {
+        if (verifyPayload?.ok || verifyPayload?.courses || verifyPayload?.iaUnlocks || verifyPayload?.subscription) {
           onPaymentsUpdated?.(
             normalizeUserPayments({
               courses: verifyPayload.courses,
@@ -637,8 +644,17 @@ async function startProductPurchase({
     },
   }
 
-  const checkout = new window.Razorpay(options)
-  checkout.open()
+  try {
+    const checkout = new window.Razorpay(options)
+    checkout.on('payment.failed', (response) => {
+      onBusyChange?.(false)
+      onError?.(friendlyPaymentError(response?.error?.description || 'Payment failed. Please try again.'))
+    })
+    checkout.open()
+  } catch (error) {
+    onBusyChange?.(false)
+    onError?.(friendlyPaymentError(error?.message || 'Unable to open checkout. Please try again.'))
+  }
 }
 
 function escapeHtml(value) {
@@ -968,7 +984,10 @@ function toGeoGebraOpenUrl(input) {
 
 async function detectUserCountryCode() {
   try {
-    const response = await fetch('https://ipapi.co/json/', { cache: 'no-store' })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 1200)
+    const response = await fetch('https://ipapi.co/json/', { cache: 'no-store', signal: controller.signal })
+    clearTimeout(timer)
     if (!response.ok) return ''
     const data = await response.json()
     return String(data?.country_code || '').toUpperCase()
@@ -2274,8 +2293,9 @@ function IaDetailPage({ user, cachedProfile }) {
   // Approximate A4 page height so locked users can scroll through free preview pages.
   const previewHeightPx = Math.max(720, previewPages * 1100)
   const iaDisplayTitle = iaItem ? getIaCardHeading(iaItem) : ''
+  const iaUnlockPrice = iaItem ? resolveIaUnlockPrice(iaItem, paywallConfig.defaultIaUnlockPriceInr) : 0
   const pdfEmbedUrl = iaItem?.pdfUrl
-    ? `${iaItem.pdfUrl}#page=1&view=FitH&toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
+    ? `${iaItem.pdfUrl}${iaItem.pdfUrl.includes('?') ? '&' : '?'}access=${unlocked ? 'full' : 'preview'}#page=1&view=FitH&toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
     : ''
   const subscriptionPrice = paywallConfig.fullSubscription.priceInr
   const subscriptionDurationLabel = formatAccessDuration(paywallConfig.fullSubscription.durationDays)
@@ -2285,9 +2305,11 @@ function IaDetailPage({ user, cachedProfile }) {
     setPaymentError('')
     try {
       const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      const credential = await signInWithPopup(auth, provider)
+      return credential?.user || null
     } catch (error) {
       setPaymentError(error?.message || 'Unable to sign in.')
+      return null
     } finally {
       setAuthBusy(false)
     }
@@ -2295,16 +2317,14 @@ function IaDetailPage({ user, cachedProfile }) {
 
   async function purchaseIaUnlock() {
     if (!iaItem) return
-    if (!user) {
-      await signInForPurchase()
-      return
-    }
-    if (!iaItem.unlockPriceInr || iaItem.unlockPriceInr <= 0) {
+    const buyer = user || (await signInForPurchase())
+    if (!buyer) return
+    if (!iaUnlockPrice) {
       setPaymentError('This IA does not have an unlock price configured yet.')
       return
     }
     await startProductPurchase({
-      user,
+      user: buyer,
       productType: 'ia',
       iaId: iaItem.id,
       courseTitle: iaDisplayTitle || iaItem.title,
@@ -2316,12 +2336,10 @@ function IaDetailPage({ user, cachedProfile }) {
   }
 
   async function purchaseFullSubscription() {
-    if (!user) {
-      await signInForPurchase()
-      return
-    }
+    const buyer = user || (await signInForPurchase())
+    if (!buyer) return
     await startProductPurchase({
-      user,
+      user: buyer,
       productType: 'subscription',
       courseId: FULL_SUBSCRIPTION_PRODUCT_ID,
       courseTitle: paywallConfig.fullSubscription.label,
@@ -2380,7 +2398,7 @@ function IaDetailPage({ user, cachedProfile }) {
                 </div>
                 <div className="ia-fact-card">
                   <span>IA unlock</span>
-                  <strong>{iaItem.unlockPriceInr ? `₹${iaItem.unlockPriceInr}` : 'Not set'}</strong>
+                  <strong>{iaUnlockPrice ? `₹${iaUnlockPrice}` : 'Not set'}</strong>
                 </div>
               </div>
 
@@ -2397,12 +2415,12 @@ function IaDetailPage({ user, cachedProfile }) {
                       type="button"
                       className="btn primary"
                       onClick={purchaseIaUnlock}
-                      disabled={paymentBusy || !iaItem.unlockPriceInr}
+                      disabled={paymentBusy || !iaUnlockPrice}
                     >
                       {paymentBusy
                         ? 'Processing...'
-                        : iaItem.unlockPriceInr
-                          ? `Unlock this IA · ₹${iaItem.unlockPriceInr}`
+                        : iaUnlockPrice
+                          ? `Unlock this IA · ₹${iaUnlockPrice}`
                           : 'IA price not set'}
                     </button>
                     <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
