@@ -2138,7 +2138,9 @@ function IaPage({ user, cachedProfile }) {
                   {iaLevelFromCourse(item.course) ? (
                     <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
                   ) : null}
-                  {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
+                  {item.topic && item.topic.length <= 40 ? (
+                    <span className="ia-meta-chip">{item.topic}</span>
+                  ) : null}
                 </div>
               </div>
             </Link>
