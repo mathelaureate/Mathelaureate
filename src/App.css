@@ -2856,7 +2856,7 @@ body {
 .topbar-inner {
   width: min(100% - 2.4rem, var(--page-max));
   margin-inline: auto;
-  min-height: 4.1rem;
+  min-height: 3.6rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2911,6 +2911,8 @@ body {
 .site-topbar nav a,
 .site-topbar nav button {
   color: #d7e4f0;
+  padding-top: 0.62rem;
+  padding-bottom: 0.62rem;
 }
 
 .site-topbar nav a:hover,
@@ -2936,6 +2938,8 @@ body {
   background: #1b6ea8;
   border-color: transparent;
   color: #fff;
+  width: 36px;
+  height: 36px;
 }
 
 .btn.primary {
