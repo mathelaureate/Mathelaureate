@@ -1521,7 +1521,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
     <header className={`topbar site-topbar ${bare ? 'topbar-bare' : ''}`} id="home">
       <div className="topbar-inner">
         <Link to="/" className="brand" aria-label="Mathelaureate home">
-          <BrandWordmark />
+          <img src="/menu-logo.png" alt="Mathelaureate" className="brand-logo-image" />
         </Link>
         <nav>
           <a href="/#home" className={isHome ? 'nav-active' : undefined}>
