@@ -1907,20 +1907,59 @@ function ProgramsPage({ user, cachedProfile }) {
   )
 }
 
-const iaCourseFilters = ['All', 'IBDP AA HL', 'IBDP AA SL', 'IBDP AI HL', 'IBDP AI SL', 'General']
+const iaAaCourses = ['IBDP AA HL', 'IBDP AA SL']
+const iaTopicChipDefaults = [
+  'All',
+  'Optimization',
+  'Modelling',
+  'Probability',
+  'Calculus',
+  'Surface Area',
+  'Volume',
+  'Statistics',
+  'Differential Equations',
+]
+
+function iaLevelFromCourse(course) {
+  const value = String(course || '')
+  if (value.includes('SL')) return 'SL'
+  if (value.includes('HL')) return 'HL'
+  return ''
+}
+
+function IaCardPreview({ item }) {
+  if (item.imageUrl) {
+    return <img src={item.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
+  }
+  if (item.pdfUrl) {
+    return (
+      <iframe
+        title={`preview-${item.id}`}
+        src={`${item.pdfUrl}#page=1&toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+        className="ia-grid-card-pdf"
+        loading="lazy"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    )
+  }
+  return (
+    <div className="ia-grid-card-fallback">
+      <span>IA</span>
+      <p>{item.title}</p>
+    </div>
+  )
+}
 
 function IaPage({ user, cachedProfile }) {
   const [iaItems, setIaItems] = useState([])
   const [loadingIa, setLoadingIa] = useState(true)
   const [iaError, setIaError] = useState('')
-  const [activeIa, setActiveIa] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [courseFilter, setCourseFilter] = useState('All')
+  const [levelFilters, setLevelFilters] = useState([])
+  const [topicFilter, setTopicFilter] = useState('All')
   const [userPayments, setUserPayments] = useState(() => normalizeUserPayments())
-  const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
-  const [paymentBusy, setPaymentBusy] = useState(false)
-  const [paymentError, setPaymentError] = useState('')
-  const [authBusy, setAuthBusy] = useState(false)
+  const topicRailRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -1929,12 +1968,12 @@ function IaPage({ user, cachedProfile }) {
       setLoadingIa(true)
       setIaError('')
       try {
-        const [iaSnap, paywallSnap] = await Promise.all([getDoc(iaDocRef), getDoc(paywallDocRef)])
-        const items = normalizeIaItems(iaSnap.data()?.items)
-        const nextPaywall = normalizePaywallConfig(paywallSnap.data())
+        const iaSnap = await getDoc(iaDocRef)
+        const items = normalizeIaItems(iaSnap.data()?.items).filter((item) =>
+          iaAaCourses.includes(item.course) || !item.course,
+        )
         if (!active) return
         setIaItems(items)
-        setPaywallConfig(nextPaywall)
       } catch (error) {
         if (!active) return
         setIaError(error?.message || 'Unable to load IA examples.')
@@ -1970,23 +2009,252 @@ function IaPage({ user, cachedProfile }) {
     }
   }, [user?.uid])
 
+  const topicChips = useMemo(() => {
+    const fromItems = iaItems.map((item) => item.topic).filter(Boolean)
+    return [...new Set([...iaTopicChipDefaults, ...fromItems])]
+  }, [iaItems])
+
   const filteredIaItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return iaItems.filter((item) => {
-      if (courseFilter !== 'All' && item.course !== courseFilter) return false
+      const level = iaLevelFromCourse(item.course)
+      if (levelFilters.length > 0 && !levelFilters.includes(level)) return false
+      if (topicFilter !== 'All') {
+        const topic = String(item.topic || '').toLowerCase()
+        if (topic !== topicFilter.toLowerCase() && !topic.includes(topicFilter.toLowerCase())) return false
+      }
       if (!query) return true
       const haystack = [item.title, item.topic, item.course].join(' ').toLowerCase()
       return haystack.includes(query)
     })
-  }, [iaItems, searchQuery, courseFilter])
+  }, [iaItems, searchQuery, levelFilters, topicFilter])
 
-  const subscriptionPrice = paywallConfig.fullSubscription.priceInr
-  const unlocked = activeIa ? hasIaAccess(userPayments, activeIa.id) : false
-  const previewPages = activeIa?.previewPages || 1
+  function toggleLevel(level) {
+    setLevelFilters((current) =>
+      current.includes(level) ? current.filter((value) => value !== level) : [...current, level],
+    )
+  }
+
+  function clearFilters() {
+    setLevelFilters([])
+    setTopicFilter('All')
+    setSearchQuery('')
+  }
+
+  function scrollTopics(direction) {
+    const node = topicRailRef.current
+    if (!node) return
+    node.scrollBy({ left: direction * 240, behavior: 'smooth' })
+  }
+
+  return (
+    <main className="site site-full ia-page">
+      <SiteHeader user={user} cachedProfile={cachedProfile} />
+
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="ia-breadcrumb">
+            <Link to="/">Home</Link>
+            <span aria-hidden="true"> • </span>
+            <Link to="/ia">IA</Link>
+            <span aria-hidden="true"> • </span>
+            <span>Math AA</span>
+          </p>
+          <h1>IB Math AA IA Examples</h1>
+          <p className="ia-hero-sub">Type a search phrase to find the most relevant Math AA IA examples for you</p>
+          <div className="ia-search-bar">
+            <span className="ia-search-chip">IA</span>
+            <span className="ia-search-chip">Math AA</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="E.g. modelling a logo, player arrangements, shape of an egg..."
+              aria-label="Search IA ideas"
+            />
+          </div>
+          <p className="ia-hero-hint">
+            Not sure what to search for? Look through our example Internal Assessments below for inspiration.
+          </p>
+        </div>
+      </section>
+
+      <section className="ia-browse-layout">
+        <aside className="ia-filters-panel">
+          <div className="ia-filters-head">
+            <h2>Filters</h2>
+            <button type="button" className="ia-clear-filters" onClick={clearFilters}>
+              Clear All
+            </button>
+          </div>
+
+          <div className="ia-filter-group">
+            <h3>Level</h3>
+            <label className="ia-check">
+              <input type="checkbox" checked={levelFilters.includes('HL')} onChange={() => toggleLevel('HL')} />
+              <span>HL</span>
+            </label>
+            <label className="ia-check">
+              <input type="checkbox" checked={levelFilters.includes('SL')} onChange={() => toggleLevel('SL')} />
+              <span>SL</span>
+            </label>
+          </div>
+        </aside>
+
+        <div className="ia-browse-main">
+          <div className="ia-resource-row">
+            <Link className="ia-resource-link" to="/#programs">
+              <span className="ia-resource-dot ia-resource-dot-blue" />
+              Question bank
+            </Link>
+            <Link className="ia-resource-link" to="/mock-generator">
+              <span className="ia-resource-dot ia-resource-dot-red" />
+              Notes
+            </Link>
+            <Link className="ia-resource-link" to="/mock-generator">
+              <span className="ia-resource-dot ia-resource-dot-green" />
+              Flashcards
+            </Link>
+            <Link className="ia-resource-link" to="/ia">
+              <span className="ia-resource-dot ia-resource-dot-sky" />
+              RQ Generator
+            </Link>
+          </div>
+
+          <div className="ia-topic-block">
+            <div className="ia-topic-label">Topic</div>
+            <div className="ia-topic-rail-wrap">
+              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(-1)} aria-label="Scroll topics left">
+                ‹
+              </button>
+              <div className="ia-topic-rail" ref={topicRailRef}>
+                {topicChips.map((topic) => (
+                  <button
+                    key={topic}
+                    type="button"
+                    className={`ia-topic-chip${topicFilter === topic ? ' is-active' : ''}`}
+                    onClick={() => setTopicFilter(topic)}
+                  >
+                    <span className="ia-topic-icon" aria-hidden="true" />
+                    <span>{topic}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(1)} aria-label="Scroll topics right">
+                ›
+              </button>
+            </div>
+          </div>
+
+          {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
+          {iaError ? <p className="error-text">{iaError}</p> : null}
+          {!loadingIa && iaItems.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No IA examples yet</h2>
+              <p>Sample investigations and topic ideas will appear here soon.</p>
+            </div>
+          ) : null}
+          {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No matches</h2>
+              <p>Try a different search or filter.</p>
+            </div>
+          ) : null}
+
+          <div className="ia-card-grid">
+            {filteredIaItems.map((item) => (
+              <Link key={item.id} to={`/ia/${encodeURIComponent(item.id)}`} className="ia-grid-card">
+                <div className="ia-grid-card-preview">
+                  <IaCardPreview item={item} />
+                  {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
+                </div>
+                <div className="ia-grid-card-body">
+                  <h2>{item.title}</h2>
+                  <div className="ia-idea-meta">
+                    <span className="ia-meta-chip">IA</span>
+                    <span className="ia-meta-chip">Math AA</span>
+                    {iaLevelFromCourse(item.course) ? (
+                      <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function IaDetailPage({ user, cachedProfile }) {
+  const { iaId } = useParams()
+  const navigate = useNavigate()
+  const [iaItem, setIaItem] = useState(null)
+  const [loadingIa, setLoadingIa] = useState(true)
+  const [iaError, setIaError] = useState('')
+  const [userPayments, setUserPayments] = useState(() => normalizeUserPayments())
+  const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
+  const [paymentBusy, setPaymentBusy] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadIaItem() {
+      setLoadingIa(true)
+      setIaError('')
+      try {
+        const [iaSnap, paywallSnap] = await Promise.all([getDoc(iaDocRef), getDoc(paywallDocRef)])
+        const items = normalizeIaItems(iaSnap.data()?.items)
+        const matched = items.find((item) => item.id === iaId) || null
+        if (!active) return
+        setIaItem(matched)
+        setPaywallConfig(normalizePaywallConfig(paywallSnap.data()))
+        if (!matched) setIaError('This IA example could not be found.')
+      } catch (error) {
+        if (!active) return
+        setIaError(error?.message || 'Unable to load this IA.')
+      } finally {
+        if (active) setLoadingIa(false)
+      }
+    }
+
+    loadIaItem()
+    return () => {
+      active = false
+    }
+  }, [iaId])
+
+  useEffect(() => {
+    let active = true
+    async function loadPayments() {
+      if (!user?.uid) {
+        if (active) setUserPayments(normalizeUserPayments())
+        return
+      }
+      try {
+        const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
+        if (!active) return
+        setUserPayments(normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {}))
+      } catch {
+        if (active) setUserPayments(normalizeUserPayments())
+      }
+    }
+    loadPayments()
+    return () => {
+      active = false
+    }
+  }, [user?.uid])
+
+  const unlocked = iaItem ? hasIaAccess(userPayments, iaItem.id) : false
+  const previewPages = iaItem?.previewPages || 1
   const previewHeightPx = Math.max(320, previewPages * 980)
-  const pdfEmbedUrl = activeIa?.pdfUrl
-    ? `${activeIa.pdfUrl}#toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
+  const pdfEmbedUrl = iaItem?.pdfUrl
+    ? `${iaItem.pdfUrl}#toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
     : ''
+  const subscriptionPrice = paywallConfig.fullSubscription.priceInr
 
   async function signInForPurchase() {
     setAuthBusy(true)
@@ -2002,21 +2270,21 @@ function IaPage({ user, cachedProfile }) {
   }
 
   async function purchaseIaUnlock() {
-    if (!activeIa) return
+    if (!iaItem) return
     if (!user) {
       await signInForPurchase()
       return
     }
-    if (!activeIa.unlockPriceInr || activeIa.unlockPriceInr <= 0) {
+    if (!iaItem.unlockPriceInr || iaItem.unlockPriceInr <= 0) {
       setPaymentError('This IA does not have an unlock price configured yet.')
       return
     }
     await startProductPurchase({
       user,
       productType: 'ia',
-      iaId: activeIa.id,
-      courseTitle: activeIa.title,
-      description: `Unlock IA: ${activeIa.title}`,
+      iaId: iaItem.id,
+      courseTitle: iaItem.title,
+      description: `Unlock IA: ${iaItem.title}`,
       onPaymentsUpdated: setUserPayments,
       onError: setPaymentError,
       onBusyChange: setPaymentBusy,
@@ -2041,100 +2309,40 @@ function IaPage({ user, cachedProfile }) {
   }
 
   return (
-    <main className="site site-full ia-page">
+    <main className="site site-full ia-page ia-detail-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="ia-shell">
-        <header className="ia-page-head">
-          <p className="eyebrow">IBDP Mathematics</p>
-          <h1>IA examples &amp; research ideas</h1>
-          <p>Browse Internal Assessment ideas for AA and AI. Open a card for full guidance and resources.</p>
-          <label className="ia-search">
-            <span className="sr-only">Search IA ideas</span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Type a search phrase to find the most relevant IA ideas"
-            />
-          </label>
-          <div className="ia-filter-row" role="group" aria-label="Filter by course">
-            {iaCourseFilters.map((course) => (
-              <button
-                key={course}
-                type="button"
-                className={`ia-filter-chip${courseFilter === course ? ' is-active' : ''}`}
-                onClick={() => setCourseFilter(course)}
-              >
-                {course}
-              </button>
-            ))}
-          </div>
-        </header>
+      <section className="ia-detail-shell">
+        <button type="button" className="ia-back-link" onClick={() => navigate('/ia')}>
+          ← Back to IA examples
+        </button>
 
-        {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
+        {loadingIa ? <p className="ia-status">Loading IA...</p> : null}
         {iaError ? <p className="error-text">{iaError}</p> : null}
-        {!loadingIa && iaItems.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No IA examples yet</h2>
-            <p>Sample investigations and topic ideas will appear here soon.</p>
-          </div>
-        ) : null}
-        {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No matches</h2>
-            <p>Try a different search or course filter.</p>
-          </div>
-        ) : null}
 
-        <div className="ia-idea-list">
-          {filteredIaItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="ia-idea-card"
-              onClick={() => {
-                setPaymentError('')
-                setActiveIa(item)
-              }}
-            >
-              <h2 className="ia-idea-title">{item.title}</h2>
-              <div className="ia-idea-meta">
-                <span className="ia-meta-chip">IA</span>
-                {item.course ? <span className="ia-meta-chip">{item.course}</span> : null}
-                {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
-                {hasIaAccess(userPayments, item.id) ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-      {activeIa ? (
-        <section
-          className="event-modal-overlay ia-detail-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setActiveIa(null)}
-        >
-          <article className="event-modal ia-detail-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="event-modal-head">
-              <h3>{activeIa.title}</h3>
-              <button
-                type="button"
-                className="event-modal-close-btn"
-                onClick={() => setActiveIa(null)}
-                aria-label="Close IA popup"
-              >
-                &times;
-              </button>
+        {iaItem ? (
+          <article className="ia-detail-panel">
+            <p className="ia-breadcrumb">
+              <Link to="/">Home</Link>
+              <span aria-hidden="true"> • </span>
+              <Link to="/ia">IA</Link>
+              <span aria-hidden="true"> • </span>
+              <span>Math AA</span>
+            </p>
+            <h1>{iaItem.title}</h1>
+            <div className="ia-idea-meta">
+              <span className="ia-meta-chip">IA</span>
+              <span className="ia-meta-chip">Math AA</span>
+              {iaLevelFromCourse(iaItem.course) ? (
+                <span className="ia-meta-chip">{iaLevelFromCourse(iaItem.course)}</span>
+              ) : null}
+              {iaItem.topic ? <span className="ia-meta-chip">{iaItem.topic}</span> : null}
+              {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
             </div>
-            <small className="event-modal-date">
-              {[activeIa.course, activeIa.topic].filter(Boolean).join(' · ') || 'Internal Assessment'}
-            </small>
-            {activeIa.summary || activeIa.description ? (
-              <LatexText value={activeIa.description || activeIa.summary} className="latex-text" />
+            {iaItem.summary || iaItem.description ? (
+              <LatexText value={iaItem.description || iaItem.summary} className="latex-text" />
             ) : null}
 
-            {activeIa.pdfUrl ? (
+            {iaItem.pdfUrl ? (
               <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
                 <div
                   className="ia-pdf-frame-wrap"
@@ -2142,7 +2350,7 @@ function IaPage({ user, cachedProfile }) {
                   onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
                 >
                   <iframe
-                    title={`ia-pdf-${activeIa.id}`}
+                    title={`ia-pdf-${iaItem.id}`}
                     src={pdfEmbedUrl}
                     className="ia-pdf-frame"
                     loading="lazy"
@@ -2167,12 +2375,12 @@ function IaPage({ user, cachedProfile }) {
                         type="button"
                         className="btn primary"
                         onClick={purchaseIaUnlock}
-                        disabled={paymentBusy || !activeIa.unlockPriceInr}
+                        disabled={paymentBusy || !iaItem.unlockPriceInr}
                       >
                         {paymentBusy
                           ? 'Processing...'
-                          : activeIa.unlockPriceInr
-                            ? `Unlock this IA · INR ${activeIa.unlockPriceInr}`
+                          : iaItem.unlockPriceInr
+                            ? `Unlock this IA · INR ${iaItem.unlockPriceInr}`
                             : 'IA price not set'}
                       </button>
                       <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
@@ -2186,7 +2394,7 @@ function IaPage({ user, cachedProfile }) {
                   </div>
                 ) : (
                   <div className="ia-pdf-unlocked-bar">
-                    <a className="btn primary" href={activeIa.pdfUrl} target="_blank" rel="noreferrer noopener">
+                    <a className="btn primary" href={iaItem.pdfUrl} target="_blank" rel="noreferrer noopener">
                       Open / download PDF
                     </a>
                     {hasActiveSubscription(userPayments) ? (
@@ -2201,14 +2409,14 @@ function IaPage({ user, cachedProfile }) {
               <p className="muted-text">No PDF uploaded for this IA yet.</p>
             )}
 
-            {activeIa.link && unlocked ? (
-              <a className="btn ghost" href={activeIa.link} target="_blank" rel="noreferrer">
+            {iaItem.link && unlocked ? (
+              <a className="btn ghost" href={iaItem.link} target="_blank" rel="noreferrer">
                 Open related resource
               </a>
             ) : null}
           </article>
-        </section>
-      ) : null}
+        ) : null}
+      </section>
     </main>
   )
 }
@@ -5894,9 +6102,6 @@ function AdminPage({ mode = 'admin' }) {
                 <select value={iaCourse} onChange={(event) => setIaCourse(event.target.value)}>
                   <option value="IBDP AA HL">IBDP AA HL</option>
                   <option value="IBDP AA SL">IBDP AA SL</option>
-                  <option value="IBDP AI HL">IBDP AI HL</option>
-                  <option value="IBDP AI SL">IBDP AI SL</option>
-                  <option value="General">General</option>
                 </select>
               </label>
               <label>
@@ -5959,7 +6164,7 @@ function AdminPage({ mode = 'admin' }) {
                 />
               </label>
               <label>
-                Cover Image (optional)
+                Preview image (card thumbnail — recommended)
                 <input type="file" accept="image/*" onChange={onIaImageChange} />
               </label>
               {iaImagePreviewUrl ? (
@@ -6696,6 +6901,7 @@ function App() {
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/ia" element={<IaPage user={user} cachedProfile={cachedProfile} />} />
+        <Route path="/ia/:iaId" element={<IaDetailPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/events" element={<Navigate to="/ia" replace />} />
         <Route path="/teachers-resources" element={<TeachersResourcesPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage user={user} cachedProfile={cachedProfile} />} />
