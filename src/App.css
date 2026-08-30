@@ -5369,9 +5369,36 @@ body {
   max-width: 34%;
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.85rem;
   position: sticky;
   top: 5.2rem;
+}
+
+/* Grid/flex tracks default to a min-content floor, so a single unbreakable
+   run (KaTeX math, a long URL) widens the whole rail past its 34%. */
+.ia-detail-info > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ia-detail-info .latex-text,
+.ia-detail-info .latex-heading {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ia-detail-info .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ia-detail-info .ia-meta-chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ia-detail-panel h1 {
@@ -5391,6 +5418,9 @@ body {
   border-radius: 14px;
   padding: 0.9rem 0.95rem;
   background: #fbfdff;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .ia-summary-card h3,
@@ -5407,12 +5437,15 @@ body {
 
 .ia-facts-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.6rem;
+  min-width: 0;
 }
 
 .ia-fact-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 0.2rem;
   border: 1px solid #dbe6ee;
   border-radius: 12px;
@@ -5428,6 +5461,7 @@ body {
 .ia-fact-card strong {
   color: #0f2c4d;
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .ia-unlock-card.is-unlocked {
@@ -5521,6 +5555,7 @@ body {
 
 .ia-pay-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.65rem;
   width: 100%;
   min-width: 0;
