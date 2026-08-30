@@ -1960,7 +1960,6 @@ function IaPage({ user, cachedProfile }) {
   const [levelFilters, setLevelFilters] = useState([])
   const [topicFilter, setTopicFilter] = useState('All')
   const [userPayments, setUserPayments] = useState(() => normalizeUserPayments())
-  const topicRailRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -2042,12 +2041,6 @@ function IaPage({ user, cachedProfile }) {
     setSearchQuery('')
   }
 
-  function scrollTopics(direction) {
-    const node = topicRailRef.current
-    if (!node) return
-    node.scrollBy({ left: direction * 240, behavior: 'smooth' })
-  }
-
   return (
     <main className="site site-full ia-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
@@ -2056,132 +2049,98 @@ function IaPage({ user, cachedProfile }) {
         <div className="ia-hero-inner">
           <p className="ia-breadcrumb">
             <Link to="/">Home</Link>
-            <span aria-hidden="true"> • </span>
-            <Link to="/ia">IA</Link>
-            <span aria-hidden="true"> • </span>
+            <span aria-hidden="true"> / </span>
+            <span>IA</span>
+            <span aria-hidden="true"> / </span>
             <span>Math AA</span>
           </p>
           <h1>IB Math AA IA Examples</h1>
-          <p className="ia-hero-sub">Type a search phrase to find the most relevant Math AA IA examples for you</p>
-          <div className="ia-search-bar">
-            <span className="ia-search-chip">IA</span>
-            <span className="ia-search-chip">Math AA</span>
+          <p className="ia-hero-sub">Browse research ideas and exemplar Internal Assessments</p>
+          <label className="ia-search-simple">
+            <span className="sr-only">Search IA ideas</span>
             <input
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="E.g. modelling a logo, player arrangements, shape of an egg..."
-              aria-label="Search IA ideas"
+              placeholder="Search ideas — modelling, calculus, probability..."
             />
-          </div>
-          <p className="ia-hero-hint">
-            Not sure what to search for? Look through our example Internal Assessments below for inspiration.
-          </p>
+          </label>
         </div>
       </section>
 
-      <section className="ia-browse-layout">
-        <aside className="ia-filters-panel">
-          <div className="ia-filters-head">
-            <h2>Filters</h2>
-            <button type="button" className="ia-clear-filters" onClick={clearFilters}>
-              Clear All
+      <section className="ia-browse-shell">
+        <div className="ia-toolbar">
+          <div className="ia-pill-row" role="group" aria-label="Level">
+            <button
+              type="button"
+              className={`ia-pill${levelFilters.length === 0 ? ' is-active' : ''}`}
+              onClick={() => setLevelFilters([])}
+            >
+              All levels
             </button>
-          </div>
-
-          <div className="ia-filter-group">
-            <h3>Level</h3>
-            <label className="ia-check">
-              <input type="checkbox" checked={levelFilters.includes('HL')} onChange={() => toggleLevel('HL')} />
-              <span>HL</span>
-            </label>
-            <label className="ia-check">
-              <input type="checkbox" checked={levelFilters.includes('SL')} onChange={() => toggleLevel('SL')} />
-              <span>SL</span>
-            </label>
-          </div>
-        </aside>
-
-        <div className="ia-browse-main">
-          <div className="ia-resource-row">
-            <Link className="ia-resource-link" to="/#programs">
-              <span className="ia-resource-dot ia-resource-dot-blue" />
-              Question bank
-            </Link>
-            <Link className="ia-resource-link" to="/mock-generator">
-              <span className="ia-resource-dot ia-resource-dot-red" />
-              Notes
-            </Link>
-            <Link className="ia-resource-link" to="/mock-generator">
-              <span className="ia-resource-dot ia-resource-dot-green" />
-              Flashcards
-            </Link>
-            <Link className="ia-resource-link" to="/ia">
-              <span className="ia-resource-dot ia-resource-dot-sky" />
-              RQ Generator
-            </Link>
-          </div>
-
-          <div className="ia-topic-block">
-            <div className="ia-topic-label">Topic</div>
-            <div className="ia-topic-rail-wrap">
-              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(-1)} aria-label="Scroll topics left">
-                ‹
+            {['HL', 'SL'].map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`ia-pill${levelFilters.includes(level) ? ' is-active' : ''}`}
+                onClick={() => toggleLevel(level)}
+              >
+                {level}
               </button>
-              <div className="ia-topic-rail" ref={topicRailRef}>
-                {topicChips.map((topic) => (
-                  <button
-                    key={topic}
-                    type="button"
-                    className={`ia-topic-chip${topicFilter === topic ? ' is-active' : ''}`}
-                    onClick={() => setTopicFilter(topic)}
-                  >
-                    <span className="ia-topic-icon" aria-hidden="true" />
-                    <span>{topic}</span>
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(1)} aria-label="Scroll topics right">
-                ›
-              </button>
-            </div>
-          </div>
-
-          {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
-          {iaError ? <p className="error-text">{iaError}</p> : null}
-          {!loadingIa && iaItems.length === 0 ? (
-            <div className="ia-empty">
-              <h2>No IA examples yet</h2>
-              <p>Sample investigations and topic ideas will appear here soon.</p>
-            </div>
-          ) : null}
-          {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
-            <div className="ia-empty">
-              <h2>No matches</h2>
-              <p>Try a different search or filter.</p>
-            </div>
-          ) : null}
-
-          <div className="ia-card-grid">
-            {filteredIaItems.map((item) => (
-              <Link key={item.id} to={`/ia/${encodeURIComponent(item.id)}`} className="ia-grid-card">
-                <div className="ia-grid-card-preview">
-                  <IaCardPreview item={item} />
-                  {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
-                </div>
-                <div className="ia-grid-card-body">
-                  <h2>{item.title}</h2>
-                  <div className="ia-idea-meta">
-                    <span className="ia-meta-chip">IA</span>
-                    <span className="ia-meta-chip">Math AA</span>
-                    {iaLevelFromCourse(item.course) ? (
-                      <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
-                    ) : null}
-                  </div>
-                </div>
-              </Link>
             ))}
           </div>
+          <button type="button" className="ia-clear-inline" onClick={clearFilters}>
+            Clear
+          </button>
+        </div>
+
+        <div className="ia-pill-row ia-pill-row-scroll" role="group" aria-label="Topic">
+          {topicChips.map((topic) => (
+            <button
+              key={topic}
+              type="button"
+              className={`ia-pill${topicFilter === topic ? ' is-active' : ''}`}
+              onClick={() => setTopicFilter(topic)}
+            >
+              {topic}
+            </button>
+          ))}
+        </div>
+
+        {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
+        {iaError ? <p className="error-text">{iaError}</p> : null}
+        {!loadingIa && iaItems.length === 0 ? (
+          <div className="ia-empty">
+            <h2>No IA examples yet</h2>
+            <p>Sample investigations will appear here soon.</p>
+          </div>
+        ) : null}
+        {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
+          <div className="ia-empty">
+            <h2>No matches</h2>
+            <p>Try a different search or filter.</p>
+          </div>
+        ) : null}
+
+        <div className="ia-card-grid">
+          {filteredIaItems.map((item) => (
+            <Link key={item.id} to={`/ia/${encodeURIComponent(item.id)}`} className="ia-grid-card">
+              <div className="ia-grid-card-preview">
+                <IaCardPreview item={item} />
+                {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
+              </div>
+              <div className="ia-grid-card-body">
+                <h2>{item.title}</h2>
+                <div className="ia-idea-meta">
+                  <span className="ia-meta-chip">IA</span>
+                  {iaLevelFromCourse(item.course) ? (
+                    <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
+                  ) : null}
+                  {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </main>
@@ -2442,7 +2401,6 @@ function TeachersResourcesPage({ user, cachedProfile }) {
   const [postsError, setPostsError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
-  const topicRailRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -2491,12 +2449,6 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     setSearchQuery('')
   }
 
-  function scrollTopics(direction) {
-    const node = topicRailRef.current
-    if (!node) return
-    node.scrollBy({ left: direction * 240, behavior: 'smooth' })
-  }
-
   return (
     <main className="site site-full ia-page tr-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
@@ -2505,137 +2457,76 @@ function TeachersResourcesPage({ user, cachedProfile }) {
         <div className="ia-hero-inner">
           <p className="ia-breadcrumb">
             <Link to="/">Home</Link>
-            <span aria-hidden="true"> • </span>
+            <span aria-hidden="true"> / </span>
             <span>Teachers &amp; Resources</span>
           </p>
           <h1>Teachers &amp; Resources</h1>
-          <p className="ia-hero-sub">Browse classroom-ready guides, worksheets, and teaching materials on Mathelaureate</p>
-          <div className="ia-search-bar">
-            <span className="ia-search-chip">Resources</span>
-            <span className="ia-search-chip">Teachers</span>
+          <p className="ia-hero-sub">Classroom guides and materials — open fully on Mathelaureate</p>
+          <label className="ia-search-simple">
+            <span className="sr-only">Search teachers resources</span>
             <input
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search guides, worksheets, classroom ideas..."
-              aria-label="Search teachers resources"
             />
-          </div>
-          <p className="ia-hero-hint">Everything opens on this site — click a card to read the full resource.</p>
+          </label>
         </div>
       </section>
 
-      <section className="ia-browse-layout">
-        <aside className="ia-filters-panel">
-          <div className="ia-filters-head">
-            <h2>Filters</h2>
-            <button type="button" className="ia-clear-filters" onClick={clearFilters}>
-              Clear All
-            </button>
-          </div>
-          <div className="ia-filter-group">
-            <h3>Category</h3>
-            {teachersResourceCategories
-              .filter((category) => category !== 'All')
-              .map((category) => (
-                <label className="ia-check" key={category}>
-                  <input
-                    type="radio"
-                    name="tr-category"
-                    checked={categoryFilter === category}
-                    onChange={() => setCategoryFilter(category)}
-                  />
-                  <span>{category}</span>
-                </label>
-              ))}
-            <label className="ia-check">
-              <input
-                type="radio"
-                name="tr-category"
-                checked={categoryFilter === 'All'}
-                onChange={() => setCategoryFilter('All')}
-              />
-              <span>All</span>
-            </label>
-          </div>
-        </aside>
-
-        <div className="ia-browse-main">
-          <div className="ia-resource-row">
-            <Link className="ia-resource-link" to="/#programs">
-              <span className="ia-resource-dot ia-resource-dot-blue" />
-              Question bank
-            </Link>
-            <Link className="ia-resource-link" to="/ia">
-              <span className="ia-resource-dot ia-resource-dot-sky" />
-              IA examples
-            </Link>
-            <Link className="ia-resource-link" to="/mock-generator">
-              <span className="ia-resource-dot ia-resource-dot-green" />
-              Mock generator
-            </Link>
-          </div>
-
-          <div className="ia-topic-block">
-            <div className="ia-topic-label">Category</div>
-            <div className="ia-topic-rail-wrap">
-              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(-1)} aria-label="Scroll categories left">
-                ‹
-              </button>
-              <div className="ia-topic-rail" ref={topicRailRef}>
-                {categoryChips.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`ia-topic-chip${categoryFilter === category ? ' is-active' : ''}`}
-                    onClick={() => setCategoryFilter(category)}
-                  >
-                    <span className="ia-topic-icon" aria-hidden="true" />
-                    <span>{category}</span>
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="ia-topic-arrow" onClick={() => scrollTopics(1)} aria-label="Scroll categories right">
-                ›
-              </button>
-            </div>
-          </div>
-
-          {loadingPosts ? <p className="ia-status">Loading resources...</p> : null}
-          {postsError ? <p className="error-text">{postsError}</p> : null}
-          {!loadingPosts && posts.length === 0 ? (
-            <div className="ia-empty">
-              <h2>No resources yet</h2>
-              <p>Teacher guides and classroom materials will appear here soon.</p>
-            </div>
-          ) : null}
-          {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
-            <div className="ia-empty">
-              <h2>No matches</h2>
-              <p>Try a different search or category.</p>
-            </div>
-          ) : null}
-
-          <div className="ia-card-grid">
-            {filteredPosts.map((post) => (
-              <Link
-                key={post.id}
-                to={`/teachers-resources/${encodeURIComponent(post.id)}`}
-                className="ia-grid-card"
+      <section className="ia-browse-shell">
+        <div className="ia-toolbar">
+          <div className="ia-pill-row ia-pill-row-scroll" role="group" aria-label="Category">
+            {categoryChips.map((category) => (
+              <button
+                key={category}
+                type="button"
+                className={`ia-pill${categoryFilter === category ? ' is-active' : ''}`}
+                onClick={() => setCategoryFilter(category)}
               >
-                <div className="ia-grid-card-preview">
-                  <TeachersResourceCardPreview post={post} />
-                </div>
-                <div className="ia-grid-card-body">
-                  <h2>{post.title}</h2>
-                  <div className="ia-idea-meta">
-                    <span className="ia-meta-chip">Resource</span>
-                    {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
-                  </div>
-                </div>
-              </Link>
+                {category}
+              </button>
             ))}
           </div>
+          <button type="button" className="ia-clear-inline" onClick={clearFilters}>
+            Clear
+          </button>
+        </div>
+
+        {loadingPosts ? <p className="ia-status">Loading resources...</p> : null}
+        {postsError ? <p className="error-text">{postsError}</p> : null}
+        {!loadingPosts && posts.length === 0 ? (
+          <div className="ia-empty">
+            <h2>No resources yet</h2>
+            <p>Teacher guides and classroom materials will appear here soon.</p>
+          </div>
+        ) : null}
+        {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
+          <div className="ia-empty">
+            <h2>No matches</h2>
+            <p>Try a different search or category.</p>
+          </div>
+        ) : null}
+
+        <div className="ia-card-grid">
+          {filteredPosts.map((post) => (
+            <Link
+              key={post.id}
+              to={`/teachers-resources/${encodeURIComponent(post.id)}`}
+              className="ia-grid-card"
+            >
+              <div className="ia-grid-card-preview">
+                <TeachersResourceCardPreview post={post} />
+              </div>
+              <div className="ia-grid-card-body">
+                <h2>{post.title}</h2>
+                <div className="ia-idea-meta">
+                  <span className="ia-meta-chip">Resource</span>
+                  {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </main>
