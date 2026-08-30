@@ -1928,6 +1928,19 @@ function iaLevelFromCourse(course) {
   return ''
 }
 
+function getIaCardHeading(item) {
+  const title = String(item?.title || '').trim()
+  const topic = String(item?.topic || '').trim()
+  const summary = String(item?.summary || '').trim()
+  const description = String(item?.description || '').trim()
+  // If title was stored truncated, prefer the full idea text.
+  if (/\.\.\.\s*$/.test(title)) {
+    const fuller = [summary, topic, description].sort((a, b) => b.length - a.length)[0] || ''
+    if (fuller.length > title.length) return fuller
+  }
+  return title
+}
+
 function IaCardPreview({ item }) {
   if (item.imageUrl) {
     return <img src={item.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
@@ -2132,7 +2145,7 @@ function IaPage({ user, cachedProfile }) {
                 {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
               </div>
               <div className="ia-grid-card-body">
-                <h2>{item.title}</h2>
+                <h2 className="ia-card-title">{getIaCardHeading(item)}</h2>
                 <div className="ia-idea-meta">
                   <span className="ia-meta-chip">IA</span>
                   {iaLevelFromCourse(item.course) ? (
@@ -2523,7 +2536,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
                 <TeachersResourceCardPreview post={post} />
               </div>
               <div className="ia-grid-card-body">
-                <h2>{post.title}</h2>
+                <h2 className="ia-card-title">{post.title}</h2>
                 <div className="ia-idea-meta">
                   <span className="ia-meta-chip">Resource</span>
                   {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
