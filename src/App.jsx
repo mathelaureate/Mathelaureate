@@ -1458,6 +1458,14 @@ function sampleQuestionsToMarks(pool, targetMarks) {
   )
 }
 
+function BrandWordmark({ className = '' }) {
+  return (
+    <span className={`brand-wordmark${className ? ` ${className}` : ''}`}>
+      Mathe<span>laureate</span>
+    </span>
+  )
+}
+
 function SiteHeader({ user, cachedProfile, bare = false }) {
   const profileLabel =
     user?.displayName?.[0]?.toUpperCase() ||
@@ -1478,7 +1486,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
     <header className={`topbar site-topbar ${bare ? 'topbar-bare' : ''}`} id="home">
       <div className="topbar-inner">
         <Link to="/" className="brand" aria-label="Mathelaureate home">
-          Mathe<span>laureate</span>
+          <BrandWordmark />
         </Link>
         <nav>
           <a href="/#home" className={isHome ? 'nav-active' : undefined}>
@@ -1578,7 +1586,9 @@ function HomePage({ user, cachedProfile }) {
       <section className="hero-section hero-full">
         <div className="hero-grid">
           <div className="hero-content">
-            <p className="brand-mark">Mathelaureate</p>
+            <p className="brand-mark">
+              <BrandWordmark />
+            </p>
             <h1>Learn Math with Clarity and Confidence</h1>
             <p className="hero-copy">
               Structured pathways for Grade 9–12 students across IBDP, IGCSE, and MYP — with lessons, worked
@@ -1826,7 +1836,7 @@ function HomePage({ user, cachedProfile }) {
         <div className="home-footer-inner">
           <div className="home-footer-brand">
             <h3>
-              Mathe<span>laureate</span>
+              <BrandWordmark />
             </h3>
             <p>
               Excellence in International Mathematics Education — empowering IB and IGCSE students to achieve their full
@@ -2478,7 +2488,9 @@ function TeachersResourcesPage({ user, cachedProfile }) {
             <span>Teachers &amp; Resources</span>
           </p>
           <h1>Teachers &amp; Resources</h1>
-          <p className="ia-hero-sub">Classroom guides and materials — open fully on Mathelaureate</p>
+          <p className="ia-hero-sub">
+            Classroom guides and materials — open fully on <BrandWordmark className="brand-wordmark-inline" />
+          </p>
           <label className="ia-search-simple">
             <span className="sr-only">Search teachers resources</span>
             <input
