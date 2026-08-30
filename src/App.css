@@ -5226,21 +5226,18 @@ body {
 
 .ia-grid-card-body {
   display: grid;
-  gap: 0.45rem;
-  padding: 0.75rem 0.8rem 0.9rem;
+  gap: 0.5rem;
+  padding: 0.85rem 0.9rem 1rem;
 }
 
 .ia-grid-card-body h2 {
   margin: 0;
   color: var(--ia-ink);
-  font-size: 0.92rem;
-  line-height: 1.35;
+  font-size: 1rem;
+  line-height: 1.4;
   font-weight: 700;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 2.5em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ia-idea-meta {
@@ -5252,12 +5249,16 @@ body {
 .ia-meta-chip {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   background: #f1f5f9;
   color: #334155;
   font-size: 0.68rem;
   font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ia-meta-chip-unlocked {

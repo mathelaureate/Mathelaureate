@@ -2010,7 +2010,9 @@ function IaPage({ user, cachedProfile }) {
   }, [user?.uid])
 
   const topicChips = useMemo(() => {
-    const fromItems = iaItems.map((item) => item.topic).filter(Boolean)
+    const fromItems = iaItems
+      .map((item) => item.topic)
+      .filter((topic) => topic && topic.length <= 40)
     return [...new Set([...iaTopicChipDefaults, ...fromItems])]
   }, [iaItems])
 
