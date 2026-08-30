@@ -2386,7 +2386,6 @@ function IaDetailPage({ user, cachedProfile }) {
               {!unlocked ? (
                 <div className="ia-unlock-card">
                   <h4>Unlock full exemplar</h4>
-                  <p>Get complete IA PDF access instantly.</p>
                   {!user ? (
                     <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
                       {authBusy ? 'Signing in...' : 'Sign in to continue'}
@@ -2440,6 +2439,14 @@ function IaDetailPage({ user, cachedProfile }) {
                       title={`ia-pdf-${iaItem.id}`}
                       src={pdfEmbedUrl}
                       className="ia-pdf-frame"
+                      style={
+                        !unlocked
+                          ? {
+                              height: `${previewHeightPx}px`,
+                              minHeight: `${previewHeightPx}px`,
+                            }
+                          : undefined
+                      }
                       loading="lazy"
                       referrerPolicy="no-referrer"
                     />
