@@ -1727,11 +1727,15 @@ function ProgramsPage({ user, cachedProfile }) {
   )
 }
 
+const iaCourseFilters = ['All', 'IBDP AA HL', 'IBDP AA SL', 'IBDP AI HL', 'IBDP AI SL', 'General']
+
 function IaPage({ user, cachedProfile }) {
   const [iaItems, setIaItems] = useState([])
   const [loadingIa, setLoadingIa] = useState(true)
   const [iaError, setIaError] = useState('')
   const [activeIa, setActiveIa] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [courseFilter, setCourseFilter] = useState('All')
 
   useEffect(() => {
     let active = true
@@ -1758,45 +1762,70 @@ function IaPage({ user, cachedProfile }) {
     }
   }, [])
 
+  const filteredIaItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return iaItems.filter((item) => {
+      if (courseFilter !== 'All' && item.course !== courseFilter) return false
+      if (!query) return true
+      const haystack = [item.title, item.topic, item.course].join(' ').toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [iaItems, searchQuery, courseFilter])
+
   return (
-    <main className="site site-full events-page ia-page">
+    <main className="site site-full ia-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section events-panel">
-        <div className="events-page-head">
-          <h1>Internal Assessment</h1>
-          <p>Sample IAs, topic ideas, and guidance for IBDP Mathematics.</p>
-        </div>
-        {loadingIa ? <p>Loading IA examples...</p> : null}
+      <section className="ia-shell">
+        <header className="ia-page-head">
+          <p className="eyebrow">IBDP Mathematics</p>
+          <h1>IA examples &amp; research ideas</h1>
+          <p>Browse Internal Assessment ideas for AA and AI. Open a card for full guidance and resources.</p>
+          <label className="ia-search">
+            <span className="sr-only">Search IA ideas</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Type a search phrase to find the most relevant IA ideas"
+            />
+          </label>
+          <div className="ia-filter-row" role="group" aria-label="Filter by course">
+            {iaCourseFilters.map((course) => (
+              <button
+                key={course}
+                type="button"
+                className={`ia-filter-chip${courseFilter === course ? ' is-active' : ''}`}
+                onClick={() => setCourseFilter(course)}
+              >
+                {course}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
         {iaError ? <p className="error-text">{iaError}</p> : null}
         {!loadingIa && iaItems.length === 0 ? (
-          <div className="events-empty">
+          <div className="ia-empty">
             <h2>No IA examples yet</h2>
-            <p>Sample investigations and topic guides will appear here soon.</p>
+            <p>Sample investigations and topic ideas will appear here soon.</p>
           </div>
         ) : null}
-        <div className="showcase-grid showcase-grid-horizontal events-horizontal-list">
-          {iaItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="showcase-card showcase-card-button event-row-card"
-              onClick={() => setActiveIa(item)}
-            >
-              <div className="showcase-image-wrap">
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.title} className="showcase-image" />
-                ) : (
-                  <div className="showcase-image-fallback">IA</div>
-                )}
-              </div>
-              <div className="showcase-body">
-                <div className="event-row-meta">
-                  <small className="showcase-label">{item.course || 'IA'}</small>
-                  {item.topic ? <small className="event-row-date">{item.topic}</small> : null}
-                </div>
-                <h3>{item.title}</h3>
-                <LatexText value={item.summary || item.description} className="showcase-description" />
-                <span className="showcase-link">View details →</span>
+        {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
+          <div className="ia-empty">
+            <h2>No matches</h2>
+            <p>Try a different search or course filter.</p>
+          </div>
+        ) : null}
+
+        <div className="ia-idea-list">
+          {filteredIaItems.map((item) => (
+            <button key={item.id} type="button" className="ia-idea-card" onClick={() => setActiveIa(item)}>
+              <h2 className="ia-idea-title">{item.title}</h2>
+              <div className="ia-idea-meta">
+                <span className="ia-meta-chip">IA</span>
+                {item.course ? <span className="ia-meta-chip">{item.course}</span> : null}
+                {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
               </div>
             </button>
           ))}
@@ -5491,7 +5520,7 @@ function AdminPage({ mode = 'admin' }) {
             <h2>IA Management</h2>
             <form onSubmit={submitIaItem}>
               <label>
-                IA Title
+                IA Idea / Research Question
                 <input value={iaTitle} onChange={(event) => setIaTitle(event.target.value)} required />
               </label>
               <label>
@@ -5513,12 +5542,12 @@ function AdminPage({ mode = 'admin' }) {
                 />
               </label>
               <label>
-                Summary (shown on card)
+                Summary (detail view)
                 <textarea
                   rows={2}
                   value={iaSummary}
                   onChange={(event) => setIaSummary(event.target.value)}
-                  placeholder="Short summary shown on the IA card"
+                  placeholder="Short summary shown in the IA detail view"
                 />
               </label>
               <label>
