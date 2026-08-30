@@ -2903,7 +2903,7 @@ body {
 
 .site-topbar .brand-logo-image {
   display: block;
-  width: clamp(190px, 22vw, 360px);
+  width: clamp(162px, 18.7vw, 306px);
   max-width: 100%;
   height: auto;
 }
@@ -6094,7 +6094,7 @@ body {
   }
 
   .site-topbar .brand-logo-image {
-    width: clamp(150px, 42vw, 230px);
+    width: clamp(128px, 35.7vw, 196px);
   }
 }
 
