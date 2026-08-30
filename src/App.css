@@ -5351,8 +5351,8 @@ body {
 }
 
 .ia-detail-panel-split {
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-  gap: 1.1rem;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.8fr);
+  gap: 1.35rem;
   align-items: start;
 }
 
@@ -5361,6 +5361,7 @@ body {
   gap: 0.85rem;
   position: sticky;
   top: 5.2rem;
+  min-width: 0;
 }
 
 .ia-detail-panel h1 {
@@ -5370,7 +5371,8 @@ body {
   line-height: 1.35;
   overflow-wrap: anywhere;
   word-break: break-word;
-  text-wrap: balance;
+  text-wrap: pretty;
+  max-width: 100%;
 }
 
 .ia-summary-card,
@@ -5424,19 +5426,20 @@ body {
 
 .ia-detail-viewer {
   min-width: 0;
+  overflow: hidden;
 }
 
 .ia-pdf-viewer {
   border: 1px solid #d5e0e8;
   border-radius: 14px;
   overflow: hidden;
-  background: #f7fafc;
+  background: #fff;
 }
 
 .ia-pdf-frame-wrap {
   position: relative;
   overflow: hidden;
-  background: #edf2f6;
+  background: #fff;
 }
 
 .ia-pdf-viewer.is-unlocked .ia-pdf-frame-wrap {
@@ -5444,7 +5447,8 @@ body {
 }
 
 .ia-pdf-frame {
-  width: 100%;
+  width: calc(100% + 6px);
+  margin-left: -6px;
   min-height: 72vh;
   height: 1120px;
   border: 0;
