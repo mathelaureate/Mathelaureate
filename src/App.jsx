@@ -362,6 +362,7 @@ const editorPasscodeKey = 'mathelaureate-editor-passcode-ok'
 const editorAllowedEmail = (import.meta.env.VITE_EDITOR_EMAIL || 'editor.mathelaureate@gmail.com').trim().toLowerCase()
 const adminIaOptionId = '__ia_management__'
 const adminTeachersResourcesOptionId = '__teachers_resources_management__'
+const adminPricingOptionId = '__pricing__'
 const profileCacheKey = 'mathelaureate-profile-cache'
 const curriculaDocRef = doc(db, 'appData', 'curricula')
 const contentItemsCollectionRef = collection(db, 'courseContentItems')
@@ -377,18 +378,42 @@ function normalizePaywallConfig(raw) {
   const fullSubscriptionRaw = raw?.fullSubscription && typeof raw.fullSubscription === 'object' ? raw.fullSubscription : {}
   const priceInr = Number(fullSubscriptionRaw.priceInr)
   const durationDays = Number(fullSubscriptionRaw.durationDays)
+  const defaultIaUnlockPriceInr = Number(raw?.defaultIaUnlockPriceInr)
   return {
     coursePrices: raw?.coursePrices && typeof raw.coursePrices === 'object' ? raw.coursePrices : {},
     lockedUnits: raw?.lockedUnits && typeof raw.lockedUnits === 'object' ? raw.lockedUnits : {},
     lockedSubunits: raw?.lockedSubunits && typeof raw.lockedSubunits === 'object' ? raw.lockedSubunits : {},
+    defaultIaUnlockPriceInr:
+      Number.isFinite(defaultIaUnlockPriceInr) && defaultIaUnlockPriceInr >= 0 ? defaultIaUnlockPriceInr : 0,
     fullSubscription: {
       priceInr:
         Number.isFinite(priceInr) && priceInr > 0 ? priceInr : FULL_SUBSCRIPTION_DEFAULT_PRICE_INR,
       durationDays:
         Number.isFinite(durationDays) && durationDays > 0 ? durationDays : FULL_SUBSCRIPTION_DEFAULT_DAYS,
-      label: String(fullSubscriptionRaw.label || 'Mathelaureate Full Access (3 months)').trim(),
+      label: String(fullSubscriptionRaw.label || '').trim() ||
+        `Mathelaureate Full Access (${
+          Number.isFinite(durationDays) && durationDays > 0 ? durationDays : FULL_SUBSCRIPTION_DEFAULT_DAYS
+        } days)`,
     },
   }
+}
+
+function formatAccessDuration(days) {
+  const d = Math.max(1, Math.floor(Number(days) || FULL_SUBSCRIPTION_DEFAULT_DAYS))
+  if (d % 30 === 0) {
+    const months = d / 30
+    return months === 1 ? '1 month' : `${months} months`
+  }
+  return `${d} days`
+}
+
+function friendlyPaymentError(message) {
+  const msg = String(message || '')
+  if (/RESOURCE_EXHAUSTED|Quota exceeded|\bcode['"]?\s*[:=]\s*8\b/i.test(msg)) {
+    return 'Payment service is temporarily over capacity. Please try again in about a minute.'
+  }
+  if (/temporarily over capacity/i.test(msg)) return msg
+  return msg || 'Unable to process payment.'
 }
 
 function normalizeIaItems(raw) {
@@ -534,12 +559,12 @@ async function startProductPurchase({
     })
     const createOrderPayload = await createOrderResponse.json().catch(() => ({}))
     if (!createOrderResponse.ok) {
-      throw new Error(createOrderPayload?.error || 'Unable to create payment order.')
+      throw new Error(friendlyPaymentError(createOrderPayload?.error || 'Unable to create payment order.'))
     }
     orderPayload = createOrderPayload
   } catch (error) {
     onBusyChange?.(false)
-    onError?.(error?.message || 'Unable to create payment order.')
+    onError?.(friendlyPaymentError(error?.message || 'Unable to create payment order.'))
     return
   }
 
@@ -581,15 +606,25 @@ async function startProductPurchase({
         })
         const verifyPayload = await verifyResponse.json().catch(() => ({}))
         if (!verifyResponse.ok) {
-          throw new Error(verifyPayload?.error || 'Payment verification failed.')
+          throw new Error(friendlyPaymentError(verifyPayload?.error || 'Payment verification failed.'))
         }
 
-        const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
-        const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
-        onPaymentsUpdated?.(nextPayments)
+        if (verifyPayload?.courses || verifyPayload?.iaUnlocks || verifyPayload?.subscription) {
+          onPaymentsUpdated?.(
+            normalizeUserPayments({
+              courses: verifyPayload.courses,
+              iaUnlocks: verifyPayload.iaUnlocks,
+              subscription: verifyPayload.subscription,
+            }),
+          )
+        } else {
+          const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
+          const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
+          onPaymentsUpdated?.(nextPayments)
+        }
         onError?.('')
       } catch (error) {
-        onError?.(error?.message || 'Payment verification failed.')
+        onError?.(friendlyPaymentError(error?.message || 'Payment verification failed.'))
       } finally {
         onBusyChange?.(false)
       }
@@ -1826,7 +1861,6 @@ function HomePage({ user, cachedProfile }) {
             <button type="submit" className="btn primary" id="login" disabled={contactSending}>
               {contactSending ? 'Sending...' : 'Send Message'}
             </button>
-            <small>We&apos;ll respond within 24 hours.</small>
           </div>
           {contactFeedback ? <p className={contactFeedbackIsError ? 'error-text' : 'success-text'}>{contactFeedback}</p> : null}
         </form>
@@ -2080,7 +2114,7 @@ function IaPage({ user, cachedProfile }) {
             <span>Math AA</span>
           </p>
           <h1>IB Math AA IA Examples</h1>
-          <p className="ia-hero-sub">Browse research ideas and exemplar Internal Assessments</p>
+          <p className="ia-hero-sub">Research ideas and exemplar Internal Assessments</p>
           <label className="ia-search-simple">
             <span className="sr-only">Search IA ideas</span>
             <input
@@ -2238,10 +2272,12 @@ function IaDetailPage({ user, cachedProfile }) {
   const unlocked = iaItem ? hasIaAccess(userPayments, iaItem.id) : false
   const previewPages = iaItem?.previewPages || 1
   const previewHeightPx = Math.max(320, previewPages * 980)
+  const iaDisplayTitle = iaItem ? getIaCardHeading(iaItem) : ''
   const pdfEmbedUrl = iaItem?.pdfUrl
-    ? `${iaItem.pdfUrl}#toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
+    ? `${iaItem.pdfUrl}#page=1&view=FitH&toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
     : ''
   const subscriptionPrice = paywallConfig.fullSubscription.priceInr
+  const subscriptionDurationLabel = formatAccessDuration(paywallConfig.fullSubscription.durationDays)
 
   async function signInForPurchase() {
     setAuthBusy(true)
@@ -2270,8 +2306,8 @@ function IaDetailPage({ user, cachedProfile }) {
       user,
       productType: 'ia',
       iaId: iaItem.id,
-      courseTitle: iaItem.title,
-      description: `Unlock IA: ${iaItem.title}`,
+      courseTitle: iaDisplayTitle || iaItem.title,
+      description: `Unlock IA: ${iaDisplayTitle || iaItem.title}`,
       onPaymentsUpdated: setUserPayments,
       onError: setPaymentError,
       onBusyChange: setPaymentBusy,
@@ -2315,7 +2351,7 @@ function IaDetailPage({ user, cachedProfile }) {
               <span aria-hidden="true"> • </span>
               <span>Math AA</span>
             </p>
-            <h1>{iaItem.title}</h1>
+            <h1>{iaDisplayTitle || iaItem.title}</h1>
             <div className="ia-idea-meta">
               <span className="ia-meta-chip">IA</span>
               <span className="ia-meta-chip">Math AA</span>
@@ -2347,10 +2383,9 @@ function IaDetailPage({ user, cachedProfile }) {
                 </div>
                 {!unlocked ? (
                   <div className="ia-pdf-gate">
-                    <h4>Unlock the full IA</h4>
+                    <h4>Unlock full PDF</h4>
                     <p>
-                      Preview shows the first {previewPages} page{previewPages === 1 ? '' : 's'}. Unlock this IA or get
-                      full Mathelaureate access for question bank, mocks, notes, and all IA PDFs.
+                      Free preview: first {previewPages} page{previewPages === 1 ? '' : 's'}.
                     </p>
                     {!user ? (
                       <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
@@ -2367,28 +2402,20 @@ function IaDetailPage({ user, cachedProfile }) {
                         {paymentBusy
                           ? 'Processing...'
                           : iaItem.unlockPriceInr
-                            ? `Unlock this IA · INR ${iaItem.unlockPriceInr}`
+                            ? `Unlock this IA · ₹${iaItem.unlockPriceInr}`
                             : 'IA price not set'}
                       </button>
                       <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
-                        Full access · INR {subscriptionPrice} / 3 months
+                        Full access · ₹{subscriptionPrice} / {subscriptionDurationLabel}
                       </button>
                     </div>
                     {paymentError ? <p className="error-text">{paymentError}</p> : null}
-                    <p className="ia-pay-note">
-                      Payments are verified server-side. Access is tied to your signed-in account.
-                    </p>
                   </div>
                 ) : (
                   <div className="ia-pdf-unlocked-bar">
                     <a className="btn primary" href={iaItem.pdfUrl} target="_blank" rel="noreferrer noopener">
                       Open / download PDF
                     </a>
-                    {hasActiveSubscription(userPayments) ? (
-                      <small>Included with your Mathelaureate subscription</small>
-                    ) : (
-                      <small>Unlocked for your account</small>
-                    )}
                   </div>
                 )}
               </div>
@@ -2929,6 +2956,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const paidForCurrentCourse = hasCourseAccess(userPayments, course.curriculumId)
   const coursePrice = Number(paywallConfig.coursePrices?.[course.curriculumId] || 0)
   const subscriptionPrice = Number(paywallConfig.fullSubscription?.priceInr || FULL_SUBSCRIPTION_DEFAULT_PRICE_INR)
+  const subscriptionDurationLabel = formatAccessDuration(
+    paywallConfig.fullSubscription?.durationDays || FULL_SUBSCRIPTION_DEFAULT_DAYS,
+  )
   const lockedUnits = paywallConfig.lockedUnits?.[course.curriculumId] || []
   const lockedSubunits = paywallConfig.lockedSubunits?.[course.curriculumId] || []
   const currentSubunitLockKey = `${selectedUnit?.id}::${currentSubunit}`
@@ -3338,17 +3368,19 @@ function CoursePage({ user, authReady, cachedProfile }) {
 
               {isCurrentSelectionLocked ? (
                 <article className="lesson-card paywall-card">
-                  <h3>Premium Content</h3>
-                  <p>This unit/subunit is locked. Unlock this course, or get full Mathelaureate access for 3 months.</p>
-                  {coursePrice > 0 ? <p className="paywall-price">Course unlock · INR {coursePrice}</p> : <p>Course price not configured yet.</p>}
-                  <p className="paywall-price">Full access · INR {subscriptionPrice} / 3 months</p>
+                  <h3>Premium content</h3>
+                  <p>Unlock this course, or get full platform access.</p>
+                  {coursePrice > 0 ? <p className="paywall-price">Course · ₹{coursePrice}</p> : <p>Course price not set yet.</p>}
+                  <p className="paywall-price">
+                    Full access · ₹{subscriptionPrice} / {subscriptionDurationLabel}
+                  </p>
                   {paymentError ? <p className="error-text">{paymentError}</p> : null}
                   <div className="ia-pay-actions">
                     <button type="button" className="btn primary" onClick={startCoursePurchase} disabled={paymentBusy || coursePrice <= 0}>
-                      {paymentBusy ? 'Opening Checkout...' : 'Unlock this course'}
+                      {paymentBusy ? 'Opening checkout...' : 'Unlock this course'}
                     </button>
                     <button type="button" className="btn ghost" onClick={startFullSubscriptionPurchase} disabled={paymentBusy}>
-                      Full access · INR {subscriptionPrice}
+                      Full access · ₹{subscriptionPrice}
                     </button>
                   </div>
                 </article>
@@ -4584,7 +4616,6 @@ function ProtectedEditor() {
             <br />
             <strong>{editorAllowedEmail}</strong>
           </p>
-          <p className="muted-text">This role can add lessons/questions. It cannot edit, delete, or change course structure.</p>
           {authUser && !isAllowedEditor ? (
             <p className="error-text">
               Signed in as {authUser.email}, which is not the editor account. Sign out and use {editorAllowedEmail}.
@@ -4671,6 +4702,7 @@ function AdminPage({ mode = 'admin' }) {
   const [isIaSaving, setIsIaSaving] = useState(false)
   const [fullSubscriptionPriceInput, setFullSubscriptionPriceInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_PRICE_INR))
   const [fullSubscriptionDaysInput, setFullSubscriptionDaysInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_DAYS))
+  const [defaultIaUnlockPriceInput, setDefaultIaUnlockPriceInput] = useState('')
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
   const [resourcePostCategory, setResourcePostCategory] = useState('Guides')
@@ -4710,6 +4742,7 @@ function AdminPage({ mode = 'admin' }) {
   )
   const isIaManagementSelected = !isEditorMode && adminSelection === adminIaOptionId
   const isTeachersResourcesSelected = !isEditorMode && adminSelection === adminTeachersResourcesOptionId
+  const isPricingSelected = !isEditorMode && adminSelection === adminPricingOptionId
   const isCurrentAdminIbdpCourse = curriculumId === 'ibdp-aa-hl' || curriculumId === 'ibdp-ai-hl'
   const selectedUnit = useMemo(
     () => selectedCurriculum?.units.find((unit) => unit.id === unitId) ?? selectedCurriculum?.units[0],
@@ -4837,6 +4870,9 @@ function AdminPage({ mode = 'admin' }) {
         setPaywallPriceInput(String(nextPaywallConfig.coursePrices?.[initialCourseId] || ''))
         setFullSubscriptionPriceInput(String(nextPaywallConfig.fullSubscription.priceInr))
         setFullSubscriptionDaysInput(String(nextPaywallConfig.fullSubscription.durationDays))
+        setDefaultIaUnlockPriceInput(
+          nextPaywallConfig.defaultIaUnlockPriceInr > 0 ? String(nextPaywallConfig.defaultIaUnlockPriceInr) : '',
+        )
       } catch (error) {
         if (!active) return
         setDataError(error?.message || 'Unable to load data from Firestore.')
@@ -4957,14 +4993,28 @@ function AdminPage({ mode = 'admin' }) {
       setDataError('Full subscription duration must be greater than 0 days.')
       return
     }
+    const days = Math.floor(durationDays)
     const nextConfig = {
       ...paywallConfig,
       fullSubscription: {
         ...paywallConfig.fullSubscription,
         priceInr,
-        durationDays: Math.floor(durationDays),
-        label: 'Mathelaureate Full Access (3 months)',
+        durationDays: days,
+        label: `Mathelaureate Full Access (${formatAccessDuration(days)})`,
       },
+    }
+    await persistPaywall(nextConfig)
+  }
+
+  async function saveDefaultIaUnlockPrice() {
+    const priceInr = Number(defaultIaUnlockPriceInput || 0)
+    if (!Number.isFinite(priceInr) || priceInr < 0) {
+      setDataError('Default IA unlock price must be a valid number.')
+      return
+    }
+    const nextConfig = {
+      ...paywallConfig,
+      defaultIaUnlockPriceInr: priceInr,
     }
     await persistPaywall(nextConfig)
   }
@@ -4999,10 +5049,13 @@ function AdminPage({ mode = 'admin' }) {
   }
 
   function onCurriculumChange(nextId) {
-    if (isEditorMode && (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId)) {
+    if (
+      isEditorMode &&
+      (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId || nextId === adminPricingOptionId)
+    ) {
       return
     }
-    if (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId) {
+    if (nextId === adminIaOptionId || nextId === adminTeachersResourcesOptionId || nextId === adminPricingOptionId) {
       setAdminSelection(nextId)
       return
     }
@@ -5382,7 +5435,6 @@ function AdminPage({ mode = 'admin' }) {
     return (
       <div className="block-editor">
         <strong>{label}</strong>
-        {blocks.length === 0 ? <small className="muted-text">No blocks yet.</small> : null}
         {blocks.map((block, index) => (
           <div className="block-editor-item" key={block.id}>
             <div className="block-editor-head">
@@ -5986,7 +6038,9 @@ function AdminPage({ mode = 'admin' }) {
     setIaDescription('')
     setIaLink('')
     setIaPreviewPages('1')
-    setIaUnlockPrice('')
+    setIaUnlockPrice(
+      paywallConfig.defaultIaUnlockPriceInr > 0 ? String(paywallConfig.defaultIaUnlockPriceInr) : '',
+    )
     setIaPdfFile(null)
     setIaImageFile(null)
     setIaImagePreviewUrl('')
@@ -6163,6 +6217,7 @@ function AdminPage({ mode = 'admin' }) {
           <label>
             Course
             <select value={adminSelection} onChange={(event) => onCurriculumChange(event.target.value)}>
+              {!isEditorMode ? <option value={adminPricingOptionId}>Pricing</option> : null}
               {!isEditorMode ? <option value={adminIaOptionId}>IA Management</option> : null}
               {!isEditorMode ? <option value={adminTeachersResourcesOptionId}>Teachers &amp; Resources</option> : null}
               {curricula.map((curriculum) => (
@@ -6172,7 +6227,7 @@ function AdminPage({ mode = 'admin' }) {
               ))}
             </select>
           </label>
-          {!isIaManagementSelected && !isTeachersResourcesSelected ? (
+          {!isIaManagementSelected && !isTeachersResourcesSelected && !isPricingSelected ? (
             <>
           <label>
             Topic
@@ -6291,21 +6346,100 @@ function AdminPage({ mode = 'admin' }) {
           </div>
           </>
           ) : (
-            <p className="muted-text editor-scope-note">Choose where new content should be added. Structure changes are admin-only.</p>
+            null
           )}
             </>
+          ) : isPricingSelected ? (
+            null
+          ) : isIaManagementSelected ? (
+            null
+          ) : isTeachersResourcesSelected ? (
+            null
           ) : (
             <p>Select a course to manage topics, subtopics, and content items.</p>
           )}
         </aside>
 
         <div className="stack">
-          {isIaManagementSelected ? (
+          {isPricingSelected ? (
+          <section className="panel pricing-panel">
+            <h2>Pricing</h2>
+
+            <div className="pricing-block">
+              <h3>Full access</h3>
+              <label>
+                Price (INR)
+                <input
+                  type="number"
+                  min={1}
+                  value={fullSubscriptionPriceInput}
+                  onChange={(event) => setFullSubscriptionPriceInput(event.target.value)}
+                />
+              </label>
+              <label>
+                Duration (days)
+                <input
+                  type="number"
+                  min={1}
+                  value={fullSubscriptionDaysInput}
+                  onChange={(event) => setFullSubscriptionDaysInput(event.target.value)}
+                />
+              </label>
+              <p className="muted-text">
+                Unlocks courses, question bank, and all IA PDFs for{' '}
+                {formatAccessDuration(Number(fullSubscriptionDaysInput) || FULL_SUBSCRIPTION_DEFAULT_DAYS)}.
+              </p>
+              <button type="button" className="btn primary" onClick={saveFullSubscriptionSettings} disabled={isPaywallSaving}>
+                {isPaywallSaving ? 'Saving...' : 'Save full access price'}
+              </button>
+            </div>
+
+            <div className="pricing-block">
+              <h3>Default IA unlock</h3>
+              <label>
+                Price for new IAs (INR)
+                <input
+                  type="number"
+                  min={0}
+                  value={defaultIaUnlockPriceInput}
+                  onChange={(event) => setDefaultIaUnlockPriceInput(event.target.value)}
+                  placeholder="e.g. 49"
+                />
+              </label>
+              <button type="button" className="btn primary" onClick={saveDefaultIaUnlockPrice} disabled={isPaywallSaving}>
+                {isPaywallSaving ? 'Saving...' : 'Save default IA price'}
+              </button>
+            </div>
+
+            <div className="pricing-block">
+              <h3>Course unlock</h3>
+              <label>
+                Course
+                <select value={paywallCourseId} onChange={(event) => onPaywallCourseChange(event.target.value)}>
+                  {curricula.map((curriculum) => (
+                    <option key={curriculum.id} value={curriculum.id}>
+                      {curriculum.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Price (INR)
+                <input
+                  type="number"
+                  min={0}
+                  value={paywallPriceInput}
+                  onChange={(event) => setPaywallPriceInput(event.target.value)}
+                />
+              </label>
+              <button type="button" className="btn primary" onClick={saveCoursePrice} disabled={isPaywallSaving}>
+                {isPaywallSaving ? 'Saving...' : 'Save course price'}
+              </button>
+            </div>
+          </section>
+          ) : isIaManagementSelected ? (
           <section className="panel">
             <h2>{editingIaId ? 'Edit IA' : 'IA Management'}</h2>
-            {editingIaId ? (
-              <p className="muted-text">Editing an existing IA. Leave PDF/image empty to keep the current files.</p>
-            ) : null}
             <form onSubmit={submitIaItem}>
               <label>
                 IA Idea / Research Question
@@ -6379,19 +6513,19 @@ function AdminPage({ mode = 'admin' }) {
                 />
               </label>
               <label>
-                Unlock this IA price (INR)
+                Unlock price (INR)
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={iaUnlockPrice}
                   onChange={(event) => setIaUnlockPrice(event.target.value)}
-                  placeholder="e.g. 199"
+                  placeholder="e.g. 49"
                   required
                 />
               </label>
               <label>
-                Preview image (card thumbnail — recommended)
+                Card image
                 <input type="file" accept="image/*" onChange={onIaImageChange} />
               </label>
               {iaImagePreviewUrl ? (
@@ -6542,7 +6676,7 @@ function AdminPage({ mode = 'admin' }) {
 
           {!isEditorMode ? (
           <section className="panel">
-            <h2>Paywall Controls</h2>
+            <h2>Content locks</h2>
             <label>
               Course
               <select value={paywallCourseId} onChange={(event) => onPaywallCourseChange(event.target.value)}>
@@ -6573,44 +6707,7 @@ function AdminPage({ mode = 'admin' }) {
                 ))}
               </select>
             </label>
-            <label>
-              Course Price (INR)
-              <input
-                type="number"
-                min={0}
-                value={paywallPriceInput}
-                onChange={(event) => setPaywallPriceInput(event.target.value)}
-              />
-            </label>
-            <label>
-              Full subscription price (INR)
-              <input
-                type="number"
-                min={1}
-                value={fullSubscriptionPriceInput}
-                onChange={(event) => setFullSubscriptionPriceInput(event.target.value)}
-              />
-            </label>
-            <label>
-              Full subscription duration (days)
-              <input
-                type="number"
-                min={1}
-                value={fullSubscriptionDaysInput}
-                onChange={(event) => setFullSubscriptionDaysInput(event.target.value)}
-              />
-            </label>
-            <p className="muted-text">
-              Full access unlocks question bank, mocks, notes, course locks, and all IA PDFs for the duration above
-              (default INR 1499 / 90 days).
-            </p>
             <div className="paywall-actions">
-              <button type="button" className="btn primary" onClick={saveCoursePrice} disabled={isPaywallSaving}>
-                {isPaywallSaving ? 'Saving...' : 'Save Course Price'}
-              </button>
-              <button type="button" className="btn ghost" onClick={saveFullSubscriptionSettings} disabled={isPaywallSaving}>
-                Save Full Subscription
-              </button>
               <button type="button" className={`btn ${isUnitLockedInAdmin ? 'primary' : 'ghost'}`} onClick={toggleUnitLock}>
                 {isUnitLockedInAdmin ? 'Unlock Unit' : 'Lock Unit'}
               </button>
@@ -6646,7 +6743,6 @@ function AdminPage({ mode = 'admin' }) {
                   onChange={(event) => setLearningObjectivesText(event.target.value)}
                   placeholder={'Identify the common ratio of a geometric sequence\nFind the nth term using u_n = ar^{n-1}\nCalculate the sum of the first n terms'}
                 />
-                <small className="muted-text">Leave blank for normal lessons. Title can be “Learning Objectives”.</small>
               </label>
             ) : null}
             {renderAdminBlocksEditor({
@@ -6885,9 +6981,7 @@ function AdminPage({ mode = 'admin' }) {
                             Delete
                           </button>
                         </div>
-                        ) : (
-                          <small className="muted-text">View only</small>
-                        )}
+                        ) : null}
                       </div>
                       {record.itemType === 'question' ? (
                         <h3>{`Question ${index + 1}`}</h3>

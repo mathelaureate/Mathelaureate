@@ -1,5 +1,12 @@
 import crypto from 'node:crypto'
-import { applyVerifiedPayment, getAuthUserFromRequest, readRequestBody, sendJson } from './_lib/payment.js'
+import {
+  applyVerifiedPayment,
+  getAuthUserFromRequest,
+  mapPaymentApiError,
+  readRequestBody,
+  sendJson,
+  withFirestoreRetry,
+} from './_lib/payment.js'
 
 const ALLOWED_PRODUCT_TYPES = new Set(['course', 'ia', 'subscription'])
 
@@ -55,17 +62,19 @@ export default async function handler(request, response) {
       return
     }
 
-    const result = await applyVerifiedPayment({
-      uid: authUser.uid,
-      email: authUser.email || '',
-      orderId,
-      paymentId,
-      expectedProductType: productType,
-      expectedCourseId: productType === 'course' ? courseId : '',
-      expectedIaId: productType === 'ia' ? iaId : '',
-      courseSlugOverride: courseSlug,
-      courseTitleOverride: courseTitle,
-    })
+    const result = await withFirestoreRetry(() =>
+      applyVerifiedPayment({
+        uid: authUser.uid,
+        email: authUser.email || '',
+        orderId,
+        paymentId,
+        expectedProductType: productType,
+        expectedCourseId: productType === 'course' ? courseId : '',
+        expectedIaId: productType === 'ia' ? iaId : '',
+        courseSlugOverride: courseSlug,
+        courseTitleOverride: courseTitle,
+      }),
+    )
 
     sendJson(response, 200, {
       ok: true,
@@ -75,6 +84,6 @@ export default async function handler(request, response) {
       subscription: result.subscription,
     })
   } catch (error) {
-    sendJson(response, 500, { error: error?.message || 'Unable to verify payment.' })
+    sendJson(response, 500, { error: mapPaymentApiError(error) })
   }
 }

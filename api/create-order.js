@@ -6,8 +6,10 @@ import {
   getDb,
   getRazorpayClient,
   getRazorpayPublicKey,
+  mapPaymentApiError,
   readRequestBody,
   sendJson,
+  withFirestoreRetry,
 } from './_lib/payment.js'
 
 const ALLOWED_PRODUCT_TYPES = new Set(['course', 'ia', 'subscription'])
@@ -47,12 +49,14 @@ export default async function handler(request, response) {
       return
     }
 
-    const charge = await computeChargeForCountry({
-      productType,
-      courseId: productType === 'subscription' ? FULL_SUBSCRIPTION_PRODUCT_ID : courseId,
-      iaId,
-      countryCode,
-    })
+    const charge = await withFirestoreRetry(() =>
+      computeChargeForCountry({
+        productType,
+        courseId: productType === 'subscription' ? FULL_SUBSCRIPTION_PRODUCT_ID : courseId,
+        iaId,
+        countryCode,
+      }),
+    )
 
     const resolvedCourseId =
       productType === 'subscription' ? FULL_SUBSCRIPTION_PRODUCT_ID : productType === 'ia' ? `ia:${iaId}` : courseId
@@ -73,29 +77,37 @@ export default async function handler(request, response) {
     })
 
     const timestamp = new Date().toISOString()
-    const encryptedEmail = authUser.email ? encryptSensitiveText(authUser.email) : ''
-    await getDb()
-      .collection('paymentOrders')
-      .doc(order.id)
-      .set({
-        uid: authUser.uid,
-        emailEncrypted: encryptedEmail,
-        productType,
-        courseId: resolvedCourseId,
-        courseSlug,
-        courseTitle: resolvedTitle,
-        iaId: iaId || '',
-        durationDays: charge.durationDays || null,
-        amount: charge.amount,
-        amountInr: charge.amountInr,
-        amountPaise: order.amount,
-        currency: order.currency,
-        countryCode: charge.countryCode,
-        orderId: order.id,
-        status: 'created',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
+    let encryptedEmail = ''
+    try {
+      encryptedEmail = authUser.email ? encryptSensitiveText(authUser.email) : ''
+    } catch {
+      encryptedEmail = ''
+    }
+
+    await withFirestoreRetry(() =>
+      getDb()
+        .collection('paymentOrders')
+        .doc(order.id)
+        .set({
+          uid: authUser.uid,
+          ...(encryptedEmail ? { emailEncrypted: encryptedEmail } : {}),
+          productType,
+          courseId: resolvedCourseId,
+          courseSlug,
+          courseTitle: resolvedTitle,
+          iaId: iaId || '',
+          durationDays: charge.durationDays || null,
+          amount: charge.amount,
+          amountInr: charge.amountInr,
+          amountPaise: order.amount,
+          currency: order.currency,
+          countryCode: charge.countryCode,
+          orderId: order.id,
+          status: 'created',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }),
+    )
 
     const keyId = getRazorpayPublicKey()
     if (!keyId) {
@@ -113,6 +125,6 @@ export default async function handler(request, response) {
       productType,
     })
   } catch (error) {
-    sendJson(response, 500, { error: error?.message || 'Unable to create payment order.' })
+    sendJson(response, 500, { error: mapPaymentApiError(error) })
   }
 }

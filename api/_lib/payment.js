@@ -101,6 +101,37 @@ export function encryptSensitiveText(value) {
   return `${ENCRYPTION_VERSION}:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`
 }
 
+export function mapPaymentApiError(error) {
+  const msg = String(error?.message || error || '')
+  if (/RESOURCE_EXHAUSTED|Quota exceeded|\bcode['"]?\s*[:=]\s*8\b/i.test(msg)) {
+    return 'Payment service is temporarily over capacity. Please try again in about a minute.'
+  }
+  if (/PAYMENT_DATA_ENCRYPTION_KEY/i.test(msg)) {
+    return 'Payment security is not configured on the server.'
+  }
+  if (/Razorpay|razorpay/i.test(msg) && /missing|credential|key/i.test(msg)) {
+    return 'Payment provider is not configured.'
+  }
+  return msg || 'Unable to process payment.'
+}
+
+export async function withFirestoreRetry(operation, attempts = 2) {
+  let lastError = null
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error
+      const msg = String(error?.message || '')
+      if (!/RESOURCE_EXHAUSTED|Quota exceeded/i.test(msg) || i === attempts - 1) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 700 * (i + 1)))
+    }
+  }
+  throw lastError
+}
+
 export async function applyVerifiedPayment({
   uid,
   email,
@@ -164,7 +195,12 @@ export async function applyVerifiedPayment({
   const existingSubscription = existing.subscription && typeof existing.subscription === 'object' ? existing.subscription : null
 
   const timestamp = new Date().toISOString()
-  const encryptedEmail = email ? encryptSensitiveText(email) : ''
+  let encryptedEmail = ''
+  try {
+    encryptedEmail = email ? encryptSensitiveText(email) : ''
+  } catch {
+    encryptedEmail = ''
+  }
   const paymentMeta = {
     amount: Number(orderData.amount || 0),
     amountInr: Number(orderData.amountInr || 0),
@@ -304,34 +340,57 @@ export function normalizeCountryCode(input) {
   return 'IN'
 }
 
+let paywallCache = { at: 0, data: null }
+let iaCache = { at: 0, data: null }
+const PAYWALL_CACHE_MS = 45_000
+
+async function readPaywallDocData() {
+  if (paywallCache.data && Date.now() - paywallCache.at < PAYWALL_CACHE_MS) {
+    return paywallCache.data
+  }
+  const snap = await getDb().doc(PAYWALL_PATH).get()
+  const data = snap.exists ? snap.data() || {} : {}
+  paywallCache = { at: Date.now(), data }
+  return data
+}
+
+async function readIaDocData() {
+  if (iaCache.data && Date.now() - iaCache.at < PAYWALL_CACHE_MS) {
+    return iaCache.data
+  }
+  const snap = await getDb().doc(IA_PATH).get()
+  const data = snap.exists ? snap.data() || {} : {}
+  iaCache = { at: Date.now(), data }
+  return data
+}
+
 export async function readPaywallPrice(courseId) {
-  const db = getDb()
-  const snap = await db.doc(PAYWALL_PATH).get()
-  const coursePrices = snap.exists && typeof snap.data()?.coursePrices === 'object' ? snap.data().coursePrices : {}
+  const data = await readPaywallDocData()
+  const coursePrices = data?.coursePrices && typeof data.coursePrices === 'object' ? data.coursePrices : {}
   const rawPrice = Number(coursePrices?.[courseId] || 0)
   return Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : 0
 }
 
 async function resolveBaseInrPrice({ productType, courseId, iaId }) {
-  const db = getDb()
   if (productType === 'subscription') {
-    const snap = await db.doc(PAYWALL_PATH).get()
-    const raw = Number(snap.exists ? snap.data()?.fullSubscription?.priceInr : 0)
+    const data = await readPaywallDocData()
+    const raw = Number(data?.fullSubscription?.priceInr || 0)
     const price = Number.isFinite(raw) && raw > 0 ? raw : FULL_SUBSCRIPTION_DEFAULT_PRICE_INR
-    const durationRaw = Number(snap.exists ? snap.data()?.fullSubscription?.durationDays : 0)
+    const durationRaw = Number(data?.fullSubscription?.durationDays || 0)
     const durationDays = Number.isFinite(durationRaw) && durationRaw > 0 ? durationRaw : FULL_SUBSCRIPTION_DEFAULT_DAYS
+    const label = String(data?.fullSubscription?.label || '').trim()
     return {
       baseInrPrice: price,
       productId: FULL_SUBSCRIPTION_PRODUCT_ID,
       durationDays,
-      title: 'Mathelaureate Full Access (3 months)',
+      title: label || `Mathelaureate Full Access (${durationDays} days)`,
     }
   }
 
   if (productType === 'ia') {
     if (!iaId) throw new Error('iaId is required for IA purchases.')
-    const snap = await db.doc(IA_PATH).get()
-    const items = Array.isArray(snap.data()?.items) ? snap.data().items : []
+    const data = await readIaDocData()
+    const items = Array.isArray(data?.items) ? data.items : []
     const item = items.find((entry) => String(entry?.id || '') === String(iaId))
     if (!item) throw new Error('IA item not found.')
     const rawPrice = Number(item.unlockPriceInr || 0)
