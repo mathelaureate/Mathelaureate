@@ -2343,91 +2343,113 @@ function IaDetailPage({ user, cachedProfile }) {
         {iaError ? <p className="error-text">{iaError}</p> : null}
 
         {iaItem ? (
-          <article className="ia-detail-panel">
-            <p className="ia-breadcrumb">
-              <Link to="/">Home</Link>
-              <span aria-hidden="true"> • </span>
-              <Link to="/ia">IA</Link>
-              <span aria-hidden="true"> • </span>
-              <span>Math AA</span>
-            </p>
-            <h1>{iaDisplayTitle || iaItem.title}</h1>
-            <div className="ia-idea-meta">
-              <span className="ia-meta-chip">IA</span>
-              <span className="ia-meta-chip">Math AA</span>
-              {iaLevelFromCourse(iaItem.course) ? (
-                <span className="ia-meta-chip">{iaLevelFromCourse(iaItem.course)}</span>
-              ) : null}
-              {iaItem.topic ? <span className="ia-meta-chip">{iaItem.topic}</span> : null}
-              {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
-            </div>
-            {iaItem.summary || iaItem.description ? (
-              <LatexText value={iaItem.description || iaItem.summary} className="latex-text" />
-            ) : null}
+          <article className="ia-detail-panel ia-detail-panel-split">
+            <div className="ia-detail-info">
+              <p className="ia-breadcrumb">
+                <Link to="/">Home</Link>
+                <span aria-hidden="true"> • </span>
+                <Link to="/ia">IA</Link>
+                <span aria-hidden="true"> • </span>
+                <span>Math AA</span>
+              </p>
+              <h1>{iaDisplayTitle || iaItem.title}</h1>
+              <div className="ia-idea-meta">
+                <span className="ia-meta-chip">IA</span>
+                <span className="ia-meta-chip">Math AA</span>
+                {iaLevelFromCourse(iaItem.course) ? (
+                  <span className="ia-meta-chip">{iaLevelFromCourse(iaItem.course)}</span>
+                ) : null}
+                {iaItem.topic ? <span className="ia-meta-chip">{iaItem.topic}</span> : null}
+                {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
+              </div>
 
-            {iaItem.pdfUrl ? (
-              <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
-                <div
-                  className="ia-pdf-frame-wrap"
-                  style={unlocked ? undefined : { maxHeight: `${previewHeightPx}px` }}
-                  onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
-                >
-                  <iframe
-                    title={`ia-pdf-${iaItem.id}`}
-                    src={pdfEmbedUrl}
-                    className="ia-pdf-frame"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
-                  {!unlocked ? <div className="ia-pdf-fade" aria-hidden="true" /> : null}
+              {iaItem.summary || iaItem.description ? (
+                <div className="ia-summary-card">
+                  <h3>Summary</h3>
+                  <LatexText value={iaItem.description || iaItem.summary} className="latex-text" />
                 </div>
-                {!unlocked ? (
-                  <div className="ia-pdf-gate">
-                    <h4>Unlock full PDF</h4>
-                    <p>
-                      Free preview: first {previewPages} page{previewPages === 1 ? '' : 's'}.
-                    </p>
-                    {!user ? (
-                      <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
-                        {authBusy ? 'Signing in...' : 'Sign in to continue'}
-                      </button>
-                    ) : null}
-                    <div className="ia-pay-actions">
-                      <button
-                        type="button"
-                        className="btn primary"
-                        onClick={purchaseIaUnlock}
-                        disabled={paymentBusy || !iaItem.unlockPriceInr}
-                      >
-                        {paymentBusy
-                          ? 'Processing...'
-                          : iaItem.unlockPriceInr
-                            ? `Unlock this IA · ₹${iaItem.unlockPriceInr}`
-                            : 'IA price not set'}
-                      </button>
-                      <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
-                        Full access · ₹{subscriptionPrice} / {subscriptionDurationLabel}
-                      </button>
-                    </div>
-                    {paymentError ? <p className="error-text">{paymentError}</p> : null}
+              ) : null}
+
+              <div className="ia-facts-grid">
+                <div className="ia-fact-card">
+                  <span>Preview</span>
+                  <strong>
+                    {previewPages} page{previewPages === 1 ? '' : 's'}
+                  </strong>
+                </div>
+                <div className="ia-fact-card">
+                  <span>IA unlock</span>
+                  <strong>{iaItem.unlockPriceInr ? `₹${iaItem.unlockPriceInr}` : 'Not set'}</strong>
+                </div>
+              </div>
+
+              {!unlocked ? (
+                <div className="ia-unlock-card">
+                  <h4>Unlock full exemplar</h4>
+                  <p>Get complete IA PDF access instantly.</p>
+                  {!user ? (
+                    <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
+                      {authBusy ? 'Signing in...' : 'Sign in to continue'}
+                    </button>
+                  ) : null}
+                  <div className="ia-pay-actions">
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={purchaseIaUnlock}
+                      disabled={paymentBusy || !iaItem.unlockPriceInr}
+                    >
+                      {paymentBusy
+                        ? 'Processing...'
+                        : iaItem.unlockPriceInr
+                          ? `Unlock this IA · ₹${iaItem.unlockPriceInr}`
+                          : 'IA price not set'}
+                    </button>
+                    <button type="button" className="btn ghost" onClick={purchaseFullSubscription} disabled={paymentBusy}>
+                      Full access · ₹{subscriptionPrice} / {subscriptionDurationLabel}
+                    </button>
                   </div>
-                ) : (
-                  <div className="ia-pdf-unlocked-bar">
+                  {paymentError ? <p className="error-text">{paymentError}</p> : null}
+                </div>
+              ) : (
+                <div className="ia-unlock-card is-unlocked">
+                  <h4>Access granted</h4>
+                  <div className="ia-pay-actions">
                     <a className="btn primary" href={iaItem.pdfUrl} target="_blank" rel="noreferrer noopener">
                       Open / download PDF
                     </a>
+                    {iaItem.link ? (
+                      <a className="btn ghost" href={iaItem.link} target="_blank" rel="noreferrer">
+                        Open related resource
+                      </a>
+                    ) : null}
                   </div>
-                )}
-              </div>
-            ) : (
-              <p className="muted-text">No PDF uploaded for this IA yet.</p>
-            )}
+                </div>
+              )}
+            </div>
 
-            {iaItem.link && unlocked ? (
-              <a className="btn ghost" href={iaItem.link} target="_blank" rel="noreferrer">
-                Open related resource
-              </a>
-            ) : null}
+            <div className="ia-detail-viewer">
+              {iaItem.pdfUrl ? (
+                <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
+                  <div
+                    className="ia-pdf-frame-wrap"
+                    style={unlocked ? undefined : { maxHeight: `${previewHeightPx}px` }}
+                    onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
+                  >
+                    <iframe
+                      title={`ia-pdf-${iaItem.id}`}
+                      src={pdfEmbedUrl}
+                      className="ia-pdf-frame"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                    {!unlocked ? <div className="ia-pdf-fade" aria-hidden="true" /> : null}
+                  </div>
+                </div>
+              ) : (
+                <p className="muted-text">No PDF uploaded for this IA yet.</p>
+              )}
+            </div>
           </article>
         ) : null}
       </section>

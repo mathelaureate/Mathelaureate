@@ -5349,6 +5349,19 @@ body {
   gap: 0.85rem;
 }
 
+.ia-detail-panel-split {
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.ia-detail-info {
+  display: grid;
+  gap: 0.85rem;
+  position: sticky;
+  top: 5.2rem;
+}
+
 .ia-detail-panel h1 {
   margin: 0;
   color: var(--ia-ink);
@@ -5357,6 +5370,59 @@ body {
   overflow-wrap: anywhere;
   word-break: break-word;
   text-wrap: balance;
+}
+
+.ia-summary-card,
+.ia-unlock-card {
+  border: 1px solid #dbe6ee;
+  border-radius: 14px;
+  padding: 0.9rem 0.95rem;
+  background: #fbfdff;
+}
+
+.ia-summary-card h3,
+.ia-unlock-card h4 {
+  margin: 0 0 0.45rem;
+  color: #0f2c4d;
+  font-size: 1rem;
+}
+
+.ia-summary-card p,
+.ia-unlock-card p {
+  margin: 0;
+}
+
+.ia-facts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.ia-fact-card {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid #dbe6ee;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+}
+
+.ia-fact-card span {
+  color: #5c6b74;
+  font-size: 0.78rem;
+}
+
+.ia-fact-card strong {
+  color: #0f2c4d;
+  font-size: 0.95rem;
+}
+
+.ia-unlock-card.is-unlocked {
+  background: #f6fbff;
+}
+
+.ia-detail-viewer {
+  min-width: 0;
 }
 
 .ia-pdf-viewer {
@@ -5378,8 +5444,8 @@ body {
 
 .ia-pdf-frame {
   width: 100%;
-  min-height: 70vh;
-  height: 980px;
+  min-height: 72vh;
+  height: 1120px;
   border: 0;
   display: block;
   background: #fff;
@@ -5529,6 +5595,20 @@ body {
   .ia-pdf-frame {
     min-height: 55vh;
     height: 720px;
+  }
+}
+
+@media (max-width: 980px) {
+  .ia-detail-panel-split {
+    grid-template-columns: 1fr;
+  }
+
+  .ia-detail-info {
+    position: static;
+  }
+
+  .ia-facts-grid {
+    grid-template-columns: 1fr;
   }
 }
 
