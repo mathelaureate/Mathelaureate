@@ -4650,6 +4650,12 @@ function AdminPage({ mode = 'admin' }) {
   const [iaPdfFile, setIaPdfFile] = useState(null)
   const [iaImageFile, setIaImageFile] = useState(null)
   const [iaImagePreviewUrl, setIaImagePreviewUrl] = useState('')
+  const [iaExistingPdfUrl, setIaExistingPdfUrl] = useState('')
+  const [iaExistingPdfName, setIaExistingPdfName] = useState('')
+  const [iaExistingImageUrl, setIaExistingImageUrl] = useState('')
+  const [iaExistingImagePath, setIaExistingImagePath] = useState('')
+  const [iaExistingPdfPath, setIaExistingPdfPath] = useState('')
+  const [editingIaId, setEditingIaId] = useState('')
   const [isIaSaving, setIsIaSaving] = useState(false)
   const [fullSubscriptionPriceInput, setFullSubscriptionPriceInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_PRICE_INR))
   const [fullSubscriptionDaysInput, setFullSubscriptionDaysInput] = useState(String(FULL_SUBSCRIPTION_DEFAULT_DAYS))
@@ -5888,18 +5894,25 @@ function AdminPage({ mode = 'admin' }) {
       setDataError('Unlock price must be a valid number.')
       return
     }
-    if (!iaPdfFile) {
+
+    const isEditing = Boolean(editingIaId)
+    const existingItem = isEditing ? iaItems.find((item) => item.id === editingIaId) : null
+    if (isEditing && !existingItem) {
+      setDataError('Could not find the IA you are editing.')
+      return
+    }
+    if (!iaPdfFile && !(isEditing && existingItem?.pdfUrl)) {
       setDataError('Upload a PDF for this IA.')
       return
     }
 
-    let imageUrl = ''
-    let imagePath = ''
-    let pdfUrl = ''
-    let pdfPath = ''
-    let pdfFileName = ''
+    let imageUrl = isEditing ? String(existingItem?.imageUrl || iaExistingImageUrl || '') : ''
+    let imagePath = isEditing ? String(existingItem?.imagePath || iaExistingImagePath || '') : ''
+    let pdfUrl = isEditing ? String(existingItem?.pdfUrl || iaExistingPdfUrl || '') : ''
+    let pdfPath = isEditing ? String(existingItem?.pdfPath || iaExistingPdfPath || '') : ''
+    let pdfFileName = isEditing ? String(existingItem?.pdfFileName || iaExistingPdfName || '') : ''
 
-    if (!supabaseConfigured) {
+    if ((iaPdfFile || iaImageFile) && !supabaseConfigured) {
       setDataError('Supabase not configured. Add Supabase env values before uploading files.')
       return
     }
@@ -5907,10 +5920,12 @@ function AdminPage({ mode = 'admin' }) {
     try {
       setIsIaSaving(true)
       setDataError('')
-      const pdfUpload = await uploadPdfToSupabase(iaPdfFile, 'ia-pdfs')
-      pdfUrl = pdfUpload.publicUrl
-      pdfPath = pdfUpload.path
-      pdfFileName = String(iaPdfFile.name || 'ia.pdf').slice(0, 180)
+      if (iaPdfFile) {
+        const pdfUpload = await uploadPdfToSupabase(iaPdfFile, 'ia-pdfs')
+        pdfUrl = pdfUpload.publicUrl
+        pdfPath = pdfUpload.path
+        pdfFileName = String(iaPdfFile.name || 'ia.pdf').slice(0, 180)
+      }
 
       if (iaImageFile) {
         const uploadResult = await uploadImageToSupabase(iaImageFile, 'ia')
@@ -5923,27 +5938,35 @@ function AdminPage({ mode = 'admin' }) {
       return
     }
 
-    const next = [
-      {
-        id: `ia-${Date.now()}`,
-        title: iaTitle.trim(),
-        course: iaCourse.trim(),
-        topic: iaTopic.trim(),
-        summary: iaSummary.trim(),
-        description: iaDescription.trim(),
-        link: iaLink.trim(),
-        imageUrl,
-        imagePath,
-        pdfUrl,
-        pdfPath,
-        pdfFileName,
-        previewPages,
-        unlockPriceInr,
-        createdAt: new Date().toISOString(),
-      },
-      ...iaItems,
-    ]
+    const payload = {
+      id: isEditing ? existingItem.id : `ia-${Date.now()}`,
+      title: iaTitle.trim(),
+      course: iaCourse.trim(),
+      topic: iaTopic.trim(),
+      summary: iaSummary.trim(),
+      description: iaDescription.trim(),
+      link: iaLink.trim(),
+      imageUrl,
+      imagePath,
+      pdfUrl,
+      pdfPath,
+      pdfFileName,
+      previewPages,
+      unlockPriceInr,
+      createdAt: isEditing ? existingItem.createdAt || new Date().toISOString() : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    const next = isEditing
+      ? iaItems.map((item) => (item.id === editingIaId ? { ...item, ...payload } : item))
+      : [payload, ...iaItems]
+
     await persistIaItems(next)
+    resetIaForm()
+  }
+
+  function resetIaForm() {
+    setEditingIaId('')
     setIaTitle('')
     setIaCourse('IBDP AA HL')
     setIaTopic('')
@@ -5955,6 +5978,39 @@ function AdminPage({ mode = 'admin' }) {
     setIaPdfFile(null)
     setIaImageFile(null)
     setIaImagePreviewUrl('')
+    setIaExistingPdfUrl('')
+    setIaExistingPdfName('')
+    setIaExistingPdfPath('')
+    setIaExistingImageUrl('')
+    setIaExistingImagePath('')
+  }
+
+  function startEditIaItem(item) {
+    if (!item?.id) return
+    setEditingIaId(item.id)
+    setIaTitle(item.title || '')
+    setIaCourse(iaAaCourses.includes(item.course) ? item.course : 'IBDP AA HL')
+    setIaTopic(item.topic || '')
+    setIaSummary(item.summary || '')
+    setIaDescription(item.description || '')
+    setIaLink(item.link || '')
+    setIaPreviewPages(String(item.previewPages || 1))
+    setIaUnlockPrice(String(item.unlockPriceInr ?? ''))
+    setIaPdfFile(null)
+    setIaImageFile(null)
+    setIaExistingPdfUrl(item.pdfUrl || '')
+    setIaExistingPdfName(item.pdfFileName || '')
+    setIaExistingPdfPath(item.pdfPath || '')
+    setIaExistingImageUrl(item.imageUrl || '')
+    setIaExistingImagePath(item.imagePath || '')
+    setIaImagePreviewUrl(item.imageUrl || '')
+    setDataError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelEditIaItem() {
+    resetIaForm()
+    setDataError('')
   }
 
   async function removeIaItem(itemId) {
@@ -5962,6 +6018,7 @@ function AdminPage({ mode = 'admin' }) {
     const label = iaItem?.title ? `"${iaItem.title}"` : 'this IA'
     const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
     if (!confirmed) return
+    if (editingIaId === itemId) resetIaForm()
     await persistIaItems(iaItems.filter((item) => item.id !== itemId))
   }
 
@@ -6233,7 +6290,10 @@ function AdminPage({ mode = 'admin' }) {
         <div className="stack">
           {isIaManagementSelected ? (
           <section className="panel">
-            <h2>IA Management</h2>
+            <h2>{editingIaId ? 'Edit IA' : 'IA Management'}</h2>
+            {editingIaId ? (
+              <p className="muted-text">Editing an existing IA. Leave PDF/image empty to keep the current files.</p>
+            ) : null}
             <form onSubmit={submitIaItem}>
               <label>
                 IA Idea / Research Question
@@ -6277,10 +6337,23 @@ function AdminPage({ mode = 'admin' }) {
                 <input value={iaLink} onChange={(event) => setIaLink(event.target.value)} placeholder="https://..." />
               </label>
               <label>
-                IA PDF (required)
-                <input type="file" accept="application/pdf,.pdf" onChange={onIaPdfChange} required />
+                IA PDF {editingIaId ? '(optional — keep current if empty)' : '(required)'}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={onIaPdfChange}
+                  required={!editingIaId}
+                />
               </label>
               {iaPdfFile ? <small className="muted-text">Selected: {iaPdfFile.name}</small> : null}
+              {!iaPdfFile && iaExistingPdfUrl ? (
+                <small className="muted-text">
+                  Current PDF:{' '}
+                  <a href={iaExistingPdfUrl} target="_blank" rel="noreferrer">
+                    {iaExistingPdfName || 'Open current PDF'}
+                  </a>
+                </small>
+              ) : null}
               <label>
                 Free preview pages
                 <input
@@ -6314,9 +6387,16 @@ function AdminPage({ mode = 'admin' }) {
                   <img src={iaImagePreviewUrl} alt="IA preview" />
                 </div>
               ) : null}
-              <button className="btn primary" type="submit" disabled={isIaSaving}>
-                {isIaSaving ? 'Saving IA...' : 'Add IA'}
-              </button>
+              <div className="paywall-actions">
+                <button className="btn primary" type="submit" disabled={isIaSaving}>
+                  {isIaSaving ? 'Saving IA...' : editingIaId ? 'Save IA Changes' : 'Add IA'}
+                </button>
+                {editingIaId ? (
+                  <button className="btn ghost" type="button" onClick={cancelEditIaItem} disabled={isIaSaving}>
+                    Cancel Edit
+                  </button>
+                ) : null}
+              </div>
             </form>
             <div className="records">
               {iaItems.length === 0 ? (
@@ -6325,10 +6405,15 @@ function AdminPage({ mode = 'admin' }) {
                 iaItems.map((item) => (
                   <article key={item.id} className="record">
                     <div className="record-top">
-                      <span className="pill">ia</span>
-                      <button type="button" onClick={() => removeIaItem(item.id)}>
-                        Delete
-                      </button>
+                      <span className="pill">{editingIaId === item.id ? 'editing' : 'ia'}</span>
+                      <div className="record-actions">
+                        <button type="button" onClick={() => startEditIaItem(item)}>
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => removeIaItem(item.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </div>
                     <h3>{item.title}</h3>
                     <small>{[item.course, item.topic].filter(Boolean).join(' · ')}</small>
