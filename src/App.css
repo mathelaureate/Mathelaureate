@@ -5474,17 +5474,70 @@ body {
   max-width: 66%;
   min-width: 0;
   overflow: hidden;
-  background: #e8eef4;
-  border: 1px solid #d5e0e8;
+  background: #e8eaed;
+  border: 1px solid #d5dbe1;
   border-radius: 14px;
-  padding: 0.85rem;
+  padding: 0;
+}
+
+.ia-doc-stage {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #e8eaed;
+  max-height: calc(100vh - 6.5rem);
+  min-height: 72vh;
+  padding: 1.35rem 1.15rem 2.25rem;
+}
+
+.ia-doc-stack {
+  position: relative;
+  width: 100%;
+  max-width: 52rem;
+  margin: 0 auto;
+}
+
+.ia-doc-sheet {
+  background: #fff;
+  margin: 0 0 1.1rem;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.16), 0 4px 14px rgba(60, 64, 67, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ia-doc-sheet:last-of-type {
+  margin-bottom: 0;
+}
+
+.ia-doc-sheet canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+}
+
+.ia-doc-status {
+  margin: 2.5rem 0;
+  text-align: center;
+  color: #5f6368;
+  font-size: 0.95rem;
+}
+
+.ia-doc-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7.5rem;
+  background: linear-gradient(180deg, rgba(232, 234, 237, 0), #e8eaed 82%);
+  pointer-events: none;
 }
 
 .ia-pdf-viewer {
   border: 0;
   border-radius: 8px;
   overflow: hidden;
-  background: #e8eef4;
+  background: #e8eaed;
   box-shadow: none;
   width: 100%;
   max-width: 100%;
@@ -5494,21 +5547,11 @@ body {
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #e8eef4;
+  background: #e8eaed;
   border: 0;
   border-radius: 8px;
   width: 100%;
   max-width: 100%;
-}
-
-.ia-pdf-viewer.is-unlocked .ia-pdf-frame-wrap {
-  max-height: none;
-  overflow: hidden;
-}
-
-.ia-pdf-viewer.is-unlocked .ia-pdf-frame {
-  height: min(88vh, 1680px);
-  min-height: 80vh;
 }
 
 .ia-pdf-frame {
@@ -5519,11 +5562,7 @@ body {
   height: 1120px;
   border: 0;
   display: block;
-  background: #e8eef4;
-}
-
-.ia-pdf-viewer.is-locked .ia-pdf-frame {
-  user-select: none;
+  background: #e8eaed;
 }
 
 .ia-pdf-fade {
@@ -5532,7 +5571,7 @@ body {
   right: 0;
   bottom: 0;
   height: 7rem;
-  background: linear-gradient(180deg, rgba(232, 238, 244, 0), #e8eef4 78%);
+  background: linear-gradient(180deg, rgba(232, 234, 237, 0), #e8eaed 78%);
   pointer-events: none;
 }
 
@@ -5683,6 +5722,12 @@ body {
 
   .ia-detail-info {
     position: static;
+  }
+
+  .ia-doc-stage {
+    max-height: none;
+    min-height: 60vh;
+    padding: 1rem 0.75rem 1.75rem;
   }
 
   .ia-facts-grid {

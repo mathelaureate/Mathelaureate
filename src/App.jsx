@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   GoogleAuthProvider,
@@ -14,6 +14,10 @@ import 'katex/dist/katex.min.css'
 import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import './App.css'
+
+const IaDocumentViewer = lazy(() =>
+  import('./IaDocumentViewer').then((module) => ({ default: module.IaDocumentViewer })),
+)
 
 const defaultCurricula = [
   {
@@ -2290,13 +2294,8 @@ function IaDetailPage({ user, cachedProfile }) {
 
   const unlocked = iaItem ? hasIaAccess(userPayments, iaItem.id) : false
   const previewPages = iaItem?.previewPages || 1
-  // Approximate A4 page height so locked users can scroll through free preview pages.
-  const previewHeightPx = Math.max(720, previewPages * 1100)
   const iaDisplayTitle = iaItem ? getIaCardHeading(iaItem) : ''
   const iaUnlockPrice = iaItem ? resolveIaUnlockPrice(iaItem, paywallConfig.defaultIaUnlockPriceInr) : 0
-  const pdfEmbedUrl = iaItem?.pdfUrl
-    ? `${iaItem.pdfUrl}${iaItem.pdfUrl.includes('?') ? '&' : '?'}access=${unlocked ? 'full' : 'preview'}#page=1&view=FitH&toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
-    : ''
   const subscriptionPrice = paywallConfig.fullSubscription.priceInr
   const subscriptionDurationLabel = formatAccessDuration(paywallConfig.fullSubscription.durationDays)
 
@@ -2448,36 +2447,13 @@ function IaDetailPage({ user, cachedProfile }) {
 
             <div className="ia-detail-viewer">
               {iaItem.pdfUrl ? (
-                <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
-                  <div
-                    className="ia-pdf-frame-wrap"
-                    style={
-                      unlocked
-                        ? undefined
-                        : {
-                            maxHeight: 'min(78vh, 920px)',
-                          }
-                    }
-                    onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
-                  >
-                    <iframe
-                      title={`ia-pdf-${iaItem.id}`}
-                      src={pdfEmbedUrl}
-                      className="ia-pdf-frame"
-                      style={
-                        unlocked
-                          ? undefined
-                          : {
-                              height: `${previewHeightPx}px`,
-                              minHeight: `${previewHeightPx}px`,
-                            }
-                      }
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                    {!unlocked ? <div className="ia-pdf-fade" aria-hidden="true" /> : null}
-                  </div>
-                </div>
+                <Suspense fallback={<p className="ia-doc-status">Loading document…</p>}>
+                  <IaDocumentViewer
+                    url={iaItem.pdfUrl}
+                    unlocked={unlocked}
+                    previewPages={previewPages}
+                  />
+                </Suspense>
               ) : (
                 <p className="muted-text">No PDF uploaded for this IA yet.</p>
               )}
