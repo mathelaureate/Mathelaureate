@@ -5323,7 +5323,8 @@ body {
 }
 
 .ia-detail-shell {
-  width: min(100% - 2rem, 56rem);
+  width: calc(100% - 2rem);
+  max-width: none;
   margin: 1.25rem auto 0;
   display: grid;
   gap: 0.85rem;
@@ -5350,7 +5351,7 @@ body {
 }
 
 .ia-detail-panel-split {
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
   gap: 1.1rem;
   align-items: start;
 }
@@ -6139,7 +6140,8 @@ body {
 }
 
 .ia-detail-shell {
-  width: min(100% - 2rem, 64rem);
+  width: calc(100% - 2rem);
+  max-width: none;
 }
 
 .ia-detail-panel {
