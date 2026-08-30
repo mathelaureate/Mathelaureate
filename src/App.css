@@ -6077,3 +6077,21 @@ body {
     padding: 1.1rem 1rem 1.2rem;
   }
 }
+
+/* Keep sticky site nav truly full-width even inside centered containers */
+.site-topbar,
+.topbar.site-topbar {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: #0f2c4d;
+  box-shadow: 0 2px 12px rgba(8, 24, 44, 0.12);
+  backdrop-filter: none;
+}
+
+.site-topbar .topbar-inner {
+  width: min(100% - 2.4rem, var(--page-max));
+}
