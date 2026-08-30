@@ -2271,7 +2271,8 @@ function IaDetailPage({ user, cachedProfile }) {
 
   const unlocked = iaItem ? hasIaAccess(userPayments, iaItem.id) : false
   const previewPages = iaItem?.previewPages || 1
-  const previewHeightPx = Math.max(320, previewPages * 980)
+  // Approximate A4 page height so locked users can scroll through free preview pages.
+  const previewHeightPx = Math.max(720, previewPages * 1100)
   const iaDisplayTitle = iaItem ? getIaCardHeading(iaItem) : ''
   const pdfEmbedUrl = iaItem?.pdfUrl
     ? `${iaItem.pdfUrl}#page=1&view=FitH&toolbar=${unlocked ? 1 : 0}&navpanes=0&scrollbar=1`
@@ -2432,7 +2433,13 @@ function IaDetailPage({ user, cachedProfile }) {
                 <div className={`ia-pdf-viewer${unlocked ? ' is-unlocked' : ' is-locked'}`}>
                   <div
                     className="ia-pdf-frame-wrap"
-                    style={unlocked ? undefined : { maxHeight: `${previewHeightPx}px` }}
+                    style={
+                      unlocked
+                        ? undefined
+                        : {
+                            maxHeight: 'min(78vh, 920px)',
+                          }
+                    }
                     onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
                   >
                     <iframe
@@ -2440,12 +2447,12 @@ function IaDetailPage({ user, cachedProfile }) {
                       src={pdfEmbedUrl}
                       className="ia-pdf-frame"
                       style={
-                        !unlocked
-                          ? {
+                        unlocked
+                          ? undefined
+                          : {
                               height: `${previewHeightPx}px`,
                               minHeight: `${previewHeightPx}px`,
                             }
-                          : undefined
                       }
                       loading="lazy"
                       referrerPolicy="no-referrer"
