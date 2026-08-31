@@ -13,6 +13,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
+import { CountUp, Marquee, Reveal } from './motion'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1672,15 +1673,15 @@ function HomePage({ user, cachedProfile }) {
       <section className="hero-section hero-full">
         <div className="hero-grid">
           <div className="hero-content">
-            <p className="brand-mark">
+            <p className="brand-mark k-hero-pop">
               <BrandWordmark />
             </p>
-            <h1>Learn Math with Clarity and Confidence</h1>
-            <p className="hero-copy">
+            <h1 className="k-hero-rise">Learn Math with Clarity and Confidence</h1>
+            <p className="hero-copy k-hero-copy">
               Structured pathways for Grade 9–12 students across IBDP, IGCSE, and MYP — with lessons, worked
               examples, and exam-focused practice.
             </p>
-            <div className="hero-actions">
+            <div className="hero-actions k-hero-actions">
               <a href="#programs" className="btn primary">
                 Start Learning →
               </a>
@@ -1688,7 +1689,7 @@ function HomePage({ user, cachedProfile }) {
                 Explore Courses
               </a>
             </div>
-            <ul className="hero-trust">
+            <ul className="hero-trust k-hero-trust">
               <li>
                 <span className="hero-trust-icon" aria-hidden="true">
                   ✓
@@ -1709,7 +1710,7 @@ function HomePage({ user, cachedProfile }) {
               </li>
             </ul>
           </div>
-          <div className="hero-visual">
+          <div className="hero-visual k-hero-visual">
             <img
               src="/math-hero.png"
               alt="Mathematical diagrams including surface plots, unit circle, and key formulas"
@@ -1721,18 +1722,31 @@ function HomePage({ user, cachedProfile }) {
         </div>
       </section>
 
+      <Marquee
+        items={[
+          'IBDP AA',
+          'IBDP AI',
+          'IGCSE',
+          'MYP',
+          'IA Exemplars',
+          'Mock Generator',
+          'Worked Examples',
+          'Question Bank',
+        ]}
+      />
+
       <section id="programs" className="panel-section home-programs">
-        <div className="section-head">
+        <Reveal className="section-head">
           <p className="eyebrow">Programs</p>
           <h2>Choose Your Pathway</h2>
           <p>Curriculum-specific courses designed for international maths success.</p>
-        </div>
+        </Reveal>
         <ProgramCards withLinks />
       </section>
 
       <section className="panel-section home-tools-section">
         <div className="home-split">
-          <div>
+          <Reveal>
             <div className="section-head left">
               <p className="eyebrow">Featured Pathways</p>
               <h2>Build mastery topic by topic</h2>
@@ -1759,8 +1773,8 @@ function HomePage({ user, cachedProfile }) {
                 <p>Data analysis, distributions, and inference basics.</p>
               </article>
             </div>
-          </div>
-          <div>
+          </Reveal>
+          <Reveal delay={80}>
             <div className="section-head left">
               <p className="eyebrow">Learning Tools</p>
               <h2>Everything you need to improve</h2>
@@ -1787,38 +1801,38 @@ function HomePage({ user, cachedProfile }) {
                 <p>Build custom mocks by unit for Paper 1, 2, and 3.</p>
               </Link>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section className="stats-bar" aria-label="Platform highlights">
         <div className="stats-bar-inner">
           <div>
-            <strong>10,000+</strong>
+            <CountUp value="10,000+" />
             <span>Students Supported</span>
           </div>
           <div>
-            <strong>1,200+</strong>
+            <CountUp value="1,200+" />
             <span>Lessons &amp; Examples</span>
           </div>
           <div>
-            <strong>25,000+</strong>
+            <CountUp value="25,000+" />
             <span>Practice Questions</span>
           </div>
           <div>
-            <strong>95%</strong>
+            <CountUp value="95%" />
             <span>Exam Success Focus</span>
           </div>
         </div>
       </section>
 
       <section id="testimonials" className="panel-section testimonials-shell">
-        <div className="section-head">
+        <Reveal className="section-head">
           <p className="eyebrow testimonials-eyebrow">Student Voices</p>
           <h2 className="testimonials-title">What Our Students Say</h2>
-        </div>
+        </Reveal>
         <div className="testimonial-grid modern-testimonial-grid">
-          <article className="testimonial-card">
+          <Reveal as="article" className="testimonial-card" delay={0}>
             <div className="testimonial-stars">★★★★★</div>
             <blockquote>
               “Mathelaureate&apos;s IBDP AA resources helped me fully grasp calculus. The step-by-step proofs and
@@ -1831,8 +1845,8 @@ function HomePage({ user, cachedProfile }) {
                 <small>IBDP Year 2 · Singapore</small>
               </div>
             </div>
-          </article>
-          <article className="testimonial-card">
+          </Reveal>
+          <Reveal as="article" className="testimonial-card" delay={90}>
             <div className="testimonial-stars">★★★★★</div>
             <blockquote>
               “The IGCSE practice sets were exactly what I needed. Clear, concise, and exam-style questions that were
@@ -1845,8 +1859,8 @@ function HomePage({ user, cachedProfile }) {
                 <small>IGCSE · Dubai</small>
               </div>
             </div>
-          </article>
-          <article className="testimonial-card">
+          </Reveal>
+          <Reveal as="article" className="testimonial-card" delay={180}>
             <div className="testimonial-stars">★★★★★</div>
             <blockquote>
               “As a parent, I appreciate how curriculum-specific Mathelaureate is. My daughter moved from a 4 to a 6
@@ -1859,17 +1873,18 @@ function HomePage({ user, cachedProfile }) {
                 <small>Parent · Bengaluru</small>
               </div>
             </div>
-          </article>
+          </Reveal>
         </div>
       </section>
 
       <section id="contact" className="panel-section contact-section">
-        <div className="contact-intro">
+        <Reveal className="contact-intro">
           <p className="eyebrow">Get In Touch</p>
           <h2>Contact Us</h2>
           <p>Have questions about our programs? Send us a message and we&apos;ll get back to you within 24 hours.</p>
-        </div>
-        <form className="contact-form contact-form-card" onSubmit={onContactSubmit}>
+        </Reveal>
+        <Reveal delay={80}>
+          <form className="contact-form contact-form-card" onSubmit={onContactSubmit}>
           <div className="contact-grid-two">
             <input
               type="text"
@@ -1915,6 +1930,7 @@ function HomePage({ user, cachedProfile }) {
           </div>
           {contactFeedback ? <p className={contactFeedbackIsError ? 'error-text' : 'success-text'}>{contactFeedback}</p> : null}
         </form>
+        </Reveal>
       </section>
 
       <footer className="home-footer">
@@ -1968,7 +1984,7 @@ function ProgramCards({ withLinks = false }) {
 
   return (
     <div className="program-grid">
-      {courseCatalog.map((course) => {
+      {courseCatalog.map((course, index) => {
         const body = (
           <article className={`program-card icon-${course.icon || 'aa'}`}>
             <span className="program-icon" aria-hidden="true" />
@@ -1979,11 +1995,15 @@ function ProgramCards({ withLinks = false }) {
         )
 
         return withLinks ? (
-          <button className="course-card-link" key={course.slug} type="button" onClick={() => onCourseClick(course.slug)}>
-            {body}
-          </button>
+          <Reveal as="div" key={course.slug} delay={index * 80}>
+            <button className="course-card-link" type="button" onClick={() => onCourseClick(course.slug)}>
+              {body}
+            </button>
+          </Reveal>
         ) : (
-          <div key={course.slug}>{body}</div>
+          <Reveal as="div" key={course.slug} delay={index * 80}>
+            {body}
+          </Reveal>
         )
       })}
     </div>
