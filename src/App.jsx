@@ -878,26 +878,24 @@ function sanitizeHtml(value) {
   return root.innerHTML
 }
 
-function mcqOptionHtml(letter) {
-  const mark = String(letter || 'c').toLowerCase()
-  // Split the parentheses into their own nodes so fonts cannot ligate (c) into ©.
-  return `<span class="q-opt"><span class="q-opt-paren">(</span>${mark}<span class="q-opt-paren">)</span></span>`
-}
+// ZWNJ (not ZWSP) so (c) cannot ligate into © and cannot wrap as "c)" on the next line.
+const OPTION_C_MARK = '(\u200Cc)'
 
 function decorateMcqOptionLetters(html) {
   return String(html || '')
-    .replace(/&copy;|&#169;|&#x0*a9;/gi, () => mcqOptionHtml('c'))
-    .replace(/[©Ⓒⓒ]/g, () => mcqOptionHtml('c'))
-    .replace(/(^|[^A-Za-z0-9])\(\s*([a-eA-E])\s*\)(?![A-Za-z0-9])/g, (match, prefix, letter) => `${prefix}${mcqOptionHtml(letter)}`)
+    .replace(/&copy;|&#169;|&#x0*a9;/gi, OPTION_C_MARK)
+    .replace(/[©Ⓒⓒ]/g, OPTION_C_MARK)
+    .replace(/(^|[^A-Za-z0-9])\(\s*c\s*\)(?![A-Za-z0-9])/gi, (_, prefix) => `${prefix}${OPTION_C_MARK}`)
 }
 
 function normalizeQuestionTypography(value) {
   return String(value || '')
     // Word/Docs often auto-convert option (c) into the copyright mark.
-    .replace(/\\textcopyright\b/g, '(c)')
-    .replace(/\\copyright\b/g, '(c)')
-    .replace(/[©Ⓒⓒ]/g, '(c)')
-    .replace(/\(\s*©\s*\)/g, '(c)')
+    .replace(/\\textcopyright\b/g, OPTION_C_MARK)
+    .replace(/\\copyright\b/g, OPTION_C_MARK)
+    .replace(/[©Ⓒⓒ]/g, OPTION_C_MARK)
+    .replace(/\(\s*©\s*\)/g, OPTION_C_MARK)
+    .replace(/(^|[^A-Za-z0-9])\(\s*c\s*\)(?![A-Za-z0-9])/gi, (_, prefix) => `${prefix}${OPTION_C_MARK}`)
 }
 
 function renderLatexToHtml(value) {

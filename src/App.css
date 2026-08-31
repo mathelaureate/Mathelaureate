@@ -867,20 +867,6 @@ nav button:hover {
   font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
 }
 
-.q-opt {
-  display: inline;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-variant-ligatures: none;
-  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
-  white-space: nowrap;
-}
-
-.q-opt-paren {
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 .latex-text ul,
 .latex-text ol {
   margin: 0.18rem 0 0.18rem 1.1rem;
