@@ -2186,6 +2186,57 @@ function IaPage({ user, cachedProfile }) {
           </p>
           <h1>IB Math AA IA Examples</h1>
           <p className="ia-hero-sub">Research ideas and exemplar Internal Assessments</p>
+        </div>
+      </section>
+
+      <section className="ia-browse-shell ia-browse-split">
+        <aside className="ia-filter-rail">
+          <div className="ia-filter-block">
+            <h2>Level</h2>
+            <div className="ia-pill-col" role="group" aria-label="Level">
+              <button
+                type="button"
+                className={`ia-pill${levelFilters.length === 0 ? ' is-active' : ''}`}
+                onClick={() => setLevelFilters([])}
+              >
+                All levels
+              </button>
+              {['HL', 'SL'].map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={`ia-pill${levelFilters.includes(level) ? ' is-active' : ''}`}
+                  onClick={() => toggleLevel(level)}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ia-filter-block">
+            <div className="ia-filter-head">
+              <h2>Topic</h2>
+              <button type="button" className="ia-clear-inline" onClick={clearFilters}>
+                Clear
+              </button>
+            </div>
+            <div className="ia-pill-col" role="group" aria-label="Topic">
+              {topicChips.map((topic) => (
+                <button
+                  key={topic}
+                  type="button"
+                  className={`ia-pill${topicFilter === topic ? ' is-active' : ''}`}
+                  onClick={() => setTopicFilter(topic)}
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="ia-browse-main">
           <label className="ia-search-simple">
             <span className="sr-only">Search IA ideas</span>
             <input
@@ -2195,81 +2246,41 @@ function IaPage({ user, cachedProfile }) {
               placeholder="Search ideas — modelling, calculus, probability..."
             />
           </label>
-        </div>
-      </section>
 
-      <section className="ia-browse-shell">
-        <div className="ia-toolbar">
-          <div className="ia-pill-row" role="group" aria-label="Level">
-            <button
-              type="button"
-              className={`ia-pill${levelFilters.length === 0 ? ' is-active' : ''}`}
-              onClick={() => setLevelFilters([])}
-            >
-              All levels
-            </button>
-            {['HL', 'SL'].map((level) => (
-              <button
-                key={level}
-                type="button"
-                className={`ia-pill${levelFilters.includes(level) ? ' is-active' : ''}`}
-                onClick={() => toggleLevel(level)}
-              >
-                {level}
-              </button>
+          {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
+          {iaError ? <p className="error-text">{iaError}</p> : null}
+          {!loadingIa && iaItems.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No IA examples yet</h2>
+              <p>Sample investigations will appear here soon.</p>
+            </div>
+          ) : null}
+          {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No matches</h2>
+              <p>Try a different search or filter.</p>
+            </div>
+          ) : null}
+
+          <div className="ia-card-grid">
+            {filteredIaItems.map((item) => (
+              <Link key={item.id} to={`/ia/${encodeURIComponent(item.id)}`} className="ia-grid-card">
+                <div className="ia-grid-card-preview">
+                  <IaCardPreview item={item} />
+                  {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
+                </div>
+                <div className="ia-grid-card-body">
+                  <div className="ia-idea-meta">
+                    <span className="ia-meta-chip">IA</span>
+                    {iaLevelFromCourse(item.course) ? (
+                      <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
+                    ) : null}
+                    {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
-          <button type="button" className="ia-clear-inline" onClick={clearFilters}>
-            Clear
-          </button>
-        </div>
-
-        <div className="ia-pill-row ia-pill-row-scroll" role="group" aria-label="Topic">
-          {topicChips.map((topic) => (
-            <button
-              key={topic}
-              type="button"
-              className={`ia-pill${topicFilter === topic ? ' is-active' : ''}`}
-              onClick={() => setTopicFilter(topic)}
-            >
-              {topic}
-            </button>
-          ))}
-        </div>
-
-        {loadingIa ? <p className="ia-status">Loading IA examples...</p> : null}
-        {iaError ? <p className="error-text">{iaError}</p> : null}
-        {!loadingIa && iaItems.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No IA examples yet</h2>
-            <p>Sample investigations will appear here soon.</p>
-          </div>
-        ) : null}
-        {!loadingIa && iaItems.length > 0 && filteredIaItems.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No matches</h2>
-            <p>Try a different search or filter.</p>
-          </div>
-        ) : null}
-
-        <div className="ia-card-grid">
-          {filteredIaItems.map((item) => (
-            <Link key={item.id} to={`/ia/${encodeURIComponent(item.id)}`} className="ia-grid-card">
-              <div className="ia-grid-card-preview">
-                <IaCardPreview item={item} />
-                {hasIaAccess(userPayments, item.id) ? <span className="ia-grid-unlocked">Unlocked</span> : null}
-              </div>
-              <div className="ia-grid-card-body">
-                <div className="ia-idea-meta">
-                  <span className="ia-meta-chip">IA</span>
-                  {iaLevelFromCourse(item.course) ? (
-                    <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
-                  ) : null}
-                  {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
-                </div>
-              </div>
-            </Link>
-          ))}
         </div>
       </section>
     </main>
