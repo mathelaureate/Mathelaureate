@@ -856,11 +856,29 @@ nav button:hover {
   font-size: 1.22rem;
   font-weight: 700;
   color: #14212b;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
 }
 
 .latex-text {
   color: #3a4a52;
   line-height: 1.45;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
+}
+
+.q-opt {
+  display: inline;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
+  white-space: nowrap;
+}
+
+.q-opt-paren {
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .latex-text ul,

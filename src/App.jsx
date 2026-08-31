@@ -878,12 +878,25 @@ function sanitizeHtml(value) {
   return root.innerHTML
 }
 
+function mcqOptionHtml(letter) {
+  const mark = String(letter || 'c').toLowerCase()
+  // Split the parentheses into their own nodes so fonts cannot ligate (c) into ©.
+  return `<span class="q-opt"><span class="q-opt-paren">(</span>${mark}<span class="q-opt-paren">)</span></span>`
+}
+
+function decorateMcqOptionLetters(html) {
+  return String(html || '')
+    .replace(/&copy;|&#169;|&#x0*a9;/gi, () => mcqOptionHtml('c'))
+    .replace(/[©Ⓒⓒ]/g, () => mcqOptionHtml('c'))
+    .replace(/(^|[^A-Za-z0-9])\(\s*([a-eA-E])\s*\)(?![A-Za-z0-9])/g, (match, prefix, letter) => `${prefix}${mcqOptionHtml(letter)}`)
+}
+
 function normalizeQuestionTypography(value) {
   return String(value || '')
     // Word/Docs often auto-convert option (c) into the copyright mark.
-    .replace(/©/g, '(c)')
-    .replace(/Ⓒ/g, '(c)')
-    .replace(/ⓒ/g, '(c)')
+    .replace(/\\textcopyright\b/g, '(c)')
+    .replace(/\\copyright\b/g, '(c)')
+    .replace(/[©Ⓒⓒ]/g, '(c)')
     .replace(/\(\s*©\s*\)/g, '(c)')
 }
 
@@ -927,7 +940,7 @@ function renderLatexToHtml(value) {
     }
   }
 
-  return rendered.join('')
+  return decorateMcqOptionLetters(rendered.join(''))
 }
 
 function LatexText({ value, className = '' }) {
