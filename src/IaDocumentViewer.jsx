@@ -53,12 +53,12 @@ function IaDocPage({ pdf, pageNumber, width }) {
 
   return (
     <div className="ia-doc-sheet">
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} draggable={false} />
     </div>
   )
 }
 
-export function IaDocumentViewer({ url, unlocked = false, previewPages = 1 }) {
+export function IaDocumentViewer({ url, unlocked = false, previewPages = 1, justUnlocked = false }) {
   const pageStackRef = useRef(null)
   const [pdf, setPdf] = useState(null)
   const [pageCount, setPageCount] = useState(0)
@@ -118,27 +118,45 @@ export function IaDocumentViewer({ url, unlocked = false, previewPages = 1 }) {
     }
   }, [url])
 
+  const previewLimit = Math.max(1, Number(previewPages) || 1)
   const visibleCount = unlocked
     ? pageCount
-    : Math.min(pageCount, Math.max(1, Number(previewPages) || 1))
+    : Math.min(pageCount, previewLimit)
   const pages = Array.from({ length: visibleCount }, (_, index) => index + 1)
 
   return (
     <div
-      className={`ia-doc-stage${unlocked ? ' is-unlocked' : ' is-locked'}`}
-      onContextMenu={unlocked ? undefined : (event) => event.preventDefault()}
+      className={`ia-doc-stage${unlocked ? ' is-unlocked' : ' is-locked'}${justUnlocked ? ' is-just-unlocked' : ''}`}
+      onContextMenu={(event) => event.preventDefault()}
     >
+      {justUnlocked ? (
+        <div className="ia-unlock-burst" aria-live="polite">
+          <div className="ia-unlock-burst-ring">
+            <span>Unlocked</span>
+          </div>
+        </div>
+      ) : null}
       {loading ? <p className="ia-doc-status">Loading document…</p> : null}
       {error ? (
         <iframe
           className="ia-pdf-frame"
           title="IA document"
-          src={`${url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+          src={`${url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&download=0`}
         />
       ) : null}
       <div ref={pageStackRef} className="ia-doc-stack">
         {pages.map((pageNumber) => (
-          <IaDocPage key={`${url}-${pageNumber}`} pdf={pdf} pageNumber={pageNumber} width={width} />
+          <div
+            key={`${url}-${pageNumber}`}
+            className={unlocked && justUnlocked && pageNumber > previewLimit ? 'ia-doc-sheet-wrap is-new-page' : 'ia-doc-sheet-wrap'}
+            style={
+              unlocked && justUnlocked && pageNumber > previewLimit
+                ? { animationDelay: `${Math.min(12, pageNumber - previewLimit) * 70}ms` }
+                : undefined
+            }
+          >
+            <IaDocPage pdf={pdf} pageNumber={pageNumber} width={width} />
+          </div>
         ))}
         {!unlocked && !loading && !error ? <div className="ia-doc-fade" aria-hidden="true" /> : null}
       </div>

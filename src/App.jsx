@@ -2287,6 +2287,7 @@ function IaDetailPage({ user, cachedProfile }) {
   const [paymentBusy, setPaymentBusy] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
+  const [justUnlocked, setJustUnlocked] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -2344,6 +2345,14 @@ function IaDetailPage({ user, cachedProfile }) {
   const subscriptionPrice = paywallConfig.fullSubscription.priceInr
   const subscriptionDurationLabel = formatAccessDuration(paywallConfig.fullSubscription.durationDays)
 
+  function onIaPaymentsUpdated(nextPayments) {
+    const gainedAccess = iaItem?.id && !hasIaAccess(userPayments, iaItem.id) && hasIaAccess(nextPayments, iaItem.id)
+    setUserPayments(nextPayments)
+    if (!gainedAccess) return
+    setJustUnlocked(true)
+    window.setTimeout(() => setJustUnlocked(false), 2400)
+  }
+
   async function signInForPurchase() {
     setAuthBusy(true)
     setPaymentError('')
@@ -2373,7 +2382,7 @@ function IaDetailPage({ user, cachedProfile }) {
       iaId: iaItem.id,
       courseTitle: iaPurchaseLabel,
       description: `Unlock IA · ${iaPurchaseLabel}`,
-      onPaymentsUpdated: setUserPayments,
+      onPaymentsUpdated: onIaPaymentsUpdated,
       onError: setPaymentError,
       onBusyChange: setPaymentBusy,
     })
@@ -2388,7 +2397,7 @@ function IaDetailPage({ user, cachedProfile }) {
       courseId: FULL_SUBSCRIPTION_PRODUCT_ID,
       courseTitle: paywallConfig.fullSubscription.label,
       description: paywallConfig.fullSubscription.label,
-      onPaymentsUpdated: setUserPayments,
+      onPaymentsUpdated: onIaPaymentsUpdated,
       onError: setPaymentError,
       onBusyChange: setPaymentBusy,
     })
@@ -2473,18 +2482,18 @@ function IaDetailPage({ user, cachedProfile }) {
                   {paymentError ? <p className="error-text">{paymentError}</p> : null}
                 </div>
               ) : (
-                <div className="ia-unlock-card is-unlocked">
-                  <h4>Access granted</h4>
-                  <div className="ia-pay-actions">
-                    <a className="btn primary" href={iaItem.pdfUrl} target="_blank" rel="noreferrer noopener">
-                      Open / download PDF
-                    </a>
-                    {iaItem.link ? (
+                <div className={`ia-unlock-card is-unlocked${justUnlocked ? ' is-just-unlocked' : ''}`}>
+                  <div className="ia-unlock-seal" aria-hidden="true">
+                    <span>✓</span>
+                  </div>
+                  <h4>Unlocked</h4>
+                  {iaItem.link ? (
+                    <div className="ia-pay-actions">
                       <a className="btn ghost" href={iaItem.link} target="_blank" rel="noreferrer">
                         Open related resource
                       </a>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -2496,6 +2505,7 @@ function IaDetailPage({ user, cachedProfile }) {
                     url={iaItem.pdfUrl}
                     unlocked={unlocked}
                     previewPages={previewPages}
+                    justUnlocked={justUnlocked}
                   />
                 </Suspense>
               ) : (
