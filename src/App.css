@@ -7073,8 +7073,10 @@ select:focus {
   position: sticky;
   top: 5.2rem;
   display: grid;
-  gap: 0.28rem;
+  gap: 0.22rem;
   padding: 1rem;
+  max-height: calc(100vh - 6.5rem);
+  overflow: auto;
   border: 1px solid #d5e0e8;
   border-radius: 16px;
   background: #fff;
@@ -7146,6 +7148,10 @@ select:focus {
   color: #5c6b74;
   font-size: 0.98rem;
   line-height: 1.65;
+}
+
+.legal-card p + p {
+  margin-top: 0.7rem;
 }
 
 @media (max-width: 860px) {

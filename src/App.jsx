@@ -2929,7 +2929,9 @@ function LegalDocumentPage({ user, cachedProfile, title, intro, sections }) {
               <span className="legal-card-num">{String(index + 1).padStart(2, '0')}</span>
               <div>
                 <h2>{section.title}</h2>
-                <p>{section.body}</p>
+                {(Array.isArray(section.body) ? section.body : [section.body]).map((paragraph, paragraphIndex) => (
+                  <p key={paragraphIndex}>{paragraph}</p>
+                ))}
               </div>
             </article>
           ))}
@@ -2945,37 +2947,91 @@ function PrivacyPolicyPage({ user, cachedProfile }) {
       user={user}
       cachedProfile={cachedProfile}
       title="Privacy Policy"
-      intro="Mathelaureate is an international mathematics learning platform focused on IBDP, IGCSE, and IBMYP programs. This policy explains how we collect, use, store, and protect information when you use our website and services."
+      intro="This Privacy Policy describes how Mathelaureate collects, uses, stores, and discloses information when you use www.mathelaureate.com and related services. By creating an account, making a purchase, or otherwise using the platform, you agree to this Policy. If you do not agree, do not use the service."
       sections={[
+        {
+          id: 'who',
+          title: 'Who We Are',
+          body: [
+            'Mathelaureate operates an independent online mathematics learning platform. References to “Mathelaureate”, “we”, “us”, or “our” mean the platform owner and operator.',
+            'We are not the International Baccalaureate Organization, Cambridge Assessment, Pearson, or any school, board, or examining body. Curriculum names are used only to describe the type of academic support offered.',
+          ],
+        },
         {
           id: 'collect',
           title: 'Information We Collect',
-          body: 'We may collect account data (name, email, profile image), learning activity and progress data, payment metadata for paid courses, and messages sent through contact forms. We also collect technical diagnostics needed to improve reliability and security.',
+          body: [
+            'Account data: name, email address, profile image, and authentication identifiers when you sign in (including through Google or similar providers).',
+            'Learning data: course progress, visited topics, unlocked IA examples, saved work, and similar activity needed to deliver the product.',
+            'Payment data: we receive confirmation, order identifiers, and limited billing metadata from payment processors. We do not store full card numbers on Mathelaureate servers.',
+            'Communications: messages, names, and emails sent through contact forms or support channels.',
+            'Technical data: device type, browser, IP-derived location or country, cookies or similar identifiers, diagnostic logs, and security events. This is used to run, secure, and improve the service.',
+          ],
         },
         {
           id: 'use',
           title: 'How We Use Data',
-          body: 'We use information to deliver course access, personalize learning experience, process payments, provide support, maintain platform performance, and communicate important product or policy updates.',
+          body: [
+            'We use information to provide access to lessons, questions, IA examples, and teacher resources; to process purchases and unlocks; to prevent fraud and abuse; to diagnose outages; to communicate about your account, payments, or material policy changes; and to improve reliability and content.',
+            'We may use aggregated or de-identified information that does not reasonably identify you for analytics and product planning. We do not sell personal information.',
+          ],
+        },
+        {
+          id: 'cookies',
+          title: 'Cookies and Analytics',
+          body: 'We use essential cookies and local or session storage to keep you signed in, remember preferences, and cache content for performance. We may also use analytics tools (including Google Analytics or similar) to understand traffic and feature use. You can control cookies in your browser; disabling them may break sign-in or other core features.',
+        },
+        {
+          id: 'children',
+          title: 'Students, Minors, and Parents',
+          body: [
+            'Mathelaureate is an educational service. If a student is under the age of digital consent in their country, a parent or legal guardian must create or supervise the account and agree to this Policy and the Terms of Use.',
+            'Schools, tutors, or parents who provide student information represent that they have authority to do so. We are not a school of record and do not replace a school’s safeguarding, admissions, or examination duties.',
+          ],
         },
         {
           id: 'storage',
-          title: 'Data Storage and Security',
-          body: 'Mathelaureate uses trusted cloud providers for authentication, storage, and payment workflows. We apply reasonable safeguards to protect user data from unauthorized access, disclosure, or misuse.',
+          title: 'Storage, Processors, and Transfers',
+          body: [
+            'We use trusted cloud providers for hosting, authentication, databases, file storage, email or contact delivery, analytics, and payments. Those providers process data on our instructions and may store it in India, the United States, the European Union, or other locations where they operate.',
+            'We apply reasonable administrative and technical safeguards. No method of transmission or storage is completely secure. You use the platform understanding that residual security risk remains.',
+          ],
         },
         {
           id: 'sharing',
-          title: 'Data Sharing',
-          body: 'We do not sell personal information. Data may be shared with essential service providers only when needed to run the platform (for example, hosting, media storage, and payment processing), or where required by law.',
+          title: 'When We Share Information',
+          body: [
+            'We share data with service providers only as needed to operate the platform (for example hosting, authentication, media storage, analytics, and payment processing), or when required by law, legal process, or to protect Mathelaureate, our users, or the public from harm, fraud, or abuse.',
+            'If the platform is transferred as part of a sale, merger, or reorganization, user data may transfer to the successor so the service can continue, subject to this Policy or a replacement policy with equivalent protections.',
+          ],
+        },
+        {
+          id: 'retention',
+          title: 'Retention',
+          body: 'We keep account, learning, and payment records for as long as the account is active and for a reasonable period afterwards as needed for access control, accounting, dispute handling, security, and legal compliance. We may retain backups for a limited time. We may keep de-identified records indefinitely.',
         },
         {
           id: 'rights',
-          title: 'Student and Parent Rights',
-          body: 'Parents or guardians may request access, correction, or deletion of student-linked information where applicable. Users may also request account or data updates through our contact channels.',
+          title: 'Your Rights and Requests',
+          body: [
+            'Subject to applicable law, you may request access to, correction of, or deletion of personal information we hold about you. Parents or guardians may make requests for a child whose account they control.',
+            'We may decline or limit requests where we cannot verify identity, where deletion would prevent us from providing a paid service you still use, or where we must keep records for legal, security, or accounting reasons. Use the website contact form to submit a request.',
+          ],
+        },
+        {
+          id: 'no-sale',
+          title: 'No Sale of Personal Data',
+          body: 'We do not sell personal information. We do not share it for cross-context behavioral advertising except as described for analytics and essential processors above.',
         },
         {
           id: 'updates',
-          title: 'Policy Updates',
-          body: 'We may update this policy periodically. Continued use of the platform after an update means you accept the revised Privacy Policy.',
+          title: 'Changes to This Policy',
+          body: 'We may update this Policy at any time. The “Last updated” date will change when we do. Continued use after an update constitutes acceptance of the revised Policy. If you do not agree, you must stop using the service and may request account closure.',
+        },
+        {
+          id: 'contact',
+          title: 'Contact',
+          body: 'Privacy questions and data requests should be sent through the contact form on www.mathelaureate.com. We will respond within a reasonable time after we can verify the request.',
         },
       ]}
     />
@@ -2988,47 +3044,136 @@ function TermsOfUsePage({ user, cachedProfile }) {
       user={user}
       cachedProfile={cachedProfile}
       title="Terms of Use"
-      intro="By accessing Mathelaureate, you agree to these Terms of Use. If you do not agree, please do not use the website or related services."
+      intro="These Terms of Use are a binding agreement between you and Mathelaureate. They protect the platform, its owner, and other users. By accessing www.mathelaureate.com, creating an account, or purchasing access, you accept these Terms. If you do not agree, do not use the service."
       sections={[
         {
+          id: 'agreement',
+          title: 'Agreement and Eligibility',
+          body: [
+            'You must be able to form a contract. If you are under the age of majority where you live, a parent or guardian must agree to these Terms on your behalf and supervise use.',
+            'If you use Mathelaureate for a school, tutoring centre, or another person, you confirm you have authority to bind them. You are responsible for everyone who uses the service through your account.',
+          ],
+        },
+        {
+          id: 'not-affiliated',
+          title: 'Independent Service; No Official Affiliation',
+          body: [
+            'Mathelaureate is an independent educational resource. We are not affiliated with, endorsed by, or sponsored by the International Baccalaureate Organization, Cambridge Assessment International Education, Pearson, any school, or any official examining body.',
+            'IB, IBDP, IGCSE, MYP, and similar names are used only to describe the style of preparation offered. Official syllabuses, specimen papers, grade boundaries, and assessments remain the property of those organizations.',
+          ],
+        },
+        {
+          id: 'disclaimer',
+          title: 'Educational Disclaimer',
+          body: [
+            'Content is for learning support only. It is not a school, not personal tutoring unless separately agreed, and not a substitute for a qualified teacher, counsellor, or official syllabus.',
+            'We do not guarantee exam scores, predicted grades, university admission, IA marks, or any academic outcome. Results depend on the student, school, and examining body. You use all materials at your own academic risk.',
+          ],
+        },
+        {
           id: 'scope',
-          title: 'Service Scope',
-          body: 'Mathelaureate provides mathematics learning resources, assessments, and support content for academic preparation. Content is for educational use and should be used responsibly alongside formal school guidance.',
+          title: 'The Service',
+          body: [
+            'We may provide lessons, worked examples, question banks, mock tools, Internal Assessment examples, teacher resources, and related features. We may change, suspend, or discontinue any feature, price, or piece of content at any time without liability.',
+            'The service is provided on an “as is” and “as available” basis. We do not warrant that it will be uninterrupted, error-free, or free of harmful components.',
+          ],
         },
         {
           id: 'accounts',
           title: 'Accounts and Access',
-          body: 'You are responsible for activities performed under your account and for maintaining login confidentiality. Access to some lessons or units may depend on subscription or payment status.',
+          body: [
+            'You must keep login details confidential. You are responsible for all activity under your account. Sharing, reselling, or pooling paid access is prohibited.',
+            'Access to locked lessons, IA PDFs, or other paid items depends on a valid purchase or subscription as shown at checkout. We may revoke access if payment is reversed, suspected fraudulent, or obtained in breach of these Terms.',
+          ],
+        },
+        {
+          id: 'licence',
+          title: 'Licence to Use Content',
+          body: [
+            'Subject to these Terms and any paid access you hold, we grant you a limited, personal, revocable, non-exclusive, non-transferable licence to view content for your own study or classroom teaching.',
+            'You may not copy, scrape, download except where we provide a download control, republish, resell, upload to other sites, use content to train AI models, or create competing materials from our lessons, questions, solutions, or IA examples.',
+          ],
+        },
+        {
+          id: 'ia-content',
+          title: 'IA Examples and Sample Work',
+          body: [
+            'IA examples and related PDFs are proprietary teaching materials or licensed samples. They are not official IB Internal Assessments, examiner reports, or student work released by the IB.',
+            'Purchasing or unlocking an IA grants view access on the platform only, not ownership. Redistribution, classroom-wide file sharing, public posting, or claiming the work as a student’s original submission is forbidden and may result in immediate termination without refund.',
+          ],
         },
         {
           id: 'payments',
-          title: 'Payments',
-          body: 'Paid features, if applicable, are governed by the pricing and lock settings visible on the platform at the time of purchase. Payment transactions are processed through third-party providers.',
-        },
-        {
-          id: 'ip',
-          title: 'Intellectual Property',
-          body: 'All educational content, branding, and platform materials are owned by Mathelaureate or its licensors. You may not copy, republish, distribute, or commercially use content without written authorization.',
+          title: 'Payments, Taxes, and Refunds',
+          body: [
+            'Prices, currencies, and unlock rules are those displayed at the time of purchase. Taxes, foreign-exchange, and processor fees may apply. Payment is handled by third-party processors; their terms also apply.',
+            'Digital content is generally non-refundable once access is granted. Refunds, if any, are at Mathelaureate’s sole discretion, except where mandatory consumer law requires otherwise. Chargebacks made in bad faith may lead to account closure and recovery of processor fees.',
+          ],
         },
         {
           id: 'acceptable',
           title: 'Acceptable Use',
-          body: 'Users must not attempt unauthorized access, abuse platform functionality, disrupt service, upload harmful content, or violate applicable laws while using the website.',
+          body: [
+            'You must not attempt unauthorized access, probe or overload the service, introduce malware, harvest other users’ data, impersonate anyone, or use the platform for anything unlawful.',
+            'You must not use our content to cheat on school or official assessments, or to submit IA or coursework as if it were original student work. Academic honesty remains your responsibility.',
+          ],
+        },
+        {
+          id: 'user-content',
+          title: 'Your Content',
+          body: 'If you submit messages, feedback, or other materials, you grant Mathelaureate a worldwide, royalty-free licence to use them to operate and improve the service. You confirm you have the right to submit them and that they do not infringe others’ rights. We may remove content that we believe violates these Terms.',
         },
         {
           id: 'third-party',
           title: 'Third-Party Services',
-          body: 'The platform may link to third-party services and resources. Mathelaureate is not responsible for third-party content, availability, or independent policies.',
+          body: 'Sign-in, payments, hosting, analytics, and linked resources are provided by third parties. We are not responsible for their availability, content, or policies. Your use of those services is at your own risk and subject to their terms.',
+        },
+        {
+          id: 'ip',
+          title: 'Intellectual Property',
+          body: 'The Mathelaureate name, logo, site design, lessons, questions, solutions, videos, IA examples, and other materials are owned by Mathelaureate or its licensors. No rights are granted except the limited licence in these Terms. Unauthorized use may result in civil and criminal liability.',
         },
         {
           id: 'liability',
           title: 'Limitation of Liability',
-          body: 'Services are provided on an "as is" basis. While we aim for high quality and uptime, we cannot guarantee uninterrupted access. To the extent permitted by law, Mathelaureate is not liable for indirect or consequential damages.',
+          body: [
+            'To the maximum extent permitted by law, Mathelaureate, its owner, officers, contractors, and suppliers are not liable for indirect, incidental, special, consequential, exemplary, or punitive damages; lost profits, grades, admissions, data, or goodwill; or substitute procurement costs.',
+            'Our total liability for any claim arising out of the service is limited to the amount you paid Mathelaureate for the specific product giving rise to the claim in the twelve (12) months before the claim, or USD 50 if you paid nothing. Some jurisdictions do not allow certain limits; in those cases our liability is limited to the fullest extent allowed.',
+          ],
+        },
+        {
+          id: 'indemnity',
+          title: 'Indemnity',
+          body: 'You will defend, indemnify, and hold harmless Mathelaureate and its owner from claims, damages, losses, and reasonable legal fees arising from your use of the service, your content, your breach of these Terms, or your violation of law or third-party rights, including academic-misconduct or copyright claims related to IA or other materials.',
+        },
+        {
+          id: 'termination',
+          title: 'Suspension and Termination',
+          body: 'We may suspend or terminate access immediately, without refund, if we reasonably believe you have breached these Terms, created legal or security risk, or used payment methods fraudulently. You may stop using the service at any time. Sections that by nature should survive (including licence restrictions, IP, disclaimers, liability limits, indemnity, and governing law) survive termination.',
+        },
+        {
+          id: 'law',
+          title: 'Governing Law',
+          body: 'These Terms are governed by the laws of India, without regard to conflict-of-law rules. Courts in India have exclusive jurisdiction, except that we may seek injunctive relief in any jurisdiction to protect intellectual property or confidential information. Mandatory consumer protections in your country of residence still apply where they cannot be waived.',
+        },
+        {
+          id: 'general',
+          title: 'General',
+          body: [
+            'These Terms are the entire agreement for use of the website and override prior discussions about the service. If a clause is unenforceable, the rest remains in force. Failure to enforce a right is not a waiver.',
+            'We are not liable for delays or failures caused by events beyond our reasonable control, including outages of cloud, payment, or authentication providers.',
+            'You may not assign these Terms. We may assign them in connection with a sale or reorganization of the platform.',
+          ],
         },
         {
           id: 'updates',
-          title: 'Updates to Terms',
-          body: 'These terms may be updated from time to time. Continued use after updates indicates acceptance of the revised Terms of Use.',
+          title: 'Changes to These Terms',
+          body: 'We may update these Terms at any time by posting a revised version on the site. The “Last updated” date will change. Continued use after an update is acceptance. If you do not agree, you must stop using the service.',
+        },
+        {
+          id: 'contact',
+          title: 'Contact',
+          body: 'Questions about these Terms can be sent through the contact form on www.mathelaureate.com.',
         },
       ]}
     />
