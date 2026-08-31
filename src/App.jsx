@@ -374,6 +374,96 @@ const contentItemsCollectionRef = collection(db, 'courseContentItems')
 const paywallDocRef = doc(db, 'appData', 'paywall')
 const iaDocRef = doc(db, 'appData', 'ia')
 const teachersResourcesDocRef = doc(db, 'appData', 'teachersResources')
+const APP_DOC_CACHE_TTL_MS = 5 * 60 * 1000
+const appDocMemoryCache = new Map()
+
+function appDocCacheKey(key) {
+  return `mathelaureate-doc-cache:${key}`
+}
+
+function readCachedAppDoc(key) {
+  const memory = appDocMemoryCache.get(key)
+  if (memory && Date.now() - memory.at < APP_DOC_CACHE_TTL_MS) return memory.data
+  try {
+    const raw = sessionStorage.getItem(appDocCacheKey(key))
+    if (!raw) return undefined
+    const parsed = JSON.parse(raw)
+    if (!parsed || Date.now() - parsed.at > APP_DOC_CACHE_TTL_MS) return undefined
+    appDocMemoryCache.set(key, parsed)
+    return parsed.data
+  } catch {
+    return undefined
+  }
+}
+
+function writeCachedAppDoc(key, data) {
+  const entry = { at: Date.now(), data }
+  appDocMemoryCache.set(key, entry)
+  try {
+    sessionStorage.setItem(appDocCacheKey(key), JSON.stringify(entry))
+  } catch {
+    // Ignore storage quota / private mode.
+  }
+}
+
+function invalidateCachedAppDoc(key) {
+  if (key) {
+    appDocMemoryCache.delete(key)
+    try {
+      sessionStorage.removeItem(appDocCacheKey(key))
+    } catch {
+      // ignore
+    }
+    return
+  }
+  appDocMemoryCache.clear()
+  try {
+    Object.keys(sessionStorage)
+      .filter((item) => item.startsWith('mathelaureate-doc-cache:'))
+      .forEach((item) => sessionStorage.removeItem(item))
+  } catch {
+    // ignore
+  }
+}
+
+async function getCachedAppDoc(key, ref, onFresh) {
+  const cached = readCachedAppDoc(key)
+  const refresh = async () => {
+    const snap = await getDoc(ref)
+    const data = snap.exists() ? snap.data() : null
+    writeCachedAppDoc(key, data)
+    onFresh?.(data)
+    return data
+  }
+  if (cached !== undefined) {
+    if (onFresh) {
+      void refresh().catch(() => {})
+      return cached
+    }
+    return refresh()
+  }
+  return refresh()
+}
+
+async function getCachedContentItems(onFresh) {
+  const key = 'courseContentItems'
+  const cached = readCachedAppDoc(key)
+  const refresh = async () => {
+    const snap = await getDocs(contentItemsCollectionRef)
+    const data = snap.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }))
+    writeCachedAppDoc(key, data)
+    onFresh?.(data)
+    return data
+  }
+  if (Array.isArray(cached)) {
+    if (onFresh) {
+      void refresh().catch(() => {})
+      return cached
+    }
+    return refresh()
+  }
+  return refresh()
+}
 const paymentApiBaseUrl = (import.meta.env.VITE_PAYMENT_API_BASE_URL || '/api').replace(/\/$/, '')
 const FULL_SUBSCRIPTION_PRODUCT_ID = 'platform-full'
 const FULL_SUBSCRIPTION_DEFAULT_PRICE_INR = 1499
@@ -485,6 +575,12 @@ function hasIaAccess(payments, iaId) {
   return Boolean(payments?.iaUnlocks?.[iaId]?.paid)
 }
 
+function mapTeachersResourceCategory(value) {
+  const raw = String(value || '').trim()
+  if (!raw || /^guides?$/i.test(raw)) return 'Activities'
+  return raw
+}
+
 function normalizeTeachersResourcesPosts(raw) {
   if (!Array.isArray(raw)) return []
   return raw
@@ -492,7 +588,7 @@ function normalizeTeachersResourcesPosts(raw) {
       id: item?.id || `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: String(item?.title || '').trim(),
       description: String(item?.description || '').trim(),
-      category: String(item?.category || item?.topic || 'Guides').trim() || 'Guides',
+      category: mapTeachersResourceCategory(item?.category || item?.topic),
       link: String(item?.link || '').trim(),
       imageUrl: String(item?.imageUrl || '').trim(),
       imagePath: String(item?.imagePath || '').trim(),
@@ -1976,16 +2072,10 @@ function HomePage({ user, cachedProfile }) {
 }
 
 function ProgramCards({ withLinks = false }) {
-  const navigate = useNavigate()
-
-  function onCourseClick(slug) {
-    navigate(`/courses/${slug}`)
-  }
-
   return (
     <div className="program-grid">
-      {courseCatalog.map((course, index) => {
-        const body = (
+      {courseCatalog.map((course) => {
+        const card = (
           <article className={`program-card icon-${course.icon || 'aa'}`}>
             <span className="program-icon" aria-hidden="true" />
             <h3>{course.title}</h3>
@@ -1994,15 +2084,15 @@ function ProgramCards({ withLinks = false }) {
           </article>
         )
 
-        return withLinks ? (
-          <Reveal as="div" key={course.slug} delay={index * 80}>
-            <button className="course-card-link" type="button" onClick={() => onCourseClick(course.slug)}>
-              {body}
-            </button>
-          </Reveal>
-        ) : (
-          <Reveal as="div" key={course.slug} delay={index * 80}>
-            {body}
+        return (
+          <Reveal key={course.slug} className="program-grid-item">
+            {withLinks ? (
+              <Link className="course-card-link" to={`/courses/${course.slug}`}>
+                {card}
+              </Link>
+            ) : (
+              card
+            )}
           </Reveal>
         )
       })}
@@ -2043,6 +2133,23 @@ function iaLevelFromCourse(course) {
   return ''
 }
 
+function IaTopicBar({ topic }) {
+  const parts = String(topic || '')
+    .split(/\s*[•·|,;]\s*|\s+\/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (parts.length === 0) return null
+  return (
+    <div className="ia-topic-bar">
+      {parts.map((part, index) => (
+        <span key={`${part}-${index}`} className="ia-topic-chip">
+          {part}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 const IA_TITLE_MAX_WORDS = 20
 const IA_TOPIC_MAX_WORDS = 8
 const IA_SUMMARY_MAX_WORDS = 120
@@ -2078,19 +2185,7 @@ function limitWords(value, maxWords) {
 
 function IaCardPreview({ item }) {
   if (item.imageUrl) {
-    return <img src={item.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
-  }
-  if (item.pdfUrl) {
-    return (
-      <iframe
-        title={`preview-${item.id}`}
-        src={`${item.pdfUrl}#page=1&toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-        className="ia-grid-card-pdf"
-        loading="lazy"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-    )
+    return <img src={item.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" decoding="async" />
   }
   return (
     <div className="ia-grid-card-fallback">
@@ -2100,9 +2195,13 @@ function IaCardPreview({ item }) {
   )
 }
 
+function filterAaIaItems(items) {
+  return items.filter((item) => iaAaCourses.includes(item.course) || !item.course)
+}
+
 function IaPage({ user, cachedProfile }) {
-  const [iaItems, setIaItems] = useState([])
-  const [loadingIa, setLoadingIa] = useState(true)
+  const [iaItems, setIaItems] = useState(() => filterAaIaItems(normalizeIaItems(readCachedAppDoc('ia')?.items)))
+  const [loadingIa, setLoadingIa] = useState(() => readCachedAppDoc('ia') === undefined)
   const [iaError, setIaError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [levelFilters, setLevelFilters] = useState([])
@@ -2113,15 +2212,16 @@ function IaPage({ user, cachedProfile }) {
     let active = true
 
     async function loadIaItems() {
-      setLoadingIa(true)
+      if (readCachedAppDoc('ia') === undefined) setLoadingIa(true)
       setIaError('')
       try {
-        const iaSnap = await getDoc(iaDocRef)
-        const items = normalizeIaItems(iaSnap.data()?.items).filter((item) =>
-          iaAaCourses.includes(item.course) || !item.course,
-        )
+        const data = await getCachedAppDoc('ia', iaDocRef, (fresh) => {
+          if (!active) return
+          setIaItems(filterAaIaItems(normalizeIaItems(fresh?.items)))
+          setLoadingIa(false)
+        })
         if (!active) return
-        setIaItems(items)
+        setIaItems(filterAaIaItems(normalizeIaItems(data?.items)))
       } catch (error) {
         if (!active) return
         setIaError(error?.message || 'Unable to load IA examples.')
@@ -2295,8 +2395,8 @@ function IaPage({ user, cachedProfile }) {
                     {iaLevelFromCourse(item.course) ? (
                       <span className="ia-meta-chip">{iaLevelFromCourse(item.course)}</span>
                     ) : null}
-                    {item.topic ? <span className="ia-meta-chip">{item.topic}</span> : null}
                   </div>
+                  {item.topic ? <IaTopicBar topic={item.topic} /> : null}
                 </div>
               </Link>
             ))}
@@ -2327,12 +2427,23 @@ function IaDetailPage({ user, cachedProfile }) {
       setLoadingIa(true)
       setIaError('')
       try {
-        const [iaSnap, paywallSnap] = await Promise.all([getDoc(iaDocRef), getDoc(paywallDocRef)])
-        const items = normalizeIaItems(iaSnap.data()?.items)
+        const [iaData, paywallData] = await Promise.all([
+          getCachedAppDoc('ia', iaDocRef, (fresh) => {
+            if (!active) return
+            const matched = normalizeIaItems(fresh?.items).find((item) => item.id === iaId) || null
+            setIaItem(matched)
+            if (!matched) setIaError('This IA example could not be found.')
+          }),
+          getCachedAppDoc('paywall', paywallDocRef, (fresh) => {
+            if (!active) return
+            setPaywallConfig(normalizePaywallConfig(fresh))
+          }),
+        ])
+        const items = normalizeIaItems(iaData?.items)
         const matched = items.find((item) => item.id === iaId) || null
         if (!active) return
         setIaItem(matched)
-        setPaywallConfig(normalizePaywallConfig(paywallSnap.data()))
+        setPaywallConfig(normalizePaywallConfig(paywallData))
         if (!matched) setIaError('This IA example could not be found.')
       } catch (error) {
         if (!active) return
@@ -2461,9 +2572,9 @@ function IaDetailPage({ user, cachedProfile }) {
                 {iaLevelFromCourse(iaItem.course) ? (
                   <span className="ia-meta-chip">{iaLevelFromCourse(iaItem.course)}</span>
                 ) : null}
-                {iaItem.topic ? <span className="ia-meta-chip">{iaItem.topic}</span> : null}
                 {unlocked ? <span className="ia-meta-chip ia-meta-chip-unlocked">Unlocked</span> : null}
               </div>
+              {iaItem.topic ? <IaTopicBar topic={iaItem.topic} /> : null}
 
               {iaStudentSummary(iaItem) ? (
                 <div className="ia-summary-card">
@@ -2550,7 +2661,7 @@ function IaDetailPage({ user, cachedProfile }) {
   )
 }
 
-const teachersResourceCategories = ['All', 'Guides', 'Worksheets', 'Videos', 'Classroom', 'Assessments', 'Other']
+const teachersResourceCategories = ['All', 'Activities', 'Worksheets', 'Videos', 'Classroom', 'Assessments', 'Other']
 
 function TeachersResourceCardPreview({ post }) {
   if (post.imageUrl) {
@@ -2565,8 +2676,8 @@ function TeachersResourceCardPreview({ post }) {
 }
 
 function TeachersResourcesPage({ user, cachedProfile }) {
-  const [posts, setPosts] = useState([])
-  const [loadingPosts, setLoadingPosts] = useState(true)
+  const [posts, setPosts] = useState(() => normalizeTeachersResourcesPosts(readCachedAppDoc('teachersResources')?.items))
+  const [loadingPosts, setLoadingPosts] = useState(() => readCachedAppDoc('teachersResources') === undefined)
   const [postsError, setPostsError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
@@ -2575,13 +2686,16 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     let active = true
 
     async function loadPosts() {
-      setLoadingPosts(true)
+      if (readCachedAppDoc('teachersResources') === undefined) setLoadingPosts(true)
       setPostsError('')
       try {
-        const postsSnap = await getDoc(teachersResourcesDocRef)
-        const items = normalizeTeachersResourcesPosts(postsSnap.data()?.items)
+        const data = await getCachedAppDoc('teachersResources', teachersResourcesDocRef, (fresh) => {
+          if (!active) return
+          setPosts(normalizeTeachersResourcesPosts(fresh?.items))
+          setLoadingPosts(false)
+        })
         if (!active) return
-        setPosts(items)
+        setPosts(normalizeTeachersResourcesPosts(data?.items))
       } catch (error) {
         if (!active) return
         setPostsError(error?.message || 'Unable to load teachers resources right now.')
@@ -2631,7 +2745,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
           </p>
           <h1>Teachers &amp; Resources</h1>
           <p className="ia-hero-sub">
-            Classroom guides and materials — open fully on <BrandWordmark className="brand-wordmark-inline" />
+            Classroom activities and materials — open fully on <BrandWordmark className="brand-wordmark-inline" />
           </p>
           <label className="ia-search-simple">
             <span className="sr-only">Search teachers resources</span>
@@ -2639,7 +2753,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search guides, worksheets, classroom ideas..."
+              placeholder="Search activities, worksheets, classroom ideas..."
             />
           </label>
         </div>
@@ -2669,7 +2783,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
         {!loadingPosts && posts.length === 0 ? (
           <div className="ia-empty">
             <h2>No resources yet</h2>
-            <p>Teacher guides and classroom materials will appear here soon.</p>
+            <p>Teacher activities and classroom materials will appear here soon.</p>
           </div>
         ) : null}
         {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
@@ -2718,8 +2832,14 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
       setLoadingPost(true)
       setPostError('')
       try {
-        const postsSnap = await getDoc(teachersResourcesDocRef)
-        const items = normalizeTeachersResourcesPosts(postsSnap.data()?.items)
+        const data = await getCachedAppDoc('teachersResources', teachersResourcesDocRef, (fresh) => {
+          if (!active) return
+          const nextItems = normalizeTeachersResourcesPosts(fresh?.items)
+          const nextMatched = nextItems.find((item) => item.id === postId) || null
+          setPost(nextMatched)
+          if (!nextMatched) setPostError('This resource could not be found.')
+        })
+        const items = normalizeTeachersResourcesPosts(data?.items)
         const matched = items.find((item) => item.id === postId) || null
         if (!active) return
         setPost(matched)
@@ -2782,106 +2902,136 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
   )
 }
 
-function PrivacyPolicyPage({ user, cachedProfile }) {
+function LegalDocumentPage({ user, cachedProfile, title, intro, sections }) {
   return (
-    <main className="site site-full">
+    <main className="site site-full legal-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Privacy Policy</h1>
-        <p>
-          Mathelaureate is an international mathematics learning platform focused on IBDP, IGCSE, and IBMYP programs.
-          This Privacy Policy explains how we collect, use, store, and protect information when you use our website
-          and services.
-        </p>
-        <h2>Information We Collect</h2>
-        <p>
-          We may collect account data (name, email, profile image), learning activity and progress data, payment
-          metadata for paid courses, and messages sent through contact forms. We also collect technical diagnostics
-          needed to improve reliability and security.
-        </p>
-        <h2>How We Use Data</h2>
-        <p>
-          We use information to deliver course access, personalize learning experience, process payments, provide
-          support, maintain platform performance, and communicate important product or policy updates.
-        </p>
-        <h2>Data Storage and Security</h2>
-        <p>
-          Mathelaureate uses trusted cloud providers for authentication, storage, and payment workflows. We apply
-          reasonable safeguards to protect user data from unauthorized access, disclosure, or misuse.
-        </p>
-        <h2>Data Sharing</h2>
-        <p>
-          We do not sell personal information. Data may be shared with essential service providers only when needed to
-          run the platform (for example, hosting, media storage, and payment processing), or where required by law.
-        </p>
-        <h2>Student and Parent Rights</h2>
-        <p>
-          Parents or guardians may request access, correction, or deletion of student-linked information where
-          applicable. Users may also request account or data updates through our contact channels.
-        </p>
-        <h2>Policy Updates</h2>
-        <p>
-          We may update this policy periodically. Continued use of the platform after an update means you accept the
-          revised Privacy Policy.
-        </p>
+      <section className="legal-hero">
+        <div className="legal-hero-inner">
+          <p className="eyebrow">Legal</p>
+          <h1>{title}</h1>
+          <p className="legal-hero-lead">{intro}</p>
+          <p className="legal-updated">Last updated 31 August 2026</p>
+        </div>
+      </section>
+      <section className="legal-shell">
+        <nav className="legal-toc" aria-label="On this page">
+          <p>On this page</p>
+          {sections.map((section) => (
+            <a key={section.id} href={`#${section.id}`}>
+              {section.title}
+            </a>
+          ))}
+        </nav>
+        <div className="legal-sections">
+          {sections.map((section, index) => (
+            <article key={section.id} id={section.id} className="legal-card">
+              <span className="legal-card-num">{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <h2>{section.title}</h2>
+                <p>{section.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   )
 }
 
+function PrivacyPolicyPage({ user, cachedProfile }) {
+  return (
+    <LegalDocumentPage
+      user={user}
+      cachedProfile={cachedProfile}
+      title="Privacy Policy"
+      intro="Mathelaureate is an international mathematics learning platform focused on IBDP, IGCSE, and IBMYP programs. This policy explains how we collect, use, store, and protect information when you use our website and services."
+      sections={[
+        {
+          id: 'collect',
+          title: 'Information We Collect',
+          body: 'We may collect account data (name, email, profile image), learning activity and progress data, payment metadata for paid courses, and messages sent through contact forms. We also collect technical diagnostics needed to improve reliability and security.',
+        },
+        {
+          id: 'use',
+          title: 'How We Use Data',
+          body: 'We use information to deliver course access, personalize learning experience, process payments, provide support, maintain platform performance, and communicate important product or policy updates.',
+        },
+        {
+          id: 'storage',
+          title: 'Data Storage and Security',
+          body: 'Mathelaureate uses trusted cloud providers for authentication, storage, and payment workflows. We apply reasonable safeguards to protect user data from unauthorized access, disclosure, or misuse.',
+        },
+        {
+          id: 'sharing',
+          title: 'Data Sharing',
+          body: 'We do not sell personal information. Data may be shared with essential service providers only when needed to run the platform (for example, hosting, media storage, and payment processing), or where required by law.',
+        },
+        {
+          id: 'rights',
+          title: 'Student and Parent Rights',
+          body: 'Parents or guardians may request access, correction, or deletion of student-linked information where applicable. Users may also request account or data updates through our contact channels.',
+        },
+        {
+          id: 'updates',
+          title: 'Policy Updates',
+          body: 'We may update this policy periodically. Continued use of the platform after an update means you accept the revised Privacy Policy.',
+        },
+      ]}
+    />
+  )
+}
+
 function TermsOfUsePage({ user, cachedProfile }) {
   return (
-    <main className="site site-full">
-      <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="panel-section">
-        <h1>Terms of Use</h1>
-        <p>
-          By accessing Mathelaureate, you agree to these Terms of Use. If you do not agree, please do not use the
-          website or related services.
-        </p>
-        <h2>Service Scope</h2>
-        <p>
-          Mathelaureate provides mathematics learning resources, assessments, and support content for academic
-          preparation. Content is for educational use and should be used responsibly alongside formal school guidance.
-        </p>
-        <h2>Accounts and Access</h2>
-        <p>
-          You are responsible for activities performed under your account and for maintaining login confidentiality.
-          Access to some lessons or units may depend on subscription or payment status.
-        </p>
-        <h2>Payments</h2>
-        <p>
-          Paid features, if applicable, are governed by the pricing and lock settings visible on the platform at the
-          time of purchase. Payment transactions are processed through third-party providers.
-        </p>
-        <h2>Intellectual Property</h2>
-        <p>
-          All educational content, branding, and platform materials are owned by Mathelaureate or its licensors. You
-          may not copy, republish, distribute, or commercially use content without written authorization.
-        </p>
-        <h2>Acceptable Use</h2>
-        <p>
-          Users must not attempt unauthorized access, abuse platform functionality, disrupt service, upload harmful
-          content, or violate applicable laws while using the website.
-        </p>
-        <h2>Third-Party Services</h2>
-        <p>
-          The platform may link to third-party services and resources. Mathelaureate is not responsible for third-party
-          content, availability, or independent policies.
-        </p>
-        <h2>Limitation of Liability</h2>
-        <p>
-          Services are provided on an &quot;as is&quot; basis. While we aim for high quality and uptime, we cannot guarantee
-          uninterrupted access. To the extent permitted by law, Mathelaureate is not liable for indirect or
-          consequential damages.
-        </p>
-        <h2>Updates to Terms</h2>
-        <p>
-          These terms may be updated from time to time. Continued use after updates indicates acceptance of the revised
-          Terms of Use.
-        </p>
-      </section>
-    </main>
+    <LegalDocumentPage
+      user={user}
+      cachedProfile={cachedProfile}
+      title="Terms of Use"
+      intro="By accessing Mathelaureate, you agree to these Terms of Use. If you do not agree, please do not use the website or related services."
+      sections={[
+        {
+          id: 'scope',
+          title: 'Service Scope',
+          body: 'Mathelaureate provides mathematics learning resources, assessments, and support content for academic preparation. Content is for educational use and should be used responsibly alongside formal school guidance.',
+        },
+        {
+          id: 'accounts',
+          title: 'Accounts and Access',
+          body: 'You are responsible for activities performed under your account and for maintaining login confidentiality. Access to some lessons or units may depend on subscription or payment status.',
+        },
+        {
+          id: 'payments',
+          title: 'Payments',
+          body: 'Paid features, if applicable, are governed by the pricing and lock settings visible on the platform at the time of purchase. Payment transactions are processed through third-party providers.',
+        },
+        {
+          id: 'ip',
+          title: 'Intellectual Property',
+          body: 'All educational content, branding, and platform materials are owned by Mathelaureate or its licensors. You may not copy, republish, distribute, or commercially use content without written authorization.',
+        },
+        {
+          id: 'acceptable',
+          title: 'Acceptable Use',
+          body: 'Users must not attempt unauthorized access, abuse platform functionality, disrupt service, upload harmful content, or violate applicable laws while using the website.',
+        },
+        {
+          id: 'third-party',
+          title: 'Third-Party Services',
+          body: 'The platform may link to third-party services and resources. Mathelaureate is not responsible for third-party content, availability, or independent policies.',
+        },
+        {
+          id: 'liability',
+          title: 'Limitation of Liability',
+          body: 'Services are provided on an "as is" basis. While we aim for high quality and uptime, we cannot guarantee uninterrupted access. To the extent permitted by law, Mathelaureate is not liable for indirect or consequential damages.',
+        },
+        {
+          id: 'updates',
+          title: 'Updates to Terms',
+          body: 'These terms may be updated from time to time. Continued use after updates indicates acceptance of the revised Terms of Use.',
+        },
+      ]}
+    />
   )
 }
 
@@ -2923,24 +3073,24 @@ function CoursePage({ user, authReady, cachedProfile }) {
       setCourseError('')
 
       try {
-        const curriculaSnap = await getDoc(curriculaDocRef)
-        const courses = ensureRequiredCurricula(curriculaSnap.data()?.courses)
+        const [curriculaData, fetchedRecords, paywallData, paymentSnap, progressSnap] = await Promise.all([
+          getCachedAppDoc('curricula', curriculaDocRef),
+          getCachedContentItems(),
+          getCachedAppDoc('paywall', paywallDocRef),
+          getDoc(doc(db, 'userPayments', user.uid)),
+          getDoc(doc(db, 'userCourseProgress', user.uid)),
+        ])
+        const courses = ensureRequiredCurricula(curriculaData?.courses)
         const matchedCurriculum = courses.find((item) => item.id === course.curriculumId) || null
 
-        const recordsSnap = await getDocs(contentItemsCollectionRef)
-        const filteredItems = recordsSnap.docs
-          .map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }))
+        const filteredItems = fetchedRecords
           .filter((item) => item.curriculumId === course.curriculumId)
           .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
-        const paywallSnap = await getDoc(paywallDocRef)
-        const nextPaywallConfig = normalizePaywallConfig(paywallSnap.data())
-        const paymentSnap = await getDoc(doc(db, 'userPayments', user.uid))
+        const nextPaywallConfig = normalizePaywallConfig(paywallData)
         const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
         const nextPaidCourses = nextPayments.courses
 
-        const progressRef = doc(db, 'userCourseProgress', user.uid)
-        const progressSnap = await getDoc(progressRef)
         const lastViewedCourse = progressSnap.exists() ? progressSnap.data()?.courses?.[course.slug] : null
 
         function hasSubunit(unitId, subunitName) {
@@ -3809,13 +3959,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
       setBuildError('')
 
       try {
-        const curriculaSnap = await getDoc(curriculaDocRef)
-        const courses = ensureRequiredCurricula(curriculaSnap.data()?.courses)
+        const [curriculaData, fetchedRecords] = await Promise.all([
+          getCachedAppDoc('curricula', curriculaDocRef),
+          getCachedContentItems(),
+        ])
+        const courses = ensureRequiredCurricula(curriculaData?.courses)
         const matchedCurriculum = courses.find((item) => item.id === selectedCourse.curriculumId) || null
 
-        const recordsSnap = await getDocs(contentItemsCollectionRef)
-        const questions = recordsSnap.docs
-          .map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }))
+        const questions = fetchedRecords
           .filter((item) => item.curriculumId === selectedCourse.curriculumId && item.itemType === 'question')
 
         if (!active) return
@@ -4820,7 +4971,7 @@ function AdminPage({ mode = 'admin' }) {
   const [defaultIaUnlockPriceInput, setDefaultIaUnlockPriceInput] = useState('')
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
-  const [resourcePostCategory, setResourcePostCategory] = useState('Guides')
+  const [resourcePostCategory, setResourcePostCategory] = useState('Activities')
   const [resourcePostLink, setResourcePostLink] = useState('')
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
@@ -4943,33 +5094,34 @@ function AdminPage({ mode = 'admin' }) {
       setIsDataLoading(true)
       setDataError('')
       try {
-        const curriculaSnap = await getDoc(curriculaDocRef)
+        const [curriculaData, fetchedRecords, paywallData, iaData, teachersResourcesData] = await Promise.all([
+          getCachedAppDoc('curricula', curriculaDocRef),
+          getCachedContentItems(),
+          getCachedAppDoc('paywall', paywallDocRef),
+          getCachedAppDoc('ia', iaDocRef),
+          getCachedAppDoc('teachersResources', teachersResourcesDocRef),
+        ])
         let courses = defaultCurricula
 
-        if (curriculaSnap.exists()) {
-          const savedCourses = curriculaSnap.data()?.courses
+        if (curriculaData) {
+          const savedCourses = curriculaData?.courses
           courses = ensureRequiredCurricula(savedCourses)
           if (JSON.stringify(savedCourses || []) !== JSON.stringify(courses)) {
             await setDoc(curriculaDocRef, { courses })
+            writeCachedAppDoc('curricula', { courses })
           }
         } else {
           await setDoc(curriculaDocRef, { courses: defaultCurricula })
+          writeCachedAppDoc('curricula', { courses: defaultCurricula })
         }
 
-        const recordsSnap = await getDocs(contentItemsCollectionRef)
-        const fetchedRecords = recordsSnap.docs
-          .map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }))
-          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-        const paywallSnap = await getDoc(paywallDocRef)
-        const nextPaywallConfig = normalizePaywallConfig(paywallSnap.data())
-        const iaSnap = await getDoc(iaDocRef)
-        const nextIaItems = normalizeIaItems(iaSnap.data()?.items)
-        const teachersResourcesSnap = await getDoc(teachersResourcesDocRef)
-        const nextTeachersResourcesPosts = normalizeTeachersResourcesPosts(teachersResourcesSnap.data()?.items)
+        const nextPaywallConfig = normalizePaywallConfig(paywallData)
+        const nextIaItems = normalizeIaItems(iaData?.items)
+        const nextTeachersResourcesPosts = normalizeTeachersResourcesPosts(teachersResourcesData?.items)
 
         if (!active) return
         setCurricula(courses)
-        setRecords(fetchedRecords)
+        setRecords([...fetchedRecords].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')))
         setIaItems(nextIaItems)
         setTeachersResourcesPosts(nextTeachersResourcesPosts)
         setCurriculumId(courses[0]?.id ?? '')
@@ -5011,10 +5163,12 @@ function AdminPage({ mode = 'admin' }) {
     const normalized = normalizeCurriculaOrdering(updated)
     setCurricula(normalized)
     await setDoc(curriculaDocRef, { courses: normalized })
+    writeCachedAppDoc('curricula', { courses: normalized })
   }
 
   function persistRecords(updated) {
     setRecords(updated)
+    writeCachedAppDoc('courseContentItems', updated)
   }
 
   async function persistPaywall(nextConfig) {
@@ -5026,6 +5180,7 @@ function AdminPage({ mode = 'admin' }) {
     setPaywallConfig(nextConfig)
     try {
       await setDoc(paywallDocRef, nextConfig, { merge: true })
+      writeCachedAppDoc('paywall', nextConfig)
       setDataError('')
     } catch (error) {
       setDataError(error?.message || 'Unable to save paywall settings.')
@@ -5044,6 +5199,7 @@ function AdminPage({ mode = 'admin' }) {
     setIsIaSaving(true)
     try {
       await setDoc(iaDocRef, { items: normalized }, { merge: true })
+      writeCachedAppDoc('ia', { items: normalized })
       setDataError('')
     } catch (error) {
       setDataError(error?.message || 'Unable to save IA examples.')
@@ -5062,6 +5218,7 @@ function AdminPage({ mode = 'admin' }) {
     setIsTeachersResourcesSaving(true)
     try {
       await setDoc(teachersResourcesDocRef, { items: normalized }, { merge: true })
+      writeCachedAppDoc('teachersResources', { items: normalized })
       setDataError('')
     } catch (error) {
       setDataError(error?.message || 'Unable to save teachers resources.')
@@ -6283,7 +6440,7 @@ function AdminPage({ mode = 'admin' }) {
         id: `tr-${Date.now()}`,
         title: resourcePostTitle.trim(),
         description: resourcePostDescription.trim(),
-        category: resourcePostCategory.trim() || 'Guides',
+        category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
         link: resourcePostLink.trim(),
         imageUrl,
         imagePath,
@@ -6294,7 +6451,7 @@ function AdminPage({ mode = 'admin' }) {
     await persistTeachersResourcesPosts(nextPosts)
     setResourcePostTitle('')
     setResourcePostDescription('')
-    setResourcePostCategory('Guides')
+    setResourcePostCategory('Activities')
     setResourcePostLink('')
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
@@ -6801,7 +6958,7 @@ function AdminPage({ mode = 'admin' }) {
                       </button>
                     </div>
                     <h3>{item.title}</h3>
-                    <small>{item.category || 'Guides'}</small>
+                    <small>{item.category || 'Activities'}</small>
                     <LatexText value={item.description} className="latex-text" />
                     {item.imageUrl ? (
                       <div className="admin-record-image">
@@ -7359,22 +7516,38 @@ function App() {
       }
 
       try {
-        const curriculaSnap = await getDoc(curriculaDocRef)
-        if (!curriculaSnap.exists()) {
-          await setDoc(curriculaDocRef, { courses: defaultCurricula })
+        const [curricula, paywall, ia, teachersResources] = await Promise.all([
+          getCachedAppDoc('curricula', curriculaDocRef),
+          getCachedAppDoc('paywall', paywallDocRef),
+          getCachedAppDoc('ia', iaDocRef),
+          getCachedAppDoc('teachersResources', teachersResourcesDocRef),
+        ])
+        const seeds = []
+        if (!curricula) {
+          seeds.push(
+            setDoc(curriculaDocRef, { courses: defaultCurricula }).then(() =>
+              writeCachedAppDoc('curricula', { courses: defaultCurricula }),
+            ),
+          )
         }
-        const paywallSnap = await getDoc(paywallDocRef)
-        if (!paywallSnap.exists()) {
-          await setDoc(paywallDocRef, normalizePaywallConfig())
+        if (!paywall) {
+          seeds.push(
+            setDoc(paywallDocRef, normalizePaywallConfig()).then(() =>
+              writeCachedAppDoc('paywall', normalizePaywallConfig()),
+            ),
+          )
         }
-        const iaSnap = await getDoc(iaDocRef)
-        if (!iaSnap.exists()) {
-          await setDoc(iaDocRef, { items: [] })
+        if (!ia) {
+          seeds.push(setDoc(iaDocRef, { items: [] }).then(() => writeCachedAppDoc('ia', { items: [] })))
         }
-        const teachersResourcesSnap = await getDoc(teachersResourcesDocRef)
-        if (!teachersResourcesSnap.exists()) {
-          await setDoc(teachersResourcesDocRef, { items: [] })
+        if (!teachersResources) {
+          seeds.push(
+            setDoc(teachersResourcesDocRef, { items: [] }).then(() =>
+              writeCachedAppDoc('teachersResources', { items: [] }),
+            ),
+          )
         }
+        if (seeds.length) await Promise.all(seeds)
       } catch {
         // Ignore seeding failure; admin view will still show actionable errors.
       }

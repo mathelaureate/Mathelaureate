@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { getAnalytics } from 'firebase/analytics'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCTnyJtJeJWSMeSSrTfVIUiYThTzkPPqgk',
@@ -20,4 +20,17 @@ if (typeof window !== 'undefined') {
 }
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+function createDb() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    })
+  } catch {
+    return getFirestore(app)
+  }
+}
+
+export const db = createDb()
