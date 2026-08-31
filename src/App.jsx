@@ -1533,15 +1533,28 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
     'P'
   const navigate = useNavigate()
   const location = useLocation()
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   function onLoginSignupClick() {
     navigate('/courses/ibdp-aa')
   }
 
-  const isHome = location.pathname === '/'
+  const path = location.pathname
+  const isHome = path === '/'
+  const isIa = path.startsWith('/ia')
+  const isMock = path.startsWith('/mock-generator')
+  const isTeachers = path.startsWith('/teachers-resources')
+  const isProfile = path.startsWith('/profile')
 
   return (
-    <header className={`topbar site-topbar ${bare ? 'topbar-bare' : ''}`} id="home">
+    <header className={`topbar site-topbar ${bare ? 'topbar-bare' : ''}${scrolled ? ' is-scrolled' : ''}`} id="home">
       <div className="topbar-inner">
         <Link to="/" className="brand" aria-label="Mathelaureate home">
           <img src="/menu-logo.png" alt="Mathelaureate" className="brand-logo-image" />
@@ -1551,12 +1564,18 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
             Home
           </a>
           <a href="/#programs">Programs</a>
-          <Link to="/ia">IA</Link>
-          <Link to="/mock-generator">Mock Generator</Link>
-          <Link to="/teachers-resources">Teachers &amp; Resources</Link>
+          <Link to="/ia" className={isIa ? 'nav-active' : undefined}>
+            IA
+          </Link>
+          <Link to="/mock-generator" className={isMock ? 'nav-active' : undefined}>
+            Mock Generator
+          </Link>
+          <Link to="/teachers-resources" className={isTeachers ? 'nav-active' : undefined}>
+            Teachers &amp; Resources
+          </Link>
           <a href="/#contact">Contact</a>
           {user || cachedProfile ? (
-            <Link to="/profile" className="profile-icon" aria-label="Profile">
+            <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Profile">
               {profileLabel}
             </Link>
           ) : (
@@ -1568,6 +1587,15 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
       </div>
     </header>
   )
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, left: 0, behavior: reduce ? 'auto' : 'smooth' })
+  }, [pathname])
+  return null
 }
 
 function HomePage({ user, cachedProfile }) {
@@ -7321,6 +7349,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />
