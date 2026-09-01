@@ -5572,14 +5572,24 @@ body {
   background: #fbfdff;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
+}
+
+.ia-unlock-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .ia-summary-card h3,
 .ia-unlock-card h4 {
-  margin: 0 0 0.45rem;
+  margin: 0;
   color: #0f2c4d;
   font-size: 1rem;
+}
+
+.ia-summary-card h3 {
+  margin-bottom: 0.45rem;
 }
 
 .ia-summary-card p,
@@ -5620,7 +5630,7 @@ body {
   background: #f3fbf7;
   border-color: #bfe3d4;
   text-align: center;
-  justify-items: center;
+  align-items: center;
 }
 
 .ia-unlock-seal {
@@ -5869,15 +5879,20 @@ body {
 }
 
 .ia-pay-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
   width: 100%;
   min-width: 0;
 }
 
-.ia-pay-actions .btn {
+.ia-pay-actions .btn,
+.ia-unlock-card .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  box-sizing: border-box;
   white-space: normal;
   text-align: center;
   line-height: 1.35;
@@ -6806,7 +6821,7 @@ select:focus {
   animation-delay: 80ms;
 }
 
-.ia-unlock-card .btn.primary {
+.ia-unlock-card .ia-pay-actions .btn.primary:first-of-type {
   animation: cta-pulse 2.8s ease-in-out infinite;
 }
 

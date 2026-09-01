@@ -2610,12 +2610,12 @@ function IaDetailPage({ user, cachedProfile }) {
               {!unlocked ? (
                 <div className="ia-unlock-card">
                   <h4>Unlock full exemplar</h4>
-                  {!user ? (
-                    <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
-                      {authBusy ? 'Signing in...' : 'Sign in to continue'}
-                    </button>
-                  ) : null}
                   <div className="ia-pay-actions">
+                    {!user ? (
+                      <button type="button" className="btn primary" onClick={signInForPurchase} disabled={authBusy}>
+                        {authBusy ? 'Signing in...' : 'Sign in to continue'}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="btn primary"
