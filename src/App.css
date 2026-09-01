@@ -5938,26 +5938,6 @@ body {
   font-weight: 700;
 }
 
-.tr-detail-image {
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid #e4e7ec;
-  background: #f2f4f7;
-}
-
-.tr-detail-image img {
-  width: 100%;
-  max-height: 28rem;
-  object-fit: cover;
-  object-position: top center;
-  display: block;
-}
-
-.tr-detail-body {
-  line-height: 1.7;
-  color: #344054;
-}
-
 .ia-page .sr-only {
   position: absolute;
   width: 1px;

@@ -589,12 +589,14 @@ function normalizeTeachersResourcesPosts(raw) {
       title: String(item?.title || '').trim(),
       description: String(item?.description || '').trim(),
       category: mapTeachersResourceCategory(item?.category || item?.topic),
-      link: String(item?.link || '').trim(),
       imageUrl: String(item?.imageUrl || '').trim(),
       imagePath: String(item?.imagePath || '').trim(),
+      pdfUrl: String(item?.pdfUrl || '').trim(),
+      pdfPath: String(item?.pdfPath || '').trim(),
+      pdfFileName: String(item?.pdfFileName || '').trim(),
       createdAt: String(item?.createdAt || ''),
     }))
-    .filter((item) => item.title && item.description)
+    .filter((item) => item.title && (item.description || item.pdfUrl))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
 }
 
@@ -2676,12 +2678,12 @@ const teachersResourceCategories = ['All', 'Activities', 'Worksheets', 'Videos',
 
 function TeachersResourceCardPreview({ post }) {
   if (post.imageUrl) {
-    return <img src={post.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" />
+    return <img src={post.imageUrl} alt="" className="ia-grid-card-image" loading="lazy" decoding="async" />
   }
   return (
     <div className="ia-grid-card-fallback">
-      <span>Resource</span>
-      <p>{post.title}</p>
+      <span>PDF</span>
+      <p>{post.category || post.title || 'Resource'}</p>
     </div>
   )
 }
@@ -2733,7 +2735,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
         return false
       }
       if (!query) return true
-      const haystack = [post.title, post.description, post.category].join(' ').toLowerCase()
+      const haystack = [post.title, post.description, post.category, post.pdfFileName].join(' ').toLowerCase()
       return haystack.includes(query)
     })
   }, [posts, searchQuery, categoryFilter])
@@ -2744,7 +2746,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
   }
 
   return (
-    <main className="site site-full ia-page tr-page">
+    <main className="site site-full ia-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
 
       <section className="ia-hero">
@@ -2755,9 +2757,35 @@ function TeachersResourcesPage({ user, cachedProfile }) {
             <span>Teachers &amp; Resources</span>
           </p>
           <h1>Teachers &amp; Resources</h1>
-          <p className="ia-hero-sub">
-            Classroom activities and materials — open fully on <BrandWordmark className="brand-wordmark-inline" />
-          </p>
+          <p className="ia-hero-sub">Classroom activities, worksheets, and teaching materials</p>
+        </div>
+      </section>
+
+      <section className="ia-browse-shell ia-browse-split">
+        <aside className="ia-filter-rail">
+          <div className="ia-filter-block">
+            <div className="ia-filter-head">
+              <h2>Category</h2>
+              <button type="button" className="ia-clear-inline" onClick={clearFilters}>
+                Clear
+              </button>
+            </div>
+            <div className="ia-pill-col" role="group" aria-label="Category">
+              {categoryChips.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  className={`ia-pill${categoryFilter === category ? ' is-active' : ''}`}
+                  onClick={() => setCategoryFilter(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="ia-browse-main">
           <label className="ia-search-simple">
             <span className="sr-only">Search teachers resources</span>
             <input
@@ -2767,62 +2795,42 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               placeholder="Search activities, worksheets, classroom ideas..."
             />
           </label>
-        </div>
-      </section>
 
-      <section className="ia-browse-shell">
-        <div className="ia-toolbar">
-          <div className="ia-pill-row ia-pill-row-scroll" role="group" aria-label="Category">
-            {categoryChips.map((category) => (
-              <button
-                key={category}
-                type="button"
-                className={`ia-pill${categoryFilter === category ? ' is-active' : ''}`}
-                onClick={() => setCategoryFilter(category)}
+          {loadingPosts ? <p className="ia-status">Loading resources...</p> : null}
+          {postsError ? <p className="error-text">{postsError}</p> : null}
+          {!loadingPosts && posts.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No resources yet</h2>
+              <p>Teacher activities and classroom materials will appear here soon.</p>
+            </div>
+          ) : null}
+          {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No matches</h2>
+              <p>Try a different search or category.</p>
+            </div>
+          ) : null}
+
+          <div className="ia-card-grid">
+            {filteredPosts.map((post) => (
+              <Link
+                key={post.id}
+                to={`/teachers-resources/${encodeURIComponent(post.id)}`}
+                className="ia-grid-card"
               >
-                {category}
-              </button>
+                <div className="ia-grid-card-preview">
+                  <TeachersResourceCardPreview post={post} />
+                </div>
+                <div className="ia-grid-card-body">
+                  <div className="ia-idea-meta">
+                    <span className="ia-meta-chip">Resource</span>
+                    {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
+                  </div>
+                  {post.title ? <IaTopicBar topic={post.title} /> : null}
+                </div>
+              </Link>
             ))}
           </div>
-          <button type="button" className="ia-clear-inline" onClick={clearFilters}>
-            Clear
-          </button>
-        </div>
-
-        {loadingPosts ? <p className="ia-status">Loading resources...</p> : null}
-        {postsError ? <p className="error-text">{postsError}</p> : null}
-        {!loadingPosts && posts.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No resources yet</h2>
-            <p>Teacher activities and classroom materials will appear here soon.</p>
-          </div>
-        ) : null}
-        {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
-          <div className="ia-empty">
-            <h2>No matches</h2>
-            <p>Try a different search or category.</p>
-          </div>
-        ) : null}
-
-        <div className="ia-card-grid">
-          {filteredPosts.map((post) => (
-            <Link
-              key={post.id}
-              to={`/teachers-resources/${encodeURIComponent(post.id)}`}
-              className="ia-grid-card"
-            >
-              <div className="ia-grid-card-preview">
-                <TeachersResourceCardPreview post={post} />
-              </div>
-              <div className="ia-grid-card-body">
-                <h2 className="ia-card-title">{post.title}</h2>
-                <div className="ia-idea-meta">
-                  <span className="ia-meta-chip">Resource</span>
-                  {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
-                </div>
-              </div>
-            </Link>
-          ))}
         </div>
       </section>
     </main>
@@ -2870,7 +2878,7 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
   }, [postId])
 
   return (
-    <main className="site site-full ia-page ia-detail-page tr-page">
+    <main className="site site-full ia-page ia-detail-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
       <section className="ia-detail-shell">
         <button type="button" className="ia-back-link" onClick={() => navigate('/teachers-resources')}>
@@ -2881,31 +2889,50 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
         {postError ? <p className="error-text">{postError}</p> : null}
 
         {post ? (
-          <article className="ia-detail-panel">
-            <p className="ia-breadcrumb">
-              <Link to="/">Home</Link>
-              <span aria-hidden="true"> • </span>
-              <Link to="/teachers-resources">Teachers &amp; Resources</Link>
-              <span aria-hidden="true"> • </span>
-              <span>{post.category || 'Resource'}</span>
-            </p>
-            <h1>{post.title}</h1>
-            <div className="ia-idea-meta">
-              <span className="ia-meta-chip">Resource</span>
-              {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
-              {formatMetaDate(post.createdAt) ? <span className="ia-meta-chip">{formatMetaDate(post.createdAt)}</span> : null}
-            </div>
-            {post.imageUrl ? (
-              <div className="tr-detail-image">
-                <img src={post.imageUrl} alt={post.title} />
+          <article className="ia-detail-panel ia-detail-panel-split">
+            <div className="ia-detail-info">
+              <p className="ia-breadcrumb">
+                <Link to="/">Home</Link>
+                <span aria-hidden="true"> • </span>
+                <Link to="/teachers-resources">Teachers &amp; Resources</Link>
+                <span aria-hidden="true"> • </span>
+                <span>{post.category || 'Resource'}</span>
+              </p>
+              <div className="ia-idea-meta">
+                <span className="ia-meta-chip">Resource</span>
+                {post.category ? <span className="ia-meta-chip">{post.category}</span> : null}
+                {formatMetaDate(post.createdAt) ? <span className="ia-meta-chip">{formatMetaDate(post.createdAt)}</span> : null}
               </div>
-            ) : null}
-            <LatexText value={post.description} className="latex-text tr-detail-body" />
-            {post.link && isSafeUrl(post.link) ? (
-              <a className="btn ghost" href={post.link} target="_blank" rel="noreferrer">
-                Related link
-              </a>
-            ) : null}
+              {post.title ? <IaTopicBar topic={post.title} /> : null}
+
+              {post.description ? (
+                <div className="ia-summary-card">
+                  <h3>Summary</h3>
+                  <LatexText value={post.description} className="latex-text" />
+                </div>
+              ) : null}
+
+              <div className="ia-facts-grid">
+                <div className="ia-fact-card">
+                  <span>Document</span>
+                  <strong>{post.pdfFileName || (post.pdfUrl ? 'PDF uploaded' : 'Not uploaded')}</strong>
+                </div>
+                <div className="ia-fact-card">
+                  <span>Category</span>
+                  <strong>{post.category || 'Activities'}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="ia-detail-viewer">
+              {post.pdfUrl ? (
+                <Suspense fallback={<p className="ia-doc-status">Loading document…</p>}>
+                  <IaDocumentViewer url={post.pdfUrl} unlocked previewPages={1} />
+                </Suspense>
+              ) : (
+                <p className="muted-text">No PDF uploaded for this resource yet.</p>
+              )}
+            </div>
           </article>
         ) : null}
       </section>
@@ -5128,9 +5155,9 @@ function AdminPage({ mode = 'admin' }) {
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
   const [resourcePostCategory, setResourcePostCategory] = useState('Activities')
-  const [resourcePostLink, setResourcePostLink] = useState('')
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
+  const [resourcePostPdfFile, setResourcePostPdfFile] = useState(null)
   const [isTeachersResourcesSaving, setIsTeachersResourcesSaving] = useState(false)
   const [newTopicName, setNewTopicName] = useState('')
   const [newSubtopicName, setNewSubtopicName] = useState('')
@@ -6568,27 +6595,65 @@ function AdminPage({ mode = 'admin' }) {
     setIaPdfFile(file)
   }
 
+  function onResourcePostPdfChange(event) {
+    const file = event.target.files?.[0] || null
+    if (!file) {
+      setResourcePostPdfFile(null)
+      return
+    }
+    const mime = String(file.type || '').toLowerCase()
+    const name = String(file.name || '').toLowerCase()
+    if (mime !== 'application/pdf' && !name.endsWith('.pdf')) {
+      setDataError('Only PDF files are allowed for resource uploads.')
+      event.target.value = ''
+      setResourcePostPdfFile(null)
+      return
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setDataError('PDF must be 25MB or smaller.')
+      event.target.value = ''
+      setResourcePostPdfFile(null)
+      return
+    }
+    setDataError('')
+    setResourcePostPdfFile(file)
+  }
+
   async function submitTeachersResourcePost(event) {
     event.preventDefault()
-    if (!resourcePostTitle.trim() || !resourcePostDescription.trim()) return
+    if (!resourcePostTitle.trim()) return
+    if (!resourcePostPdfFile) {
+      setDataError('Upload a PDF for this resource.')
+      return
+    }
+    if (!supabaseConfigured) {
+      setDataError('Supabase not configured. Add Supabase env values before uploading files.')
+      return
+    }
 
     let imageUrl = ''
     let imagePath = ''
-    if (resourcePostImageFile) {
-      if (!supabaseConfigured) {
-        setDataError('Supabase not configured. Add Supabase env values before uploading images.')
-        return
-      }
-      try {
-        setIsTeachersResourcesSaving(true)
+    let pdfUrl = ''
+    let pdfPath = ''
+    let pdfFileName = ''
+
+    try {
+      setIsTeachersResourcesSaving(true)
+      setDataError('')
+      const pdfUpload = await uploadPdfToSupabase(resourcePostPdfFile, 'teachers-resources-pdfs')
+      pdfUrl = pdfUpload.publicUrl
+      pdfPath = pdfUpload.path
+      pdfFileName = String(resourcePostPdfFile.name || 'resource.pdf').slice(0, 180)
+
+      if (resourcePostImageFile) {
         const uploadResult = await uploadImageToSupabase(resourcePostImageFile, 'teachers-resources')
         imageUrl = uploadResult.publicUrl
         imagePath = uploadResult.path
-      } catch (error) {
-        setIsTeachersResourcesSaving(false)
-        setDataError(error?.message || 'Unable to upload image to Supabase.')
-        return
       }
+    } catch (error) {
+      setIsTeachersResourcesSaving(false)
+      setDataError(error?.message || 'Unable to upload resource files to Supabase.')
+      return
     }
 
     const nextPosts = [
@@ -6597,9 +6662,11 @@ function AdminPage({ mode = 'admin' }) {
         title: resourcePostTitle.trim(),
         description: resourcePostDescription.trim(),
         category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
-        link: resourcePostLink.trim(),
         imageUrl,
         imagePath,
+        pdfUrl,
+        pdfPath,
+        pdfFileName,
         createdAt: new Date().toISOString(),
       },
       ...teachersResourcesPosts,
@@ -6608,9 +6675,9 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostTitle('')
     setResourcePostDescription('')
     setResourcePostCategory('Activities')
-    setResourcePostLink('')
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
+    setResourcePostPdfFile(null)
   }
 
   async function removeTeachersResourcePost(postId) {
@@ -7071,23 +7138,19 @@ function AdminPage({ mode = 'admin' }) {
                 </select>
               </label>
               <label>
-                Full content (shown on site)
+                Summary (optional)
                 <textarea
-                  rows={6}
+                  rows={4}
                   value={resourcePostDescription}
                   onChange={(event) => setResourcePostDescription(event.target.value)}
-                  placeholder="Write the full resource content students/teachers will read on Mathelaureate"
-                  required
+                  placeholder="Short note shown beside the PDF"
                 />
               </label>
               <label>
-                Related link (optional)
-                <input
-                  value={resourcePostLink}
-                  onChange={(event) => setResourcePostLink(event.target.value)}
-                  placeholder="https://..."
-                />
+                Resource PDF (required)
+                <input type="file" accept="application/pdf,.pdf" onChange={onResourcePostPdfChange} required />
               </label>
+              {resourcePostPdfFile ? <small className="muted-text">Selected: {resourcePostPdfFile.name}</small> : null}
               <label>
                 Preview image (card thumbnail — recommended)
                 <input type="file" accept="image/*" onChange={onResourcePostImageChange} />
@@ -7115,15 +7178,16 @@ function AdminPage({ mode = 'admin' }) {
                     </div>
                     <h3>{item.title}</h3>
                     <small>{item.category || 'Activities'}</small>
-                    <LatexText value={item.description} className="latex-text" />
+                    {item.pdfFileName ? <small>{item.pdfFileName}</small> : null}
+                    {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
                     {item.imageUrl ? (
                       <div className="admin-record-image">
                         <img src={item.imageUrl} alt={item.title} />
                       </div>
                     ) : null}
-                    {item.link ? (
-                      <a href={item.link} target="_blank" rel="noreferrer">
-                        Related link
+                    {item.pdfUrl ? (
+                      <a href={item.pdfUrl} target="_blank" rel="noreferrer">
+                        Open uploaded PDF
                       </a>
                     ) : null}
                   </article>
