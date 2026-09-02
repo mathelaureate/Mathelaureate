@@ -4652,11 +4652,40 @@ body {
   text-transform: uppercase;
 }
 
+.study-question-body {
+  display: grid;
+  gap: 0.45rem;
+  color: #0f172a;
+}
+
+.study-question-body .latex-text {
+  margin: 0;
+  white-space: normal;
+}
+
+.study-question-body .content-blocks-render {
+  gap: 0.45rem;
+}
+
+.study-question-body .content-image-block {
+  margin: 0.35rem 0 0.15rem;
+}
+
+.study-question-body .content-image-block img {
+  width: min(520px, 100%);
+  height: auto;
+  object-fit: contain;
+}
+
+.study-question-body .katex-display {
+  margin: 0.4rem 0;
+}
+
 .study-question-preview {
-  margin: 0 0 0.45rem;
+  margin: 0;
   color: #0f172a;
   font-size: 0.95rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .study-question-actions {

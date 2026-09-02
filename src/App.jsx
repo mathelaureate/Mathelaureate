@@ -4956,7 +4956,109 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   )
 }
 
-function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRemove, removingId, embedded = false }) {
+function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
+  const normalizedBlocks = normalizeContentBlocks(blocks)
+  if (normalizedBlocks.length === 0) return null
+  return (
+    <div className="content-blocks-render">
+      {normalizedBlocks.map((block, index) =>
+        block.type === 'image' ? (
+          <div className="content-image-block" key={`${idPrefix}-img-${index}`}>
+            <button
+              type="button"
+              className="image-open-btn"
+              onClick={() => onOpenImage?.(block.imageUrl)}
+              aria-label="Open image in full view"
+            >
+              <img
+                src={block.imageUrl}
+                alt={block.caption || 'Question visual'}
+                style={getContentBlockImageStyle(block)}
+              />
+            </button>
+            {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
+          </div>
+        ) : (
+          <LatexText key={`${idPrefix}-txt-${index}`} value={block.text} className="latex-text" />
+        ),
+      )}
+    </div>
+  )
+}
+
+function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenImage, showRemove = false }) {
+  const href = questionStudyPath(entry)
+  const bodyText = item?.description || entry.preview || 'Saved question'
+  return (
+    <article className="study-question-card">
+      <p className="study-question-kicker">
+        {[entry.courseTitle || entry.courseSlug, entry.unitName || item?.unitName, entry.subunit]
+          .filter(Boolean)
+          .join(' · ')}
+      </p>
+      <div className="question-meta-row">
+        <span className="meta-chip">{(item ? normalizeGdc(item.gdc) : entry.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+        {(item?.marks || entry.marks) ? <span className="meta-chip">{item?.marks || entry.marks} marks</span> : null}
+        {String(item?.questionLevel || entry.questionLevel || '').trim() ? (
+          <span className="meta-chip">{String(item?.questionLevel || entry.questionLevel).toUpperCase()}</span>
+        ) : null}
+        {item?.difficulty || entry.difficulty ? (
+          <span className={`meta-chip difficulty-${String(item?.difficulty || entry.difficulty || 'medium').toLowerCase()}`}>
+            {String(item?.difficulty || entry.difficulty || 'medium')}
+          </span>
+        ) : null}
+      </div>
+      <div className="study-question-body">
+        {item && contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
+          <StudyContentBlocks
+            blocks={item.descriptionBlocks}
+            idPrefix={`study-${entry.questionId}`}
+            onOpenImage={onOpenImage}
+          />
+        ) : (
+          <LatexText value={bodyText} className="latex-text" />
+        )}
+        {item?.imageUrl ? (
+          <div className="content-image-block">
+            <button
+              type="button"
+              className="image-open-btn"
+              onClick={() => onOpenImage?.(item.imageUrl)}
+              aria-label="Open image in full view"
+            >
+              <img src={item.imageUrl} alt="Question visual" style={getRecordImageStyle(item)} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div className="study-question-actions">
+        {href ? (
+          <Link className="my-course-link" to={href}>
+            Open in course
+          </Link>
+        ) : null}
+        {showRemove ? (
+          <button type="button" className="ia-clear-inline" onClick={() => onRemove?.(entry)} disabled={removing}>
+            Remove
+          </button>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+function StudyQuestionList({
+  title,
+  subtitle,
+  items,
+  emptyTitle,
+  emptyBody,
+  onRemove,
+  removingId,
+  embedded = false,
+  questionById,
+  onOpenImage,
+}) {
   const body =
     items.length === 0 ? (
       <div className="ia-empty">
@@ -4965,46 +5067,17 @@ function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRe
       </div>
     ) : (
       <div className="study-question-list">
-        {items.map((entry) => {
-          const href = questionStudyPath(entry)
-          return (
-            <article className="study-question-card" key={entry.questionId}>
-              <div>
-                <p className="study-question-kicker">
-                  {[entry.courseTitle || entry.courseSlug, entry.unitName, entry.subunit]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-                <p className="study-question-preview">{entry.preview || 'Saved question'}</p>
-                <div className="question-meta-row">
-                  <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                  {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
-                  {entry.questionLevel ? (
-                    <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
-                  ) : null}
-                  {entry.difficulty ? (
-                    <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="study-question-actions">
-                {href ? (
-                  <Link className="my-course-link" to={href}>
-                    Open question
-                  </Link>
-                ) : null}
-                <button
-                  type="button"
-                  className="ia-clear-inline"
-                  onClick={() => onRemove(entry)}
-                  disabled={removingId === entry.questionId}
-                >
-                  Remove
-                </button>
-              </div>
-            </article>
-          )
-        })}
+        {items.map((entry) => (
+          <ProfileQuestionCard
+            key={entry.questionId}
+            entry={entry}
+            item={questionById?.get(entry.questionId) || null}
+            onRemove={onRemove}
+            removing={removingId === entry.questionId}
+            onOpenImage={onOpenImage}
+            showRemove
+          />
+        ))}
       </div>
     )
 
@@ -5021,7 +5094,7 @@ function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRe
   )
 }
 
-function SimilarPracticeSection({ groups, empty = false, embedded = false }) {
+function SimilarPracticeSection({ groups, empty = false, embedded = false, questionById, onOpenImage }) {
   const body = empty ? (
     <div className="ia-empty">
       <h2>No similar questions yet</h2>
@@ -5039,34 +5112,14 @@ function SimilarPracticeSection({ groups, empty = false, embedded = false }) {
             </p>
           </div>
           <div className="study-question-list">
-            {group.suggestions.map((entry) => {
-              const href = questionStudyPath(entry)
-              return (
-                <article className="study-question-card" key={entry.questionId}>
-                  <div>
-                    <p className="study-question-kicker">
-                      {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
-                    </p>
-                    <p className="study-question-preview">{entry.preview || 'Practice question'}</p>
-                    <div className="question-meta-row">
-                      <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                      {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
-                      {entry.questionLevel ? (
-                        <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
-                      ) : null}
-                      {entry.difficulty ? (
-                        <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                  {href ? (
-                    <Link className="my-course-link" to={href}>
-                      Open question
-                    </Link>
-                  ) : null}
-                </article>
-              )
-            })}
+            {group.suggestions.map((entry) => (
+              <ProfileQuestionCard
+                key={entry.questionId}
+                entry={entry}
+                item={questionById?.get(entry.questionId) || null}
+                onOpenImage={onOpenImage}
+              />
+            ))}
           </div>
         </article>
       ))}
@@ -5108,6 +5161,14 @@ function ProfilePage({ user, cachedProfile }) {
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
   const [studyBusyId, setStudyBusyId] = useState('')
   const [studyTab, setStudyTab] = useState('bookmarks')
+  const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const questionById = useMemo(() => {
+    const map = new Map()
+    for (const item of questionBank) {
+      if (item?.id) map.set(item.id, item)
+    }
+    return map
+  }, [questionBank])
 
   function nextSuggestionGroups(wrongList, bank = questionBank, courseList = curricula) {
     return suggestSimilarQuestionsByTopic({
@@ -5345,6 +5406,8 @@ function ProfilePage({ user, cachedProfile }) {
                 emptyBody="Open a question and tap the bookmark icon to keep it here."
                 onRemove={(entry) => removeStudyQuestion(SAVED_QUESTIONS_KEY, entry)}
                 removingId={studyBusyId}
+                questionById={questionById}
+                onOpenImage={setExpandedImageUrl}
               />
             ) : studyTab === 'mistakes' ? (
               <StudyQuestionList
@@ -5356,6 +5419,8 @@ function ProfilePage({ user, cachedProfile }) {
                 emptyBody="Tap the × on a question to add it to this list."
                 onRemove={(entry) => removeStudyQuestion(WRONG_QUESTIONS_KEY, entry)}
                 removingId={studyBusyId}
+                questionById={questionById}
+                onOpenImage={setExpandedImageUrl}
               />
             ) : studyTab === 'similar' ? (
               wrongQuestions.length === 0 ? (
@@ -5368,12 +5433,24 @@ function ProfilePage({ user, cachedProfile }) {
                   embedded
                   groups={suggestionGroups}
                   empty={suggestionGroups.length === 0}
+                  questionById={questionById}
+                  onOpenImage={setExpandedImageUrl}
                 />
               )
             ) : null}
           </section>
         </div>
       </section>
+      {expandedImageUrl ? (
+        <section className="image-zoom-overlay" role="dialog" aria-modal="true" onClick={() => setExpandedImageUrl('')}>
+          <article className="image-zoom-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="icon-back-btn image-zoom-close" onClick={() => setExpandedImageUrl('')} aria-label="Close image view">
+              ×
+            </button>
+            <img src={expandedImageUrl} alt="Expanded content" />
+          </article>
+        </section>
+      ) : null}
     </main>
   )
 }
