@@ -4956,67 +4956,124 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   )
 }
 
-function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRemove, removingId }) {
+function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRemove, removingId, embedded = false }) {
+  const body =
+    items.length === 0 ? (
+      <div className="ia-empty">
+        <h2>{emptyTitle}</h2>
+        <p>{emptyBody}</p>
+      </div>
+    ) : (
+      <div className="study-question-list">
+        {items.map((entry) => {
+          const href = questionStudyPath(entry)
+          return (
+            <article className="study-question-card" key={entry.questionId}>
+              <div>
+                <p className="study-question-kicker">
+                  {[entry.courseTitle || entry.courseSlug, entry.unitName, entry.subunit]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+                <p className="study-question-preview">{entry.preview || 'Saved question'}</p>
+                <div className="question-meta-row">
+                  <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                  {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
+                  {entry.questionLevel ? (
+                    <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
+                  ) : null}
+                  {entry.difficulty ? (
+                    <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="study-question-actions">
+                {href ? (
+                  <Link className="my-course-link" to={href}>
+                    Open question
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  className="ia-clear-inline"
+                  onClick={() => onRemove(entry)}
+                  disabled={removingId === entry.questionId}
+                >
+                  Remove
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    )
+
+  if (embedded) return body
+
   return (
     <section className="profile-section">
       <div className="profile-section-head">
         <h2>{title}</h2>
         <p>{subtitle}</p>
       </div>
-      {items.length === 0 ? (
-        <div className="profile-empty">
-          <h3>{emptyTitle}</h3>
-          <p>{emptyBody}</p>
-        </div>
-      ) : (
-        <div className="study-question-list">
-          {items.map((entry) => {
-            const href = questionStudyPath(entry)
-            return (
-              <article className="study-question-card" key={entry.questionId}>
-                <div>
-                  <p className="study-question-kicker">
-                    {[entry.courseTitle || entry.courseSlug, entry.unitName, entry.subunit]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                  <p className="study-question-preview">{entry.preview || 'Saved question'}</p>
-                  <div className="question-meta-row">
-                    <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                    {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
-                    {entry.questionLevel ? (
-                      <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
-                    ) : null}
-                    {entry.difficulty ? (
-                      <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="study-question-actions">
-                  {href ? (
-                    <Link className="my-course-link" to={href}>
-                      Open question →
-                    </Link>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn ghost text-btn"
-                    onClick={() => onRemove(entry)}
-                    disabled={removingId === entry.questionId}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
+      {body}
     </section>
   )
 }
 
-function SimilarPracticeSection({ groups, empty = false }) {
+function SimilarPracticeSection({ groups, empty = false, embedded = false }) {
+  const body = empty ? (
+    <div className="ia-empty">
+      <h2>No similar questions yet</h2>
+      <p>We will suggest nearby questions in these topics as more are added to the bank.</p>
+    </div>
+  ) : (
+    <div className="similar-topic-list">
+      {(groups || []).map((group) => (
+        <article className="similar-topic-card" key={group.topicKey}>
+          <div className="similar-topic-head">
+            <h3>{group.topicLabel}</h3>
+            <p>
+              {group.wrongCount} mistake{group.wrongCount === 1 ? '' : 's'}
+              {group.courseTitle ? ` in ${group.courseTitle}` : ''}
+            </p>
+          </div>
+          <div className="study-question-list">
+            {group.suggestions.map((entry) => {
+              const href = questionStudyPath(entry)
+              return (
+                <article className="study-question-card" key={entry.questionId}>
+                  <div>
+                    <p className="study-question-kicker">
+                      {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="study-question-preview">{entry.preview || 'Practice question'}</p>
+                    <div className="question-meta-row">
+                      <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                      {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
+                      {entry.questionLevel ? (
+                        <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
+                      ) : null}
+                      {entry.difficulty ? (
+                        <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  {href ? (
+                    <Link className="my-course-link" to={href}>
+                      Open question
+                    </Link>
+                  ) : null}
+                </article>
+              )
+            })}
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+
+  if (embedded) return empty || groups?.length ? body : null
   if (empty) {
     return (
       <section className="profile-section">
@@ -5024,65 +5081,18 @@ function SimilarPracticeSection({ groups, empty = false }) {
           <h2>Similar practice</h2>
           <p>Based on questions you marked wrong, grouped by topic.</p>
         </div>
-        <div className="profile-empty">
-          <h3>No similar questions yet</h3>
-          <p>We will suggest nearby questions in these topics as more are added to the bank.</p>
-        </div>
+        {body}
       </section>
     )
   }
-
   if (!groups?.length) return null
-
   return (
     <section className="profile-section">
       <div className="profile-section-head">
         <h2>Similar practice</h2>
         <p>Based on questions you marked wrong, grouped by topic.</p>
       </div>
-      <div className="similar-topic-list">
-        {groups.map((group) => (
-          <article className="similar-topic-card" key={group.topicKey}>
-            <div className="similar-topic-head">
-              <h3>{group.topicLabel}</h3>
-              <p>
-                {group.wrongCount} mistake{group.wrongCount === 1 ? '' : 's'}
-                {group.courseTitle ? ` in ${group.courseTitle}` : ''}
-              </p>
-            </div>
-            <div className="study-question-list">
-              {group.suggestions.map((entry) => {
-                const href = questionStudyPath(entry)
-                return (
-                  <article className="study-question-card" key={entry.questionId}>
-                    <div>
-                      <p className="study-question-kicker">
-                        {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
-                      </p>
-                      <p className="study-question-preview">{entry.preview || 'Practice question'}</p>
-                      <div className="question-meta-row">
-                        <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                        {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
-                        {entry.questionLevel ? (
-                          <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
-                        ) : null}
-                        {entry.difficulty ? (
-                          <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                    {href ? (
-                      <Link className="my-course-link" to={href}>
-                        Open question →
-                      </Link>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
-          </article>
-        ))}
-      </div>
+      {body}
     </section>
   )
 }
@@ -5097,6 +5107,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [curricula, setCurricula] = useState([])
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
   const [studyBusyId, setStudyBusyId] = useState('')
+  const [studyTab, setStudyTab] = useState('bookmarks')
 
   function nextSuggestionGroups(wrongList, bank = questionBank, courseList = curricula) {
     return suggestSimilarQuestionsByTopic({
@@ -5186,157 +5197,181 @@ function ProfilePage({ user, cachedProfile }) {
   const continueHref = lastViewedCourse ? courseContinuePath(lastViewedCourse) : '/#programs'
 
   return (
-    <main className="site profile-page site-full">
+    <main className="site site-full ia-page profile-page">
       <SiteHeader user={user} cachedProfile={cachedProfile} />
 
-      <section className="profile-hero">
-        <div className="profile-hero-inner">
-          <div className="profile-identity">
-            <div className="profile-avatar" aria-hidden="true">
-              {profileInitial}
-            </div>
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="ia-breadcrumb">
+            <Link to="/">Home</Link>
+            <span aria-hidden="true"> / </span>
+            <span>Study home</span>
+          </p>
+          <div className="profile-hero-row">
             <div>
-              <p className="eyebrow">Study home</p>
-              <h1>{profileName}</h1>
-              <p className="profile-email">{user.email}</p>
+              <h1>Study home</h1>
+              <p className="ia-hero-sub">Welcome back, {profileName}.</p>
+            </div>
+            <div className="profile-account">
+              <span className="profile-avatar" aria-hidden="true">
+                {profileInitial}
+              </span>
+              <div>
+                <p className="profile-email">{user.email}</p>
+                <button type="button" className="ia-clear-inline" onClick={() => signOut(auth)}>
+                  Log out
+                </button>
+              </div>
             </div>
           </div>
-          <button className="btn ghost profile-logout-btn" type="button" onClick={() => signOut(auth)}>
-            Logout
-          </button>
         </div>
       </section>
 
-      {lastViewedCourse ? (
-        <section className="profile-section">
-          <article className="continue-study-card">
-            <div>
-              <p className="eyebrow">Continue</p>
-              <h2>{lastViewedCourse.title || lastViewedCourse.slug}</h2>
-              <p>
-                {lastViewedCourse.lastViewedSubunit
-                  ? `Pick up ${lastViewedCourse.lastViewedSubunit}.`
-                  : 'Pick up where you left off.'}
-              </p>
+      <section className="ia-browse-shell ia-browse-split profile-shell">
+        <aside className="ia-filter-rail">
+          {lastViewedCourse ? (
+            <div className="ia-filter-block">
+              <h2>Continue</h2>
+              <Link className="profile-continue-link" to={continueHref}>
+                <strong>{lastViewedCourse.title || lastViewedCourse.slug}</strong>
+                <span>
+                  {lastViewedCourse.lastViewedSubunit
+                    ? lastViewedCourse.lastViewedSubunit
+                    : 'Pick up where you left off'}
+                </span>
+              </Link>
             </div>
-            <Link className="btn primary" to={continueHref}>
-              Continue →
-            </Link>
-          </article>
-        </section>
-      ) : null}
-
-      <section className="profile-section">
-        <div className="profile-section-head">
-          <h2>My Courses</h2>
-          <p>Pick up where you left off across your active pathways.</p>
-        </div>
-        {isLoadingCourses ? (
-          <p>Loading your courses...</p>
-        ) : myCourses.length === 0 ? (
-          <div className="profile-empty">
-            <h3>No courses yet</h3>
-            <p>Browse the catalog and start a pathway to see it here.</p>
-            <Link className="btn primary" to="/#programs">
-              Explore Programs
-            </Link>
-          </div>
-        ) : (
-          <div className="my-courses-grid">
-            {myCourses.map((courseEntry) => (
-              <article className="my-course-card" key={`${courseEntry.slug}-${courseEntry.updatedAt || ''}`}>
-                <div className="my-course-card-top">
-                  <span className="my-course-icon" aria-hidden="true">
-                    ∑
-                  </span>
-                  <div>
-                    <h3>{courseEntry.title || courseEntry.slug}</h3>
-                    <p>{courseEntry.visitedSubunitsCount || 0} subunits covered</p>
-                  </div>
-                </div>
-                <Link className="my-course-link" to={courseContinuePath(courseEntry)}>
-                  Continue Course →
-                </Link>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {isLoadingCourses ? (
-        <section className="profile-section">
-          <p>Loading your saved questions...</p>
-        </section>
-      ) : (
-        <>
-          <StudyQuestionList
-            title="Bookmarks"
-            subtitle="Questions you bookmarked from the question bank."
-            items={savedQuestions}
-            emptyTitle="No bookmarks yet"
-            emptyBody="Open a question and tap the bookmark icon to keep it here."
-            onRemove={(entry) => removeStudyQuestion(SAVED_QUESTIONS_KEY, entry)}
-            removingId={studyBusyId}
-          />
-
-          <StudyQuestionList
-            title="Mistakes"
-            subtitle="Questions you marked wrong to review later."
-            items={wrongQuestions}
-            emptyTitle="No mistakes saved"
-            emptyBody="Tap the × on a question to add it to this list."
-            onRemove={(entry) => removeStudyQuestion(WRONG_QUESTIONS_KEY, entry)}
-            removingId={studyBusyId}
-          />
-
-          {wrongQuestions.length > 0 ? (
-            <SimilarPracticeSection groups={suggestionGroups} empty={suggestionGroups.length === 0} />
           ) : null}
-        </>
-      )}
+          <div className="ia-filter-block">
+            <h2>Quick links</h2>
+            <div className="ia-pill-col">
+              <Link className="ia-pill" to="/#programs">
+                Programs
+              </Link>
+              <Link className="ia-pill" to="/mock-generator">
+                Mock Generator
+              </Link>
+              <Link className="ia-pill" to="/ia">
+                Internal Assessment
+              </Link>
+              <Link className="ia-pill" to="/teachers-resources">
+                Teachers &amp; Resources
+              </Link>
+            </div>
+          </div>
+        </aside>
 
-      <section className="profile-section">
-        <div className="profile-section-head">
-          <h2>Quick Links</h2>
-          <p>Shortcuts to keep your study flow moving.</p>
-        </div>
-        <div className="quick-links-grid">
-          <Link className="quick-link-card" to="/#programs">
-            <span className="quick-link-icon" aria-hidden="true">
-              ▦
-            </span>
-            <div>
-              <h3>Explore Catalog</h3>
-              <p>Discover new tracks and masterclasses.</p>
+        <div className="ia-browse-main">
+          <section className="profile-panel">
+            <div className="profile-section-head">
+              <h2>My courses</h2>
+              <p>Pick up where you left off across your active pathways.</p>
             </div>
-            <span className="quick-link-arrow" aria-hidden="true">
-              →
-            </span>
-          </Link>
-          <Link className="quick-link-card" to="/mock-generator">
-            <span className="quick-link-icon" aria-hidden="true">
-              ▤
-            </span>
-            <div>
-              <h3>Mock Generator</h3>
-              <p>Build P1 / P2 / P3 papers from selected units.</p>
+            {isLoadingCourses ? (
+              <p className="ia-status">Loading your courses...</p>
+            ) : myCourses.length === 0 ? (
+              <div className="ia-empty">
+                <h2>No courses yet</h2>
+                <p>Browse the catalog and start a pathway to see it here.</p>
+                <Link className="btn primary" to="/#programs">
+                  Explore Programs
+                </Link>
+              </div>
+            ) : (
+              <div className="profile-course-grid">
+                {myCourses.map((courseEntry) => (
+                  <Link
+                    className="profile-course-card"
+                    key={`${courseEntry.slug}-${courseEntry.updatedAt || ''}`}
+                    to={courseContinuePath(courseEntry)}
+                  >
+                    <span className="profile-course-kicker">
+                      {courseEntry.visitedSubunitsCount || 0} subunits covered
+                    </span>
+                    <h3>{courseEntry.title || courseEntry.slug}</h3>
+                    <span className="profile-course-go">Continue</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="profile-panel">
+            <div className="profile-section-head">
+              <h2>Saved questions</h2>
+              <p>Bookmarks, mistakes, and similar practice from the question bank.</p>
             </div>
-            <span className="quick-link-arrow" aria-hidden="true">
-              →
-            </span>
-          </Link>
-          <Link className="quick-link-card" to="/ia">
-            <span className="quick-link-icon" aria-hidden="true">
-              ◎
-            </span>
-            <div>
-              <h3>Internal Assessment</h3>
-              <p>Sample IAs, topic ideas, and guidance.</p>
+            <div className="profile-tabs" role="tablist" aria-label="Saved questions">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studyTab === 'bookmarks'}
+                className={`profile-tab${studyTab === 'bookmarks' ? ' is-active' : ''}`}
+                onClick={() => setStudyTab('bookmarks')}
+              >
+                Bookmarks
+                {savedQuestions.length ? <span>{savedQuestions.length}</span> : null}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studyTab === 'mistakes'}
+                className={`profile-tab${studyTab === 'mistakes' ? ' is-active' : ''}`}
+                onClick={() => setStudyTab('mistakes')}
+              >
+                Mistakes
+                {wrongQuestions.length ? <span>{wrongQuestions.length}</span> : null}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studyTab === 'similar'}
+                className={`profile-tab${studyTab === 'similar' ? ' is-active' : ''}`}
+                onClick={() => setStudyTab('similar')}
+              >
+                Similar practice
+                {suggestionGroups.length ? <span>{suggestionGroups.length}</span> : null}
+              </button>
             </div>
-            <span className="quick-link-arrow" aria-hidden="true">
-              →
-            </span>
-          </Link>
+            {isLoadingCourses ? (
+              <p className="ia-status">Loading your saved questions...</p>
+            ) : studyTab === 'bookmarks' ? (
+              <StudyQuestionList
+                embedded
+                title="Bookmarks"
+                subtitle="Questions you bookmarked from the question bank."
+                items={savedQuestions}
+                emptyTitle="No bookmarks yet"
+                emptyBody="Open a question and tap the bookmark icon to keep it here."
+                onRemove={(entry) => removeStudyQuestion(SAVED_QUESTIONS_KEY, entry)}
+                removingId={studyBusyId}
+              />
+            ) : studyTab === 'mistakes' ? (
+              <StudyQuestionList
+                embedded
+                title="Mistakes"
+                subtitle="Questions you marked wrong to review later."
+                items={wrongQuestions}
+                emptyTitle="No mistakes saved"
+                emptyBody="Tap the × on a question to add it to this list."
+                onRemove={(entry) => removeStudyQuestion(WRONG_QUESTIONS_KEY, entry)}
+                removingId={studyBusyId}
+              />
+            ) : studyTab === 'similar' ? (
+              wrongQuestions.length === 0 ? (
+                <div className="ia-empty">
+                  <h2>No similar practice yet</h2>
+                  <p>Mark questions wrong with × to get topic-based suggestions here.</p>
+                </div>
+              ) : (
+                <SimilarPracticeSection
+                  embedded
+                  groups={suggestionGroups}
+                  empty={suggestionGroups.length === 0}
+                />
+              )
+            ) : null}
+          </section>
         </div>
       </section>
     </main>
