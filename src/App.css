@@ -2266,6 +2266,35 @@ select {
   margin-top: 0.55rem;
 }
 
+.question-study-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.question-study-actions .text-btn {
+  margin-top: 0;
+}
+
+.question-study-actions .is-study-active {
+  background: #e7f5f4;
+  border-color: #7eb8b3;
+  color: #0b5f5b;
+}
+
+.question-study-actions .is-study-wrong {
+  background: #fdeeee;
+  border-color: #e3b6b6;
+  color: #8a3030;
+}
+
+.lesson-card-question.is-focused-question {
+  outline: 2px solid #0b7a75;
+  outline-offset: 3px;
+  box-shadow: 0 14px 28px rgba(11, 122, 117, 0.18);
+}
+
 .lesson-card-question .katex-display {
   margin: 0.4rem 0;
 }
@@ -4590,6 +4619,76 @@ body {
 .quick-link-arrow {
   color: #1b6ea8;
   font-weight: 700;
+}
+
+.continue-study-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1.15rem 1.2rem;
+  box-shadow: 0 10px 24px rgba(15, 44, 77, 0.05);
+}
+
+.continue-study-card .eyebrow {
+  margin: 0 0 0.2rem;
+  color: #1b6ea8;
+}
+
+.continue-study-card h2 {
+  margin: 0 0 0.25rem;
+  color: #0f2c4d;
+  font-size: 1.2rem;
+}
+
+.continue-study-card p {
+  margin: 0;
+  color: #5c6b74;
+}
+
+.study-question-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.study-question-card {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 24px rgba(15, 44, 77, 0.05);
+}
+
+.study-question-kicker {
+  margin: 0 0 0.3rem;
+  color: #1b6ea8;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.study-question-preview {
+  margin: 0 0 0.55rem;
+  color: #0f2c4d;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.study-question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.study-question-actions .text-btn {
+  margin: 0;
 }
 
 @media (max-width: 700px) {

@@ -37,7 +37,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Per-user progress and profile-style state.
+    // Per-user progress, bookmarks, mistakes, and profile-style state.
     match /userCourseProgress/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }

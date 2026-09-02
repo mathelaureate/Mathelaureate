@@ -15,6 +15,17 @@ import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
+import {
+  SAVED_QUESTIONS_KEY,
+  WRONG_QUESTIONS_KEY,
+  buildStudyQuestionEntry,
+  courseContinuePath,
+  normalizeStudyList,
+  questionStudyPath,
+  resolveLastViewedCourse,
+  resolveMyCourses,
+  toggleStudyQuestion,
+} from './studentStudy'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1377,6 +1388,12 @@ function CourseItemCard({
   onOpenImage,
   onOpenSolution,
   renderBlocks,
+  isBookmarked = false,
+  isWrong = false,
+  onToggleBookmark,
+  onToggleWrong,
+  studyBusy = false,
+  isFocused = false,
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
@@ -1387,9 +1404,12 @@ function CourseItemCard({
 
   return (
     <article
+      id={activeTab === 'question' ? `question-${item.id}` : undefined}
       className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
         activeTab === 'question' ? 'lesson-card-question' : ''
-      } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}`}
+      } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}${
+        isFocused ? ' is-focused-question' : ''
+      }`}
     >
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
       {activeTab !== 'question' && !objectivesItem ? (
@@ -1470,6 +1490,26 @@ function CourseItemCard({
         <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution(view, index)}>
           View Solution
         </button>
+      ) : null}
+      {activeTab === 'question' ? (
+        <div className="question-study-actions">
+          <button
+            type="button"
+            className={`btn ghost text-btn${isBookmarked ? ' is-study-active' : ''}`}
+            onClick={() => onToggleBookmark?.(item)}
+            disabled={studyBusy || !onToggleBookmark}
+          >
+            {isBookmarked ? 'Saved' : 'Save'}
+          </button>
+          <button
+            type="button"
+            className={`btn ghost text-btn${isWrong ? ' is-study-wrong' : ''}`}
+            onClick={() => onToggleWrong?.(item)}
+            disabled={studyBusy || !onToggleWrong}
+          >
+            {isWrong ? 'In mistakes' : 'Mark wrong'}
+          </button>
+        </div>
       ) : null}
       {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
         <div className="solution-video-wrap">
@@ -1866,7 +1906,7 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           </Link>
           <a href="/#contact">Contact</a>
           {user || cachedProfile ? (
-            <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Profile">
+            <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
               {profileLabel}
             </Link>
           ) : (
@@ -3423,6 +3463,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [shareFeedback, setShareFeedback] = useState('')
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
   const [visitedSubunitKeys, setVisitedSubunitKeys] = useState([])
+  const [savedQuestions, setSavedQuestions] = useState([])
+  const [wrongQuestions, setWrongQuestions] = useState([])
+  const [studyBusyId, setStudyBusyId] = useState('')
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -3455,7 +3498,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
         const nextPayments = normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {})
         const nextPaidCourses = nextPayments.courses
 
-        const lastViewedCourse = progressSnap.exists() ? progressSnap.data()?.courses?.[course.slug] : null
+        const progressData = progressSnap.exists() ? progressSnap.data() : {}
+        const lastViewedCourse = progressData?.courses?.[course.slug] || null
 
         function hasSubunit(unitId, subunitName) {
           if (!matchedCurriculum || !unitId || !subunitName) return false
@@ -3501,6 +3545,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
             ? lastViewedCourse.visitedSubunits.map((key) => String(key))
             : [],
         )
+        setSavedQuestions(normalizeStudyList(progressData?.savedQuestions))
+        setWrongQuestions(normalizeStudyList(progressData?.wrongQuestions))
         setSelectedUnitId(nextUnitId)
         setSelectedSubunit(nextSubunit)
         setActiveTab(nextTab)
@@ -3569,6 +3615,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
   const difficultyRank = { easy: 1, medium: 2, hard: 3 }
+  const focusQuestionId = useMemo(() => new URLSearchParams(location.search || '').get('q') || '', [location.search])
   const filteredQuestions = [...(selectedDifficulties.length === 0
     ? questions
     : questions.filter((item) => selectedDifficulties.includes(String(item.difficulty || '').toLowerCase())))].sort((a, b) => {
@@ -3577,7 +3624,11 @@ function CoursePage({ user, authReady, cachedProfile }) {
     if (aRank !== bRank) return aRank - bRank
     return sortByStoredOrder(a, b)
   })
-  const activeItems = activeTab === 'lesson' ? lessons : filteredQuestions
+  const visibleQuestions =
+    focusQuestionId && !filteredQuestions.some((item) => item.id === focusQuestionId)
+      ? [questions.find((item) => item.id === focusQuestionId), ...filteredQuestions].filter(Boolean)
+      : filteredQuestions
+  const activeItems = activeTab === 'lesson' ? lessons : visibleQuestions
   const lessonShareUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/courses/${course.slug}?unit=${encodeURIComponent(selectedUnit?.id || '')}&subunit=${encodeURIComponent(currentSubunit || '')}&tab=${encodeURIComponent(activeTab)}`
@@ -3602,6 +3653,28 @@ function CoursePage({ user, authReady, cachedProfile }) {
   function isSubunitLocked(unitId, subunitName) {
     const lockKey = `${unitId}::${subunitName}`
     return !paidForCurrentCourse && (lockedUnits.includes(unitId) || lockedSubunits.includes(lockKey))
+  }
+
+  async function handleToggleStudy(listKey, item) {
+    if (!user || !item?.id) return
+    const list = listKey === SAVED_QUESTIONS_KEY ? savedQuestions : wrongQuestions
+    const currentlySaved = list.some((entry) => entry.questionId === item.id)
+    setStudyBusyId(`${listKey}:${item.id}`)
+    try {
+      const entry = buildStudyQuestionEntry({
+        item,
+        course,
+        unitId: selectedUnit?.id,
+        subunit: currentSubunit,
+      })
+      const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved })
+      if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
+      else setWrongQuestions(next)
+    } catch {
+      // Non-blocking: saving a question should not break the course page.
+    } finally {
+      setStudyBusyId('')
+    }
   }
 
   function openSolution(item, index) {
@@ -3767,6 +3840,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
             title: courseEntry.title,
             curriculumId: courseEntry.curriculumId,
             visitedSubunitsCount: courseEntry.visitedSubunitsCount,
+            lastViewedUnitId: courseEntry.lastViewedUnitId || '',
+            lastViewedSubunit: courseEntry.lastViewedSubunit || '',
             updatedAt: courseEntry.updatedAt || timestamp,
           }))
 
@@ -3799,6 +3874,15 @@ function CoursePage({ user, authReady, cachedProfile }) {
       active = false
     }
   }, [user, course.slug, course.title, course.curriculumId, selectedUnit?.id, currentSubunit])
+
+  useEffect(() => {
+    if (activeTab !== 'question' || !focusQuestionId || courseLoading) return
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(`question-${focusQuestionId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [activeTab, focusQuestionId, courseLoading, visibleQuestions.length])
 
   if (!authReady) {
     return (
@@ -4057,6 +4141,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           onOpenImage={setExpandedImageUrl}
                           onOpenSolution={openSolution}
                           renderBlocks={renderContentBlocks}
+                          isBookmarked={savedQuestions.some((entry) => entry.questionId === item.id)}
+                          isWrong={wrongQuestions.some((entry) => entry.questionId === item.id)}
+                          onToggleBookmark={(question) => handleToggleStudy(SAVED_QUESTIONS_KEY, question)}
+                          onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
+                          studyBusy={studyBusyId.endsWith(`:${item.id}`)}
+                          isFocused={item.id === focusQuestionId}
                         />
                       ))
                     )}
@@ -4834,14 +4924,76 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   )
 }
 
+function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRemove, removingId }) {
+  return (
+    <section className="profile-section">
+      <div className="profile-section-head">
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      {items.length === 0 ? (
+        <div className="profile-empty">
+          <h3>{emptyTitle}</h3>
+          <p>{emptyBody}</p>
+        </div>
+      ) : (
+        <div className="study-question-list">
+          {items.map((entry) => {
+            const href = questionStudyPath(entry)
+            return (
+              <article className="study-question-card" key={entry.questionId}>
+                <div>
+                  <p className="study-question-kicker">
+                    {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
+                  </p>
+                  <p className="study-question-preview">{entry.preview || 'Saved question'}</p>
+                  <div className="question-meta-row">
+                    <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                    {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
+                    {entry.questionLevel ? (
+                      <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
+                    ) : null}
+                    {entry.difficulty ? (
+                      <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="study-question-actions">
+                  {href ? (
+                    <Link className="my-course-link" to={href}>
+                      Open question →
+                    </Link>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn ghost text-btn"
+                    onClick={() => onRemove(entry)}
+                    disabled={removingId === entry.questionId}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ProfilePage({ user, cachedProfile }) {
   const [myCourses, setMyCourses] = useState([])
+  const [lastViewedCourse, setLastViewedCourse] = useState(null)
+  const [savedQuestions, setSavedQuestions] = useState([])
+  const [wrongQuestions, setWrongQuestions] = useState([])
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
+  const [studyBusyId, setStudyBusyId] = useState('')
 
   useEffect(() => {
     let active = true
 
-    async function loadMyCourses() {
+    async function loadStudyHome() {
       if (!user) return
       setIsLoadingCourses(true)
 
@@ -4849,33 +5001,52 @@ function ProfilePage({ user, cachedProfile }) {
         const progressRef = doc(db, 'userCourseProgress', user.uid)
         const progressSnap = await getDoc(progressRef)
         if (!progressSnap.exists()) {
-          if (active) setMyCourses([])
+          if (!active) return
+          setMyCourses([])
+          setLastViewedCourse(null)
+          setSavedQuestions([])
+          setWrongQuestions([])
           return
         }
 
         const data = progressSnap.data() || {}
-        const persistedMyCourses = Array.isArray(data.myCourses) ? data.myCourses : []
-        const fallbackComputedCourses = Object.values(data.courses || {}).filter(
-          (courseEntry) => Number(courseEntry?.visitedSubunitsCount || 0) > 1,
-        )
-        const resolvedCourses = (persistedMyCourses.length > 0 ? persistedMyCourses : fallbackComputedCourses).sort((a, b) =>
-          String(b?.updatedAt || '').localeCompare(String(a?.updatedAt || '')),
-        )
-
-        if (active) setMyCourses(resolvedCourses)
+        if (!active) return
+        setMyCourses(resolveMyCourses(data))
+        setLastViewedCourse(resolveLastViewedCourse(data))
+        setSavedQuestions(normalizeStudyList(data.savedQuestions))
+        setWrongQuestions(normalizeStudyList(data.wrongQuestions))
       } catch {
-        if (active) setMyCourses([])
+        if (active) {
+          setMyCourses([])
+          setLastViewedCourse(null)
+          setSavedQuestions([])
+          setWrongQuestions([])
+        }
       } finally {
         if (active) setIsLoadingCourses(false)
       }
     }
 
-    loadMyCourses()
+    loadStudyHome()
 
     return () => {
       active = false
     }
   }, [user])
+
+  async function removeStudyQuestion(listKey, entry) {
+    if (!user || !entry?.questionId) return
+    setStudyBusyId(entry.questionId)
+    try {
+      const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved: true })
+      if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
+      else setWrongQuestions(next)
+    } catch {
+      // Keep the list as-is if the write fails.
+    } finally {
+      setStudyBusyId('')
+    }
+  }
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -4884,6 +5055,7 @@ function ProfilePage({ user, cachedProfile }) {
   const profileInitial =
     user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || cachedProfile?.email?.[0]?.toUpperCase() || 'S'
   const profileName = user.displayName || cachedProfile?.displayName || user.email?.split('@')[0] || 'Student'
+  const continueHref = lastViewedCourse ? courseContinuePath(lastViewedCourse) : '/#programs'
 
   return (
     <main className="site profile-page site-full">
@@ -4896,7 +5068,7 @@ function ProfilePage({ user, cachedProfile }) {
               {profileInitial}
             </div>
             <div>
-              <p className="eyebrow">Your Profile</p>
+              <p className="eyebrow">Study home</p>
               <h1>{profileName}</h1>
               <p className="profile-email">{user.email}</p>
             </div>
@@ -4906,6 +5078,25 @@ function ProfilePage({ user, cachedProfile }) {
           </button>
         </div>
       </section>
+
+      {lastViewedCourse ? (
+        <section className="profile-section">
+          <article className="continue-study-card">
+            <div>
+              <p className="eyebrow">Continue</p>
+              <h2>{lastViewedCourse.title || lastViewedCourse.slug}</h2>
+              <p>
+                {lastViewedCourse.lastViewedSubunit
+                  ? `Pick up ${lastViewedCourse.lastViewedSubunit}.`
+                  : 'Pick up where you left off.'}
+              </p>
+            </div>
+            <Link className="btn primary" to={continueHref}>
+              Continue →
+            </Link>
+          </article>
+        </section>
+      ) : null}
 
       <section className="profile-section">
         <div className="profile-section-head">
@@ -4935,7 +5126,7 @@ function ProfilePage({ user, cachedProfile }) {
                     <p>{courseEntry.visitedSubunitsCount || 0} subunits covered</p>
                   </div>
                 </div>
-                <Link className="my-course-link" to={`/courses/${courseEntry.slug}`}>
+                <Link className="my-course-link" to={courseContinuePath(courseEntry)}>
                   Continue Course →
                 </Link>
               </article>
@@ -4943,6 +5134,34 @@ function ProfilePage({ user, cachedProfile }) {
           </div>
         )}
       </section>
+
+      {isLoadingCourses ? (
+        <section className="profile-section">
+          <p>Loading your saved questions...</p>
+        </section>
+      ) : (
+        <>
+          <StudyQuestionList
+            title="Bookmarks"
+            subtitle="Questions you saved from the question bank."
+            items={savedQuestions}
+            emptyTitle="No bookmarks yet"
+            emptyBody="Open a question and tap Save to keep it here."
+            onRemove={(entry) => removeStudyQuestion(SAVED_QUESTIONS_KEY, entry)}
+            removingId={studyBusyId}
+          />
+
+          <StudyQuestionList
+            title="Mistakes"
+            subtitle="Questions you marked wrong to review later."
+            items={wrongQuestions}
+            emptyTitle="No mistakes saved"
+            emptyBody="Tap Mark wrong on a question to add it to this list."
+            onRemove={(entry) => removeStudyQuestion(WRONG_QUESTIONS_KEY, entry)}
+            removingId={studyBusyId}
+          />
+        </>
+      )}
 
       <section className="profile-section">
         <div className="profile-section-head">
