@@ -2238,7 +2238,55 @@ select {
 }
 
 .lesson-card-question .question-number-title {
+  margin: 0;
+}
+
+.question-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
   margin: 0 0 0.35rem;
+}
+
+.question-card-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.question-tool-btn {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: #5c6b74;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.question-tool-btn:hover:not(:disabled) {
+  background: #eef7f6;
+  color: #0f2c4d;
+}
+
+.question-tool-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.question-tool-btn.is-bookmarked {
+  color: #0b7a75;
+}
+
+.question-tool-btn.is-wrong {
+  color: #9f1b1b;
+  background: #fdeeee;
 }
 
 .lesson-card-question .question-meta-row {
@@ -2264,29 +2312,6 @@ select {
 
 .lesson-card-question .text-btn {
   margin-top: 0.55rem;
-}
-
-.question-study-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: 0.7rem;
-}
-
-.question-study-actions .text-btn {
-  margin-top: 0;
-}
-
-.question-study-actions .is-study-active {
-  background: #e7f5f4;
-  border-color: #7eb8b3;
-  color: #0b5f5b;
-}
-
-.question-study-actions .is-study-wrong {
-  background: #fdeeee;
-  border-color: #e3b6b6;
-  color: #8a3030;
 }
 
 .lesson-card-question.is-focused-question {
@@ -4689,6 +4714,33 @@ body {
 
 .study-question-actions .text-btn {
   margin: 0;
+}
+
+.similar-topic-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.similar-topic-card {
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 10px 24px rgba(15, 44, 77, 0.05);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.similar-topic-head h3 {
+  margin: 0 0 0.2rem;
+  color: #0f2c4d;
+  font-size: 1.05rem;
+}
+
+.similar-topic-head p {
+  margin: 0;
+  color: #5c6b74;
+  font-size: 0.88rem;
 }
 
 @media (max-width: 700px) {

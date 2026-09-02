@@ -46,6 +46,7 @@ export function normalizeStudyQuestion(raw) {
     difficulty: String(raw?.difficulty || 'medium').trim().toLowerCase() || 'medium',
     gdc: String(raw?.gdc || '').trim().toLowerCase() === 'gdc' ? 'gdc' : 'not gdc',
     questionLevel: String(raw?.questionLevel || '').trim(),
+    unitName: String(raw?.unitName || '').trim(),
     preview: String(raw?.preview || '').trim().slice(0, 180),
     savedAt: String(raw?.savedAt || ''),
   }
@@ -64,7 +65,7 @@ export function normalizeStudyList(raw) {
   return next.slice(0, STUDY_LIST_MAX)
 }
 
-export function buildStudyQuestionEntry({ item, course, unitId, subunit }) {
+export function buildStudyQuestionEntry({ item, course, unitId, subunit, unitName }) {
   return normalizeStudyQuestion({
     questionId: item?.id,
     courseSlug: course?.slug,
@@ -72,6 +73,7 @@ export function buildStudyQuestionEntry({ item, course, unitId, subunit }) {
     curriculumId: course?.curriculumId || item?.curriculumId,
     unitId: unitId || item?.unitId,
     subunit: subunit || item?.subunit,
+    unitName: unitName || item?.unitName,
     marks: item?.marks,
     difficulty: item?.difficulty,
     gdc: item?.gdc,
@@ -115,6 +117,107 @@ export function resolveLastViewedCourse(data) {
     String(b?.updatedAt || '').localeCompare(String(a?.updatedAt || '')),
   )
   return fromMap[0] || resolveMyCourses(data)[0] || null
+}
+
+const SUGGEST_PER_TOPIC = 4
+
+function topicKey(entry) {
+  return `${entry?.curriculumId || ''}::${entry?.unitId || ''}::${entry?.subunit || ''}`
+}
+
+function suggestionScore(item, seeds) {
+  const difficulty = String(item?.difficulty || 'medium').trim().toLowerCase()
+  const level = String(item?.questionLevel || '').trim().toLowerCase()
+  const gdc = String(item?.gdc || '').trim().toLowerCase() === 'gdc' ? 'gdc' : 'not gdc'
+  let score = 0
+  if (seeds.some((seed) => seed.difficulty === difficulty)) score += 3
+  if (level && seeds.some((seed) => seed.questionLevel.toLowerCase() === level)) score += 2
+  if (seeds.some((seed) => seed.gdc === gdc)) score += 1
+  return score
+}
+
+export function suggestSimilarQuestionsByTopic({ wrongQuestions, bankItems, courses, curricula }) {
+  const wrongList = normalizeStudyList(wrongQuestions)
+  if (wrongList.length === 0) return []
+
+  const catalogByCurriculum = new Map((courses || []).map((course) => [course.curriculumId, course]))
+  const unitNameByKey = new Map()
+  for (const curriculum of curricula || []) {
+    for (const unit of curriculum.units || []) {
+      unitNameByKey.set(`${curriculum.id}::${unit.id}`, String(unit.name || '').trim())
+    }
+  }
+
+  const wrongIds = new Set(wrongList.map((item) => item.questionId))
+  const bankQuestions = (bankItems || []).filter((item) => item?.itemType === 'question' && item?.id)
+  const topicOrder = []
+  const topicMeta = new Map()
+
+  for (const wrong of wrongList) {
+    const key = topicKey(wrong)
+    if (!topicMeta.has(key)) {
+      const unitName = wrong.unitName || unitNameByKey.get(`${wrong.curriculumId}::${wrong.unitId}`) || ''
+      topicMeta.set(key, {
+        key,
+        curriculumId: wrong.curriculumId,
+        unitId: wrong.unitId,
+        subunit: wrong.subunit,
+        unitName,
+        course: catalogByCurriculum.get(wrong.curriculumId) || null,
+        wrongCount: 0,
+      })
+      topicOrder.push(key)
+    }
+    topicMeta.get(key).wrongCount += 1
+  }
+
+  return topicOrder
+    .map((key) => {
+      const meta = topicMeta.get(key)
+      const seeds = wrongList.filter((item) => topicKey(item) === key)
+      const sameTopic = bankQuestions.filter(
+        (item) =>
+          item.curriculumId === meta.curriculumId &&
+          item.unitId === meta.unitId &&
+          item.subunit === meta.subunit &&
+          !wrongIds.has(item.id),
+      )
+      const sameUnit =
+        sameTopic.length >= 2
+          ? []
+          : bankQuestions.filter(
+              (item) =>
+                item.curriculumId === meta.curriculumId &&
+                item.unitId === meta.unitId &&
+                item.subunit !== meta.subunit &&
+                !wrongIds.has(item.id),
+            )
+      const pool = [...sameTopic, ...sameUnit]
+      const suggestions = pool
+        .map((item) => ({ item, score: suggestionScore(item, seeds) + (item.subunit === meta.subunit ? 4 : 0) }))
+        .sort((a, b) => b.score - a.score || String(a.item.id).localeCompare(String(b.item.id)))
+        .slice(0, SUGGEST_PER_TOPIC)
+        .map(({ item }) =>
+          buildStudyQuestionEntry({
+            item,
+            course: meta.course,
+            unitId: item.unitId,
+            subunit: item.subunit,
+            unitName: unitNameByKey.get(`${item.curriculumId}::${item.unitId}`) || meta.unitName,
+          }),
+        )
+        .filter((entry) => entry.questionId && entry.courseSlug)
+
+      if (suggestions.length === 0) return null
+      return {
+        topicKey: key,
+        topicLabel: [meta.unitName, meta.subunit].filter(Boolean).join(' · ') || meta.subunit || 'Topic',
+        courseTitle: meta.course?.title || seeds[0]?.courseTitle || '',
+        wrongCount: meta.wrongCount,
+        suggestions,
+      }
+    })
+    .filter(Boolean)
 }
 
 export async function toggleStudyQuestion({ user, listKey, entry, currentlySaved }) {

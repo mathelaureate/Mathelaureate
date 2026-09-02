@@ -24,6 +24,7 @@ import {
   questionStudyPath,
   resolveLastViewedCourse,
   resolveMyCourses,
+  suggestSimilarQuestionsByTopic,
   toggleStudyQuestion,
 } from './studentStudy'
 import './App.css'
@@ -1380,6 +1381,32 @@ function applyTranslatedFields(item, fields) {
   return next
 }
 
+function BookmarkIcon({ filled = false }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      {filled ? (
+        <path d="M7 3.75h10A1.25 1.25 0 0 1 18.25 5v15.4l-6.25-3.35-6.25 3.35V5A1.25 1.25 0 0 1 7 3.75z" fill="currentColor" />
+      ) : (
+        <path
+          d="M7 3.75h10A1.25 1.25 0 0 1 18.25 5v15.4l-6.25-3.35-6.25 3.35V5A1.25 1.25 0 0 1 7 3.75z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  )
+}
+
+function WrongMarkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function CourseItemCard({
   item,
   index,
@@ -1420,7 +1447,31 @@ function CourseItemCard({
         ) : null
       ) : null}
       {activeTab === 'question' ? (
-        <h3 className="question-number-title">Question {index + 1}</h3>
+        <div className="question-card-head">
+          <h3 className="question-number-title">Question {index + 1}</h3>
+          <div className="question-card-tools">
+            <button
+              type="button"
+              className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
+              onClick={() => onToggleWrong?.(item)}
+              disabled={studyBusy || !onToggleWrong}
+              aria-label={isWrong ? 'Remove from mistakes' : 'Mark as wrong'}
+              title={isWrong ? 'In mistakes' : 'Mark as wrong'}
+            >
+              <WrongMarkIcon />
+            </button>
+            <button
+              type="button"
+              className={`question-tool-btn${isBookmarked ? ' is-bookmarked' : ''}`}
+              onClick={() => onToggleBookmark?.(item)}
+              disabled={studyBusy || !onToggleBookmark}
+              aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
+              title={isBookmarked ? 'Bookmarked' : 'Bookmark'}
+            >
+              <BookmarkIcon filled={isBookmarked} />
+            </button>
+          </div>
+        </div>
       ) : objectivesItem ? (
         <div className="objectives-head">
           <span className="objectives-badge" aria-hidden="true">
@@ -1490,26 +1541,6 @@ function CourseItemCard({
         <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution(view, index)}>
           View Solution
         </button>
-      ) : null}
-      {activeTab === 'question' ? (
-        <div className="question-study-actions">
-          <button
-            type="button"
-            className={`btn ghost text-btn${isBookmarked ? ' is-study-active' : ''}`}
-            onClick={() => onToggleBookmark?.(item)}
-            disabled={studyBusy || !onToggleBookmark}
-          >
-            {isBookmarked ? 'Saved' : 'Save'}
-          </button>
-          <button
-            type="button"
-            className={`btn ghost text-btn${isWrong ? ' is-study-wrong' : ''}`}
-            onClick={() => onToggleWrong?.(item)}
-            disabled={studyBusy || !onToggleWrong}
-          >
-            {isWrong ? 'In mistakes' : 'Mark wrong'}
-          </button>
-        </div>
       ) : null}
       {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
         <div className="solution-video-wrap">
@@ -3666,6 +3697,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
         course,
         unitId: selectedUnit?.id,
         subunit: currentSubunit,
+        unitName: selectedUnit?.name,
       })
       const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved })
       if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
@@ -4944,7 +4976,9 @@ function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRe
               <article className="study-question-card" key={entry.questionId}>
                 <div>
                   <p className="study-question-kicker">
-                    {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
+                    {[entry.courseTitle || entry.courseSlug, entry.unitName, entry.subunit]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                   <p className="study-question-preview">{entry.preview || 'Saved question'}</p>
                   <div className="question-meta-row">
@@ -4982,13 +5016,96 @@ function StudyQuestionList({ title, subtitle, items, emptyTitle, emptyBody, onRe
   )
 }
 
+function SimilarPracticeSection({ groups, empty = false }) {
+  if (empty) {
+    return (
+      <section className="profile-section">
+        <div className="profile-section-head">
+          <h2>Similar practice</h2>
+          <p>Based on questions you marked wrong, grouped by topic.</p>
+        </div>
+        <div className="profile-empty">
+          <h3>No similar questions yet</h3>
+          <p>We will suggest nearby questions in these topics as more are added to the bank.</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (!groups?.length) return null
+
+  return (
+    <section className="profile-section">
+      <div className="profile-section-head">
+        <h2>Similar practice</h2>
+        <p>Based on questions you marked wrong, grouped by topic.</p>
+      </div>
+      <div className="similar-topic-list">
+        {groups.map((group) => (
+          <article className="similar-topic-card" key={group.topicKey}>
+            <div className="similar-topic-head">
+              <h3>{group.topicLabel}</h3>
+              <p>
+                {group.wrongCount} mistake{group.wrongCount === 1 ? '' : 's'}
+                {group.courseTitle ? ` in ${group.courseTitle}` : ''}
+              </p>
+            </div>
+            <div className="study-question-list">
+              {group.suggestions.map((entry) => {
+                const href = questionStudyPath(entry)
+                return (
+                  <article className="study-question-card" key={entry.questionId}>
+                    <div>
+                      <p className="study-question-kicker">
+                        {[entry.courseTitle || entry.courseSlug, entry.subunit].filter(Boolean).join(' · ')}
+                      </p>
+                      <p className="study-question-preview">{entry.preview || 'Practice question'}</p>
+                      <div className="question-meta-row">
+                        <span className="meta-chip">{entry.gdc === 'gdc' ? 'GDC' : 'No GDC'}</span>
+                        {entry.marks ? <span className="meta-chip">{entry.marks} marks</span> : null}
+                        {entry.questionLevel ? (
+                          <span className="meta-chip">{String(entry.questionLevel).toUpperCase()}</span>
+                        ) : null}
+                        {entry.difficulty ? (
+                          <span className={`meta-chip difficulty-${entry.difficulty}`}>{entry.difficulty}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {href ? (
+                      <Link className="my-course-link" to={href}>
+                        Open question →
+                      </Link>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function ProfilePage({ user, cachedProfile }) {
   const [myCourses, setMyCourses] = useState([])
   const [lastViewedCourse, setLastViewedCourse] = useState(null)
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
+  const [suggestionGroups, setSuggestionGroups] = useState([])
+  const [questionBank, setQuestionBank] = useState([])
+  const [curricula, setCurricula] = useState([])
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
   const [studyBusyId, setStudyBusyId] = useState('')
+
+  function nextSuggestionGroups(wrongList, bank = questionBank, courseList = curricula) {
+    return suggestSimilarQuestionsByTopic({
+      wrongQuestions: wrongList,
+      bankItems: bank,
+      courses: courseCatalog,
+      curricula: courseList,
+    })
+  }
 
   useEffect(() => {
     let active = true
@@ -4998,29 +5115,36 @@ function ProfilePage({ user, cachedProfile }) {
       setIsLoadingCourses(true)
 
       try {
-        const progressRef = doc(db, 'userCourseProgress', user.uid)
-        const progressSnap = await getDoc(progressRef)
-        if (!progressSnap.exists()) {
-          if (!active) return
-          setMyCourses([])
-          setLastViewedCourse(null)
-          setSavedQuestions([])
-          setWrongQuestions([])
-          return
-        }
-
-        const data = progressSnap.data() || {}
+        const [progressSnap, bankItems, curriculaData] = await Promise.all([
+          getDoc(doc(db, 'userCourseProgress', user.uid)),
+          getCachedContentItems(),
+          getCachedAppDoc('curricula', curriculaDocRef),
+        ])
+        const nextCurricula = ensureRequiredCurricula(curriculaData?.courses)
+        const data = progressSnap.exists() ? progressSnap.data() || {} : {}
+        const nextWrong = normalizeStudyList(data.wrongQuestions)
         if (!active) return
+        setQuestionBank(Array.isArray(bankItems) ? bankItems : [])
+        setCurricula(nextCurricula)
         setMyCourses(resolveMyCourses(data))
         setLastViewedCourse(resolveLastViewedCourse(data))
         setSavedQuestions(normalizeStudyList(data.savedQuestions))
-        setWrongQuestions(normalizeStudyList(data.wrongQuestions))
+        setWrongQuestions(nextWrong)
+        setSuggestionGroups(
+          suggestSimilarQuestionsByTopic({
+            wrongQuestions: nextWrong,
+            bankItems,
+            courses: courseCatalog,
+            curricula: nextCurricula,
+          }),
+        )
       } catch {
         if (active) {
           setMyCourses([])
           setLastViewedCourse(null)
           setSavedQuestions([])
           setWrongQuestions([])
+          setSuggestionGroups([])
         }
       } finally {
         if (active) setIsLoadingCourses(false)
@@ -5039,8 +5163,12 @@ function ProfilePage({ user, cachedProfile }) {
     setStudyBusyId(entry.questionId)
     try {
       const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved: true })
-      if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
-      else setWrongQuestions(next)
+      if (listKey === SAVED_QUESTIONS_KEY) {
+        setSavedQuestions(next)
+      } else {
+        setWrongQuestions(next)
+        setSuggestionGroups(nextSuggestionGroups(next))
+      }
     } catch {
       // Keep the list as-is if the write fails.
     } finally {
@@ -5143,10 +5271,10 @@ function ProfilePage({ user, cachedProfile }) {
         <>
           <StudyQuestionList
             title="Bookmarks"
-            subtitle="Questions you saved from the question bank."
+            subtitle="Questions you bookmarked from the question bank."
             items={savedQuestions}
             emptyTitle="No bookmarks yet"
-            emptyBody="Open a question and tap Save to keep it here."
+            emptyBody="Open a question and tap the bookmark icon to keep it here."
             onRemove={(entry) => removeStudyQuestion(SAVED_QUESTIONS_KEY, entry)}
             removingId={studyBusyId}
           />
@@ -5156,10 +5284,14 @@ function ProfilePage({ user, cachedProfile }) {
             subtitle="Questions you marked wrong to review later."
             items={wrongQuestions}
             emptyTitle="No mistakes saved"
-            emptyBody="Tap Mark wrong on a question to add it to this list."
+            emptyBody="Tap the × on a question to add it to this list."
             onRemove={(entry) => removeStudyQuestion(WRONG_QUESTIONS_KEY, entry)}
             removingId={studyBusyId}
           />
+
+          {wrongQuestions.length > 0 ? (
+            <SimilarPracticeSection groups={suggestionGroups} empty={suggestionGroups.length === 0} />
+          ) : null}
         </>
       )}
 
