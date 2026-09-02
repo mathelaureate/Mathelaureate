@@ -14,6 +14,7 @@ import 'katex/dist/katex.min.css'
 import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
+import { CardLangToggle, useCardLang } from './cardLang'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1314,6 +1315,185 @@ function getLearningObjectivePoints(item) {
 
 function isOverviewLesson(item) {
   return /overview/i.test(String(item?.title || ''))
+}
+
+function collectCardTranslateFields(item) {
+  const fields = {}
+  const title = String(item?.title || '').trim()
+  const description = String(item?.description || '').trim()
+  const solution = String(item?.solution || '').trim()
+  if (title) fields.title = title
+  if (description) fields.description = description
+  if (solution) fields.solution = solution
+  getLearningObjectivePoints(item).forEach((point, index) => {
+    if (point) fields[`obj_${index}`] = point
+  })
+  normalizeContentBlocks(item?.descriptionBlocks).forEach((block, index) => {
+    if (block.type === 'text' && String(block.text || '').trim()) fields[`block_${index}`] = block.text
+    if (String(block.caption || '').trim()) fields[`caption_${index}`] = block.caption
+  })
+  normalizeContentBlocks(item?.solutionBlocks).forEach((block, index) => {
+    if (block.type === 'text' && String(block.text || '').trim()) fields[`solblock_${index}`] = block.text
+    if (String(block.caption || '').trim()) fields[`solcaption_${index}`] = block.caption
+  })
+  return fields
+}
+
+function applyTranslatedFields(item, fields) {
+  if (!fields) return item
+  const next = { ...item }
+  if (fields.title != null) next.title = fields.title
+  if (fields.description != null) next.description = fields.description
+  if (fields.solution != null) next.solution = fields.solution
+
+  const objectiveSource = getLearningObjectivePoints(item)
+  if (objectiveSource.length > 0) {
+    next.learningObjectives = objectiveSource.map((point, index) => fields[`obj_${index}`] ?? point)
+  }
+
+  if (Array.isArray(item?.descriptionBlocks)) {
+    next.descriptionBlocks = normalizeContentBlocks(item.descriptionBlocks).map((block, index) => ({
+      ...block,
+      text: fields[`block_${index}`] ?? block.text,
+      caption: fields[`caption_${index}`] ?? block.caption,
+    }))
+  }
+  if (Array.isArray(item?.solutionBlocks)) {
+    next.solutionBlocks = normalizeContentBlocks(item.solutionBlocks).map((block, index) => ({
+      ...block,
+      text: fields[`solblock_${index}`] ?? block.text,
+      caption: fields[`solcaption_${index}`] ?? block.caption,
+    }))
+  }
+  return next
+}
+
+function CourseItemCard({
+  item,
+  index,
+  activeTab,
+  isIbdpAaAiCourse,
+  onOpenImage,
+  onOpenSolution,
+  renderBlocks,
+}) {
+  const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
+  const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
+  const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
+  const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
+  const objectivePoints = objectivesItem ? getLearningObjectivePoints(view) : []
+  const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
+
+  return (
+    <article
+      className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
+        activeTab === 'question' ? 'lesson-card-question' : ''
+      } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}`}
+    >
+      <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
+      {activeTab !== 'question' && !objectivesItem ? (
+        index === 0 || overviewItem ? (
+          <div className="record-top">
+            <span className="pill">{item.itemType}</span>
+          </div>
+        ) : null
+      ) : null}
+      {activeTab === 'question' ? (
+        <h3 className="question-number-title">Question {index + 1}</h3>
+      ) : objectivesItem ? (
+        <div className="objectives-head">
+          <span className="objectives-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <circle cx="12" cy="12" r="3" fill="currentColor" />
+            </svg>
+          </span>
+          <h3>Learning Objectives</h3>
+          <span className="objectives-ribbon" aria-hidden="true">
+            ★
+          </span>
+        </div>
+      ) : (
+        <LatexText value={view.title} className="latex-heading" />
+      )}
+      {activeTab === 'question' ? (
+        <div className="question-meta-row">
+          <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+          <span className="meta-chip">{item.marks || 0} marks</span>
+          {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
+            <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+          ) : null}
+          <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+            {String(item.difficulty || 'medium')}
+          </span>
+        </div>
+      ) : null}
+      {objectivesItem ? (
+        <>
+          <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
+          <ul className="objectives-list">
+            {(objectivePoints.length > 0 ? objectivePoints : ['Add learning objective points in the admin dashboard.']).map(
+              (point) => (
+                <li key={point}>
+                  <span className="objectives-check" aria-hidden="true">
+                    ✓
+                  </span>
+                  <LatexText value={point} className="latex-text" />
+                </li>
+              ),
+            )}
+          </ul>
+        </>
+      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+        renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
+      ) : (
+        <LatexText value={view.description} className="latex-text" />
+      )}
+      {item.imageUrl ? (
+        <div className="content-image-block">
+          <button
+            type="button"
+            className="image-open-btn"
+            onClick={() => onOpenImage(item.imageUrl)}
+            aria-label="Open image in full view"
+          >
+            <img src={item.imageUrl} alt="Lesson visual" style={getRecordImageStyle(item)} />
+          </button>
+        </div>
+      ) : null}
+      {activeTab === 'question' &&
+      (item.solution ||
+        item.solutionVideoLink ||
+        item.solutionImageUrl ||
+        contentBlocksHaveMediaOrText(item.solutionBlocks)) ? (
+        <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution(view, index)}>
+          View Solution
+        </button>
+      ) : null}
+      {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
+        <div className="solution-video-wrap">
+          <h4>Video</h4>
+          <iframe
+            title={`lesson-video-${item.id}`}
+            src={toYouTubeEmbedUrl(item.resourceLink)}
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+      ) : null}
+      {activeTab === 'lesson' && item.geogebraLink ? (
+        <div className="geogebra-block">
+          <iframe
+            title={`geogebra-${item.id}`}
+            src={toGeoGebraEmbedUrl(item.geogebraLink)}
+            loading="lazy"
+            allowFullScreen
+          />
+        </div>
+      ) : null}
+    </article>
+  )
 }
 
 function getContentBlockImageStyle(block) {
@@ -3866,118 +4046,18 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         <p>Use the admin dashboard to add {activeTab}s for this subunit.</p>
                       </article>
                     ) : (
-                      activeItems.map((item, index) => {
-                        const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
-                        const objectivePoints = objectivesItem ? getLearningObjectivePoints(item) : []
-                        const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
-
-                        return (
-                        <article
-                          className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
-                            activeTab === 'question' ? 'lesson-card-question' : ''
-                          } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}`}
+                      activeItems.map((item, index) => (
+                        <CourseItemCard
                           key={item.id}
-                        >
-                          {activeTab !== 'question' && !objectivesItem ? (
-                            index === 0 || overviewItem ? (
-                              <div className="record-top">
-                                <span className="pill">{item.itemType}</span>
-                              </div>
-                            ) : null
-                          ) : null}
-                          {activeTab === 'question' ? (
-                            <h3 className="question-number-title">Question {index + 1}</h3>
-                          ) : objectivesItem ? (
-                            <div className="objectives-head">
-                              <span className="objectives-badge" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" width="18" height="18">
-                                  <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                                  <circle cx="12" cy="12" r="3" fill="currentColor" />
-                                </svg>
-                              </span>
-                              <h3>Learning Objectives</h3>
-                              <span className="objectives-ribbon" aria-hidden="true">
-                                ★
-                              </span>
-                            </div>
-                          ) : (
-                            <LatexText value={item.title} className="latex-heading" />
-                          )}
-                          {activeTab === 'question' ? (
-                            <div className="question-meta-row">
-                              <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                              <span className="meta-chip">{item.marks || 0} marks</span>
-                              {isIbdpAaAiCourse && String(item.questionLevel || '').trim() ? (
-                                <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
-                              ) : null}
-                              <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-                                {String(item.difficulty || 'medium')}
-                              </span>
-                            </div>
-                          ) : null}
-                          {objectivesItem ? (
-                            <>
-                              <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
-                              <ul className="objectives-list">
-                                {(objectivePoints.length > 0 ? objectivePoints : ['Add learning objective points in the admin dashboard.']).map(
-                                  (point) => (
-                                    <li key={point}>
-                                      <span className="objectives-check" aria-hidden="true">
-                                        ✓
-                                      </span>
-                                      <LatexText value={point} className="latex-text" />
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
-                            </>
-                          ) : contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
-                            renderContentBlocks(item.descriptionBlocks, `desc-${item.id || index}`)
-                          ) : (
-                            <LatexText value={item.description} className="latex-text" />
-                          )}
-                          {item.imageUrl ? (
-                            <div className="content-image-block">
-                              <button
-                                type="button"
-                                className="image-open-btn"
-                                onClick={() => setExpandedImageUrl(item.imageUrl)}
-                                aria-label="Open image in full view"
-                              >
-                                <img src={item.imageUrl} alt="Lesson visual" style={getRecordImageStyle(item)} />
-                              </button>
-                            </div>
-                          ) : null}
-                          {activeTab === 'question' && (item.solution || item.solutionVideoLink || item.solutionImageUrl) ? (
-                            <button type="button" className="btn ghost text-btn" onClick={() => openSolution(item, index)}>
-                              View Solution
-                            </button>
-                          ) : null}
-                          {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
-                            <div className="solution-video-wrap">
-                              <h4>Video</h4>
-                              <iframe
-                                title={`lesson-video-${item.id}`}
-                                src={toYouTubeEmbedUrl(item.resourceLink)}
-                                loading="lazy"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : null}
-                          {activeTab === 'lesson' && item.geogebraLink ? (
-                            <div className="geogebra-block">
-                              <iframe
-                                title={`geogebra-${item.id}`}
-                                src={toGeoGebraEmbedUrl(item.geogebraLink)}
-                                loading="lazy"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : null}
-                        </article>
-                        )
-                      })
+                          item={item}
+                          index={index}
+                          activeTab={activeTab}
+                          isIbdpAaAiCourse={isIbdpAaAiCourse}
+                          onOpenImage={setExpandedImageUrl}
+                          onOpenSolution={openSolution}
+                          renderBlocks={renderContentBlocks}
+                        />
+                      ))
                     )}
                   </div>
                 </>
