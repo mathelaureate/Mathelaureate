@@ -596,6 +596,7 @@ function normalizeTeachersResourcesPosts(raw) {
       pdfPath: String(item?.pdfPath || '').trim(),
       pdfFileName: String(item?.pdfFileName || '').trim(),
       createdAt: String(item?.createdAt || ''),
+      updatedAt: String(item?.updatedAt || item?.createdAt || ''),
     }))
     .filter((item) => item.title && (item.description || item.pdfUrl))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
@@ -5238,6 +5239,12 @@ function AdminPage({ mode = 'admin' }) {
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
   const [resourcePostPdfFile, setResourcePostPdfFile] = useState(null)
+  const [resourceExistingPdfUrl, setResourceExistingPdfUrl] = useState('')
+  const [resourceExistingPdfName, setResourceExistingPdfName] = useState('')
+  const [resourceExistingPdfPath, setResourceExistingPdfPath] = useState('')
+  const [resourceExistingImageUrl, setResourceExistingImageUrl] = useState('')
+  const [resourceExistingImagePath, setResourceExistingImagePath] = useState('')
+  const [editingTeachersResourceId, setEditingTeachersResourceId] = useState('')
   const [isTeachersResourcesSaving, setIsTeachersResourcesSaving] = useState(false)
   const [newTopicName, setNewTopicName] = useState('')
   const [newSubtopicName, setNewSubtopicName] = useState('')
@@ -6702,29 +6709,38 @@ function AdminPage({ mode = 'admin' }) {
   async function submitTeachersResourcePost(event) {
     event.preventDefault()
     if (!resourcePostTitle.trim()) return
-    if (!resourcePostPdfFile) {
+
+    const isEditing = Boolean(editingTeachersResourceId)
+    const existingItem = isEditing ? teachersResourcesPosts.find((item) => item.id === editingTeachersResourceId) : null
+    if (isEditing && !existingItem) {
+      setDataError('Could not find the resource you are editing.')
+      return
+    }
+    if (!resourcePostPdfFile && !(isEditing && existingItem?.pdfUrl)) {
       setDataError('Upload a PDF for this resource.')
       return
     }
-    if (!supabaseConfigured) {
+
+    let imageUrl = isEditing ? String(existingItem?.imageUrl || resourceExistingImageUrl || '') : ''
+    let imagePath = isEditing ? String(existingItem?.imagePath || resourceExistingImagePath || '') : ''
+    let pdfUrl = isEditing ? String(existingItem?.pdfUrl || resourceExistingPdfUrl || '') : ''
+    let pdfPath = isEditing ? String(existingItem?.pdfPath || resourceExistingPdfPath || '') : ''
+    let pdfFileName = isEditing ? String(existingItem?.pdfFileName || resourceExistingPdfName || '') : ''
+
+    if ((resourcePostPdfFile || resourcePostImageFile) && !supabaseConfigured) {
       setDataError('Supabase not configured. Add Supabase env values before uploading files.')
       return
     }
 
-    let imageUrl = ''
-    let imagePath = ''
-    let pdfUrl = ''
-    let pdfPath = ''
-    let pdfFileName = ''
-
     try {
       setIsTeachersResourcesSaving(true)
       setDataError('')
-      const pdfUpload = await uploadPdfToSupabase(resourcePostPdfFile, 'teachers-resources-pdfs')
-      pdfUrl = pdfUpload.publicUrl
-      pdfPath = pdfUpload.path
-      pdfFileName = String(resourcePostPdfFile.name || 'resource.pdf').slice(0, 180)
-
+      if (resourcePostPdfFile) {
+        const pdfUpload = await uploadPdfToSupabase(resourcePostPdfFile, 'teachers-resources-pdfs')
+        pdfUrl = pdfUpload.publicUrl
+        pdfPath = pdfUpload.path
+        pdfFileName = String(resourcePostPdfFile.name || 'resource.pdf').slice(0, 180)
+      }
       if (resourcePostImageFile) {
         const uploadResult = await uploadImageToSupabase(resourcePostImageFile, 'teachers-resources')
         imageUrl = uploadResult.publicUrl
@@ -6736,28 +6752,64 @@ function AdminPage({ mode = 'admin' }) {
       return
     }
 
-    const nextPosts = [
-      {
-        id: `tr-${Date.now()}`,
-        title: resourcePostTitle.trim(),
-        description: resourcePostDescription.trim(),
-        category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
-        imageUrl,
-        imagePath,
-        pdfUrl,
-        pdfPath,
-        pdfFileName,
-        createdAt: new Date().toISOString(),
-      },
-      ...teachersResourcesPosts,
-    ]
+    const payload = {
+      id: isEditing ? existingItem.id : `tr-${Date.now()}`,
+      title: resourcePostTitle.trim(),
+      description: resourcePostDescription.trim(),
+      category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
+      imageUrl,
+      imagePath,
+      pdfUrl,
+      pdfPath,
+      pdfFileName,
+      createdAt: isEditing ? existingItem.createdAt || new Date().toISOString() : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    const nextPosts = isEditing
+      ? teachersResourcesPosts.map((item) => (item.id === editingTeachersResourceId ? { ...item, ...payload } : item))
+      : [payload, ...teachersResourcesPosts]
+
     await persistTeachersResourcesPosts(nextPosts)
+    resetTeachersResourceForm()
+  }
+
+  function resetTeachersResourceForm() {
+    setEditingTeachersResourceId('')
     setResourcePostTitle('')
     setResourcePostDescription('')
     setResourcePostCategory('Activities')
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
     setResourcePostPdfFile(null)
+    setResourceExistingPdfUrl('')
+    setResourceExistingPdfName('')
+    setResourceExistingPdfPath('')
+    setResourceExistingImageUrl('')
+    setResourceExistingImagePath('')
+  }
+
+  function startEditTeachersResourcePost(item) {
+    if (!item?.id) return
+    setEditingTeachersResourceId(item.id)
+    setResourcePostTitle(item.title || '')
+    setResourcePostDescription(item.description || '')
+    setResourcePostCategory(mapTeachersResourceCategory(item.category) || 'Activities')
+    setResourcePostImageFile(null)
+    setResourcePostPdfFile(null)
+    setResourceExistingPdfUrl(item.pdfUrl || '')
+    setResourceExistingPdfName(item.pdfFileName || '')
+    setResourceExistingPdfPath(item.pdfPath || '')
+    setResourceExistingImageUrl(item.imageUrl || '')
+    setResourceExistingImagePath(item.imagePath || '')
+    setResourcePostImagePreviewUrl(item.imageUrl || '')
+    setDataError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelEditTeachersResourcePost() {
+    resetTeachersResourceForm()
+    setDataError('')
   }
 
   async function removeTeachersResourcePost(postId) {
@@ -6765,6 +6817,7 @@ function AdminPage({ mode = 'admin' }) {
     const label = post?.title ? `"${post.title}"` : 'this resource'
     const confirmed = window.confirm(`Are you sure you want to delete ${label}? This cannot be undone.`)
     if (!confirmed) return
+    if (editingTeachersResourceId === postId) resetTeachersResourceForm()
     await persistTeachersResourcesPosts(teachersResourcesPosts.filter((item) => item.id !== postId))
   }
 
@@ -7199,7 +7252,7 @@ function AdminPage({ mode = 'admin' }) {
           </section>
           ) : isTeachersResourcesSelected ? (
           <section className="panel">
-            <h2>Teachers &amp; Resources Posts</h2>
+            <h2>{editingTeachersResourceId ? 'Edit Teachers & Resources Post' : 'Teachers & Resources Posts'}</h2>
             <form onSubmit={submitTeachersResourcePost}>
               <label>
                 Post Title
@@ -7208,9 +7261,10 @@ function AdminPage({ mode = 'admin' }) {
               <label>
                 Category
                 <select value={resourcePostCategory} onChange={(event) => setResourcePostCategory(event.target.value)}>
-                  {teachersResourceCategories
-                    .filter((category) => category !== 'All')
-                    .map((category) => (
+                  {[...new Set([
+                    ...teachersResourceCategories.filter((category) => category !== 'All'),
+                    resourcePostCategory,
+                  ].filter(Boolean))].map((category) => (
                       <option key={category} value={category}>
                         {category}
                       </option>
@@ -7227,10 +7281,23 @@ function AdminPage({ mode = 'admin' }) {
                 />
               </label>
               <label>
-                Resource PDF (required)
-                <input type="file" accept="application/pdf,.pdf" onChange={onResourcePostPdfChange} required />
+                Resource PDF {editingTeachersResourceId ? '(optional — keep current if empty)' : '(required)'}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={onResourcePostPdfChange}
+                  required={!editingTeachersResourceId}
+                />
               </label>
               {resourcePostPdfFile ? <small className="muted-text">Selected: {resourcePostPdfFile.name}</small> : null}
+              {!resourcePostPdfFile && resourceExistingPdfUrl ? (
+                <small className="muted-text">
+                  Current PDF:{' '}
+                  <a href={resourceExistingPdfUrl} target="_blank" rel="noreferrer">
+                    {resourceExistingPdfName || 'Open current PDF'}
+                  </a>
+                </small>
+              ) : null}
               <label>
                 Preview image (card thumbnail — recommended)
                 <input type="file" accept="image/*" onChange={onResourcePostImageChange} />
@@ -7240,9 +7307,25 @@ function AdminPage({ mode = 'admin' }) {
                   <img src={resourcePostImagePreviewUrl} alt="Teachers resource post preview" />
                 </div>
               ) : null}
-              <button className="btn primary" type="submit" disabled={isTeachersResourcesSaving}>
-                {isTeachersResourcesSaving ? 'Saving post...' : 'Publish Post'}
-              </button>
+              <div className="paywall-actions">
+                <button className="btn primary" type="submit" disabled={isTeachersResourcesSaving}>
+                  {isTeachersResourcesSaving
+                    ? 'Saving post...'
+                    : editingTeachersResourceId
+                      ? 'Save Changes'
+                      : 'Publish Post'}
+                </button>
+                {editingTeachersResourceId ? (
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={cancelEditTeachersResourcePost}
+                    disabled={isTeachersResourcesSaving}
+                  >
+                    Cancel Edit
+                  </button>
+                ) : null}
+              </div>
             </form>
             <div className="records">
               {teachersResourcesPosts.length === 0 ? (
@@ -7251,10 +7334,15 @@ function AdminPage({ mode = 'admin' }) {
                 teachersResourcesPosts.map((item) => (
                   <article key={item.id} className="record">
                     <div className="record-top">
-                      <span className="pill">resource post</span>
-                      <button type="button" onClick={() => removeTeachersResourcePost(item.id)}>
-                        Delete
-                      </button>
+                      <span className="pill">{editingTeachersResourceId === item.id ? 'editing' : 'resource post'}</span>
+                      <div className="record-actions">
+                        <button type="button" onClick={() => startEditTeachersResourcePost(item)}>
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => removeTeachersResourcePost(item.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </div>
                     <h3>{item.title}</h3>
                     <small>{item.category || 'Activities'}</small>
