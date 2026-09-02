@@ -26,6 +26,7 @@ import {
   suggestSimilarQuestionsByTopic,
   toggleStudyQuestion,
 } from './studentStudy'
+import { readQuestionBankFile } from './parseQuestionBank'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -5713,10 +5714,12 @@ function AdminPage({ mode = 'admin' }) {
   const [solutionImagePreviewUrl, setSolutionImagePreviewUrl] = useState('')
   const [imageWidthPercent, setImageWidthPercent] = useState(100)
   const [isImageUploading, setIsImageUploading] = useState(false)
-  const [bulkQuestionInput, setBulkQuestionInput] = useState('')
+  const [bulkQuestionFile, setBulkQuestionFile] = useState(null)
+  const [bulkPreview, setBulkPreview] = useState([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [bulkUploadError, setBulkUploadError] = useState('')
   const [bulkUploadSuccess, setBulkUploadSuccess] = useState('')
+  const bulkQuestionFileInputRef = useRef(null)
   const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
   const [paywallCourseId, setPaywallCourseId] = useState(defaultCurricula[0]?.id ?? '')
   const [paywallUnitId, setPaywallUnitId] = useState(defaultCurricula[0]?.units?.[0]?.id ?? '')
@@ -6717,6 +6720,21 @@ function AdminPage({ mode = 'admin' }) {
     setImageWidthPercent(100)
   }
 
+  async function onBulkQuestionFileChange(event) {
+    const file = event.target.files?.[0] || null
+    setBulkQuestionFile(file)
+    setBulkPreview([])
+    setBulkUploadError('')
+    setBulkUploadSuccess('')
+    if (!file) return
+    try {
+      const parsed = await readQuestionBankFile(file)
+      setBulkPreview(parsed)
+    } catch (error) {
+      setBulkUploadError(error?.message || 'Unable to parse that file.')
+    }
+  }
+
   async function submitBulkQuestions(event) {
     event.preventDefault()
     setDataError('')
@@ -6725,22 +6743,8 @@ function AdminPage({ mode = 'admin' }) {
     setIsBulkUploading(true)
 
     try {
-      const rawInput = String(bulkQuestionInput || '').trim()
-      if (!rawInput) throw new Error('Paste JSON first.')
-
-      const fencedMatch = rawInput.match(/```(?:json)?\s*([\s\S]*?)```/i)
-      const jsonSource = fencedMatch?.[1]?.trim() || rawInput
-      const parsed = JSON.parse(jsonSource)
-      const items = Array.isArray(parsed)
-        ? parsed
-        : Array.isArray(parsed?.questions)
-          ? parsed.questions
-          : parsed && typeof parsed === 'object'
-            ? [parsed]
-            : null
-      if (!items || items.length === 0) {
-        throw new Error('Provide a question JSON object, array, or { "questions": [...] }.')
-      }
+      const items = bulkPreview.length > 0 ? bulkPreview : bulkQuestionFile ? await readQuestionBankFile(bulkQuestionFile) : []
+      if (!items.length) throw new Error('Upload a question-bank PDF or text file first.')
       if (!curriculumId || !unitId || !subunit) {
         throw new Error('Select course, topic, and subtopic before bulk upload.')
       }
@@ -6760,32 +6764,35 @@ function AdminPage({ mode = 'admin' }) {
       const created = []
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index] || {}
-        const descriptionValue = String(item.description || item.question || item.prompt || '').trim()
+        const descriptionValue = String(item.description || '').trim()
         if (!descriptionValue) {
-          throw new Error(`Question ${index + 1} is missing description/question text.`)
+          throw new Error(`Question ${item.number || index + 1} is missing question text.`)
         }
+        const solutionValue = String(item.solution || '').trim()
 
         const newRecord = {
           itemType: 'question',
           title: '',
           description: descriptionValue,
-          solution: String(item.solution || '').trim(),
-          solutionVideoLink: String(item.solutionVideoLink || item.videoSolutionLink || item.youtubeLink || '').trim(),
-          solutionImageUrl: String(item.solutionImageUrl || '').trim(),
+          descriptionBlocks: [createTextContentBlock(descriptionValue)],
+          solution: solutionValue,
+          solutionBlocks: solutionValue ? [createTextContentBlock(solutionValue)] : [],
+          solutionVideoLink: '',
+          solutionImageUrl: '',
           solutionImagePath: '',
           questionLevel:
-            isCurrentAdminIbdpCourse && ['sl', 'hl'].includes(String(item.questionLevel || item.level || 'sl').toLowerCase())
-              ? String(item.questionLevel || item.level || 'sl').toLowerCase()
+            isCurrentAdminIbdpCourse && ['sl', 'hl'].includes(String(item.questionLevel || '').toLowerCase())
+              ? String(item.questionLevel).toLowerCase()
               : '',
           difficulty: String(item.difficulty || 'medium').toLowerCase(),
           marks: Math.max(1, Number(item.marks || 1)),
           gdc: String(item.gdc || 'not gdc').toLowerCase() === 'gdc' ? 'gdc' : 'not gdc',
           geogebraLink: '',
-          resourceLink: String(item.resourceLink || '').trim(),
+          resourceLink: '',
           attachedFileName: '',
           imageUrl: '',
           imagePath: '',
-          imageWidthPercent: clampImageWidthPercent(item.imageWidthPercent, 100),
+          imageWidthPercent: 100,
           curriculumId,
           unitId,
           subunit,
@@ -6800,7 +6807,9 @@ function AdminPage({ mode = 'admin' }) {
       }
 
       persistRecords([...created, ...records])
-      setBulkQuestionInput('')
+      setBulkQuestionFile(null)
+      setBulkPreview([])
+      if (bulkQuestionFileInputRef.current) bulkQuestionFileInputRef.current.value = ''
       setBulkUploadSuccess(`Uploaded ${created.length} question${created.length === 1 ? '' : 's'} successfully.`)
     } catch (error) {
       setDataError(error?.message || 'Unable to parse/upload bulk questions.')
@@ -8117,20 +8126,29 @@ function AdminPage({ mode = 'admin' }) {
 
           <form className="panel" onSubmit={submitBulkQuestions}>
             <h2>Bulk Upload Questions</h2>
-            <p>Paste ChatGPT JSON. Each item will be uploaded as an individual question card.</p>
+            <p>
+              Upload the ChatGPT question-bank PDF or text file. Each <code>Question N</code> block is parsed
+              into its own card with solution, marks, GDC, difficulty, and level.
+            </p>
             <label>
-              Bulk JSON
-              <textarea
-                rows={12}
-                value={bulkQuestionInput}
-                onChange={(event) => setBulkQuestionInput(event.target.value)}
-                placeholder='[{"description":"Question text", "solution":"...", "difficulty":"medium", "marks":5, "gdc":"gdc"}]'
-                required
+              Question bank file
+              <input
+                ref={bulkQuestionFileInputRef}
+                type="file"
+                accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
+                onChange={onBulkQuestionFileChange}
               />
             </label>
+            {bulkQuestionFile ? <small>{bulkQuestionFile.name}</small> : null}
+            {bulkPreview.length > 0 ? (
+              <p className="success-text">
+                Parsed {bulkPreview.length} question{bulkPreview.length === 1 ? '' : 's'}. Upload to the selected topic
+                {subunit ? ` (${subunit})` : ''}.
+              </p>
+            ) : null}
             {bulkUploadError ? <p className="error-text">{bulkUploadError}</p> : null}
             {bulkUploadSuccess ? <p className="success-text">{bulkUploadSuccess}</p> : null}
-            <button className="btn primary" type="submit" disabled={isBulkUploading}>
+            <button className="btn primary" type="submit" disabled={isBulkUploading || bulkPreview.length === 0}>
               {isBulkUploading ? 'Uploading questions...' : 'Upload Questions'}
             </button>
           </form>
