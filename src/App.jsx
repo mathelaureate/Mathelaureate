@@ -21,7 +21,6 @@ import {
   buildStudyQuestionEntry,
   courseContinuePath,
   normalizeStudyList,
-  questionStudyPath,
   resolveLastViewedCourse,
   resolveMyCourses,
   suggestSimilarQuestionsByTopic,
