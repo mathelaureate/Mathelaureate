@@ -4688,11 +4688,30 @@ body {
   line-height: 1.5;
 }
 
-.study-question-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  align-items: center;
+.study-question-actions .text-btn {
+  margin: 0;
+}
+
+.study-question-solution {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
+  border-top: 1px solid var(--ia-line, #e2e8f0);
+}
+
+.study-question-solution .solution-box {
+  margin-top: 0;
+}
+
+.study-question-solution .solution-video-wrap {
+  margin-top: 0.2rem;
+}
+
+.study-question-solution .solution-video-wrap iframe {
+  width: 100%;
+  min-height: 220px;
+  border: 0;
+  border-radius: 10px;
 }
 
 .my-course-link {

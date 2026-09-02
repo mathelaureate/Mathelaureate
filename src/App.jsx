@@ -4956,6 +4956,16 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   )
 }
 
+function questionHasSolution(item) {
+  if (!item) return false
+  return Boolean(
+    item.solution ||
+      item.solutionVideoLink ||
+      item.solutionImageUrl ||
+      contentBlocksHaveMediaOrText(item.solutionBlocks),
+  )
+}
+
 function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
   const normalizedBlocks = normalizeContentBlocks(blocks)
   if (normalizedBlocks.length === 0) return null
@@ -4987,8 +4997,10 @@ function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
 }
 
 function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenImage, showRemove = false }) {
-  const href = questionStudyPath(entry)
+  const [showSolution, setShowSolution] = useState(false)
   const bodyText = item?.description || entry.preview || 'Saved question'
+  const hasSolution = questionHasSolution(item)
+  const solutionVideo = toYouTubeEmbedUrl(item?.solutionVideoLink)
   return (
     <article className="study-question-card">
       <p className="study-question-kicker">
@@ -5032,10 +5044,10 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
         ) : null}
       </div>
       <div className="study-question-actions">
-        {href ? (
-          <Link className="my-course-link" to={href}>
-            Open in course
-          </Link>
+        {hasSolution ? (
+          <button type="button" className="btn ghost text-btn" onClick={() => setShowSolution((open) => !open)}>
+            {showSolution ? 'Hide solution' : 'View Solution'}
+          </button>
         ) : null}
         {showRemove ? (
           <button type="button" className="ia-clear-inline" onClick={() => onRemove?.(entry)} disabled={removing}>
@@ -5043,6 +5055,46 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
           </button>
         ) : null}
       </div>
+      {showSolution && hasSolution ? (
+        <div className="study-question-solution">
+          {item.solution && !contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+            <div className="solution-box">
+              <LatexText value={item.solution} className="latex-text" />
+            </div>
+          ) : null}
+          {contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+            <StudyContentBlocks
+              blocks={item.solutionBlocks}
+              idPrefix={`study-sol-${entry.questionId}`}
+              onOpenImage={onOpenImage}
+            />
+          ) : null}
+          {item.solutionImageUrl ? (
+            <div className="content-image-block">
+              <button
+                type="button"
+                className="image-open-btn"
+                onClick={() => onOpenImage?.(item.solutionImageUrl)}
+                aria-label="Open solution image in full view"
+              >
+                <img src={item.solutionImageUrl} alt="Solution visual" />
+              </button>
+            </div>
+          ) : null}
+          {solutionVideo ? (
+            <div className="solution-video-wrap">
+              <h4>Video Solution</h4>
+              <iframe
+                title={`study-video-solution-${entry.questionId}`}
+                src={solutionVideo}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   )
 }
