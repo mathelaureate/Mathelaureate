@@ -10,6 +10,7 @@ globalThis.__translateRateLimitStore = rateLimitStore
 const TARGETS = {
   zh: 'zh-CN',
   ja: 'ja',
+  ko: 'ko',
 }
 
 function sendJson(response, statusCode, payload) {

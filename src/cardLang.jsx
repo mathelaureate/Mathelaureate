@@ -8,6 +8,7 @@ export const CARD_LANGS = [
   { id: 'en', label: 'EN' },
   { id: 'zh', label: '中文' },
   { id: 'ja', label: '日本語' },
+  { id: 'ko', label: '한국어' },
 ]
 
 function apiBase() {
@@ -29,7 +30,7 @@ function restoreMath(value, tokens) {
 }
 
 async function translateWithGoogle(text, target) {
-  const tl = target === 'zh' ? 'zh-CN' : 'ja'
+  const tl = target === 'zh' ? 'zh-CN' : target === 'ko' ? 'ko' : 'ja'
   const endpoint = new URL('https://translate.googleapis.com/translate_a/single')
   endpoint.searchParams.set('client', 'gtx')
   endpoint.searchParams.set('sl', 'auto')
