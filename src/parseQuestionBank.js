@@ -283,11 +283,14 @@ export async function extractTextFromPdfData(data) {
   return pages.join('\n')
 }
 
-export async function readQuestionBankFile(file) {
-  if (!file) throw new Error('Choose a question-bank file first.')
+export async function readBankFileText(file) {
+  if (!file) throw new Error('Choose a file first.')
   const name = String(file.name || '').toLowerCase()
   const type = String(file.type || '').toLowerCase()
   const isPdf = type.includes('pdf') || name.endsWith('.pdf')
-  const text = isPdf ? await extractTextFromPdfData(await file.arrayBuffer()) : await file.text()
-  return parseQuestionBankText(text)
+  return isPdf ? extractTextFromPdfData(await file.arrayBuffer()) : file.text()
+}
+
+export async function readQuestionBankFile(file) {
+  return parseQuestionBankText(await readBankFileText(file))
 }

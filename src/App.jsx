@@ -27,6 +27,7 @@ import {
   toggleStudyQuestion,
 } from './studentStudy'
 import { readQuestionBankFile } from './parseQuestionBank'
+import { readLessonBankFile } from './parseLessonBank'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1312,8 +1313,9 @@ function parseLearningObjectivePoints(value) {
 }
 
 function isLearningObjectivesLesson(item) {
-  const title = String(item?.title || '')
-  if (/learning\s*objectives?/i.test(title)) return true
+  const title = String(item?.title || '').trim()
+  if (/^learning\s*objectives?$/i.test(title)) return true
+  if (title) return false
   return Array.isArray(item?.learningObjectives) && item.learningObjectives.some((point) => String(point || '').trim())
 }
 
@@ -1426,7 +1428,8 @@ function CourseItemCard({
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
   const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
   const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
-  const objectivePoints = objectivesItem ? getLearningObjectivePoints(view) : []
+  const objectivePoints = activeTab === 'lesson' ? getLearningObjectivePoints(view) : []
+  const showInlineObjectives = Boolean(!objectivesItem && objectivePoints.length)
   const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
 
   return (
@@ -1505,8 +1508,8 @@ function CourseItemCard({
           <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
           <ul className="objectives-list">
             {(objectivePoints.length > 0 ? objectivePoints : ['Add learning objective points in the admin dashboard.']).map(
-              (point) => (
-                <li key={point}>
+              (point, pointIndex) => (
+                <li key={`${point}-${pointIndex}`}>
                   <span className="objectives-check" aria-hidden="true">
                     ✓
                   </span>
@@ -1516,10 +1519,29 @@ function CourseItemCard({
             )}
           </ul>
         </>
-      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
-        renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
       ) : (
-        <LatexText value={view.description} className="latex-text" />
+        <>
+          {showInlineObjectives ? (
+            <div className="lesson-inline-objectives">
+              <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
+              <ul className="objectives-list">
+                {objectivePoints.map((point, pointIndex) => (
+                  <li key={`${point}-${pointIndex}`}>
+                    <span className="objectives-check" aria-hidden="true">
+                      ✓
+                    </span>
+                    <LatexText value={point} className="latex-text" />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+            renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
+          ) : (
+            <LatexText value={view.description} className="latex-text" />
+          )}
+        </>
       )}
       {item.imageUrl ? (
         <div className="content-image-block">
@@ -5720,6 +5742,12 @@ function AdminPage({ mode = 'admin' }) {
   const [bulkUploadError, setBulkUploadError] = useState('')
   const [bulkUploadSuccess, setBulkUploadSuccess] = useState('')
   const bulkQuestionFileInputRef = useRef(null)
+  const [bulkLessonFile, setBulkLessonFile] = useState(null)
+  const [bulkLessonPreview, setBulkLessonPreview] = useState([])
+  const [isBulkLessonUploading, setIsBulkLessonUploading] = useState(false)
+  const [bulkLessonError, setBulkLessonError] = useState('')
+  const [bulkLessonSuccess, setBulkLessonSuccess] = useState('')
+  const bulkLessonFileInputRef = useRef(null)
   const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
   const [paywallCourseId, setPaywallCourseId] = useState(defaultCurricula[0]?.id ?? '')
   const [paywallUnitId, setPaywallUnitId] = useState(defaultCurricula[0]?.units?.[0]?.id ?? '')
@@ -6816,6 +6844,107 @@ function AdminPage({ mode = 'admin' }) {
       setBulkUploadError(error?.message || 'Unable to parse/upload bulk questions.')
     } finally {
       setIsBulkUploading(false)
+    }
+  }
+
+  async function onBulkLessonFileChange(event) {
+    const file = event.target.files?.[0] || null
+    setBulkLessonFile(file)
+    setBulkLessonPreview([])
+    setBulkLessonError('')
+    setBulkLessonSuccess('')
+    if (!file) return
+    try {
+      const parsed = await readLessonBankFile(file)
+      setBulkLessonPreview(parsed)
+    } catch (error) {
+      setBulkLessonError(error?.message || 'Unable to parse that file.')
+    }
+  }
+
+  async function submitBulkLessons(event) {
+    event.preventDefault()
+    setDataError('')
+    setBulkLessonError('')
+    setBulkLessonSuccess('')
+    setIsBulkLessonUploading(true)
+
+    try {
+      const items =
+        bulkLessonPreview.length > 0 ? bulkLessonPreview : bulkLessonFile ? await readLessonBankFile(bulkLessonFile) : []
+      if (!items.length) throw new Error('Upload a lesson-bank PDF or text file first.')
+      if (!curriculumId || !unitId || !subunit) {
+        throw new Error('Select course, topic, and subtopic before bulk upload.')
+      }
+
+      const existingLessonRecords = records.filter(
+        (item) =>
+          item.curriculumId === curriculumId &&
+          item.unitId === unitId &&
+          item.subunit === subunit &&
+          item.itemType === 'lesson',
+      )
+      const baseSortOrder = existingLessonRecords.reduce((max, item) => {
+        const value = Number(item?.sortOrder)
+        return Number.isFinite(value) ? Math.max(max, value) : max
+      }, 0)
+
+      const created = []
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index] || {}
+        const titleValue = String(item.title || '').trim()
+        const descriptionValue = String(item.description || '').trim()
+        const objectivePoints = Array.isArray(item.learningObjectives)
+          ? item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
+          : []
+        if (!titleValue && !descriptionValue && !objectivePoints.length) {
+          throw new Error(`Lesson ${index + 1} is missing title, objectives, and body text.`)
+        }
+
+        const newRecord = {
+          itemType: 'lesson',
+          title: titleValue || (objectivePoints.length ? 'Learning Objectives' : ''),
+          description: descriptionValue,
+          descriptionBlocks: descriptionValue ? [createTextContentBlock(descriptionValue)] : [],
+          learningObjectives: objectivePoints,
+          solution: '',
+          solutionBlocks: [],
+          solutionVideoLink: '',
+          solutionImageUrl: '',
+          solutionImagePath: '',
+          questionLevel: '',
+          difficulty: '',
+          marks: 0,
+          gdc: '',
+          geogebraLink: String(item.geogebraLink || '').trim(),
+          resourceLink: String(item.resourceLink || '').trim(),
+          attachedFileName: '',
+          imageUrl: '',
+          imagePath: '',
+          imageWidthPercent: 100,
+          curriculumId,
+          unitId,
+          subunit,
+          sortOrder: baseSortOrder + index + 1,
+          createdAt: new Date(Date.now() + index).toISOString(),
+          createdByEmail: String(auth.currentUser?.email || '').trim().toLowerCase(),
+          createdByRole: isEditorMode ? 'editor' : 'admin',
+        }
+
+        const docRef = await addDoc(contentItemsCollectionRef, newRecord)
+        created.push({ id: docRef.id, ...newRecord })
+      }
+
+      persistRecords([...created, ...records])
+      setBulkLessonFile(null)
+      setBulkLessonPreview([])
+      if (bulkLessonFileInputRef.current) bulkLessonFileInputRef.current.value = ''
+      setBulkLessonSuccess(`Uploaded ${created.length} lesson${created.length === 1 ? '' : 's'} successfully.`)
+    } catch (error) {
+      setDataError(error?.message || 'Unable to parse/upload bulk lessons.')
+      setBulkLessonError(error?.message || 'Unable to parse/upload bulk lessons.')
+    } finally {
+      setIsBulkLessonUploading(false)
     }
   }
 
@@ -8150,6 +8279,36 @@ function AdminPage({ mode = 'admin' }) {
             {bulkUploadSuccess ? <p className="success-text">{bulkUploadSuccess}</p> : null}
             <button className="btn primary" type="submit" disabled={isBulkUploading || bulkPreview.length === 0}>
               {isBulkUploading ? 'Uploading questions...' : 'Upload Questions'}
+            </button>
+          </form>
+
+          <form className="panel" onSubmit={submitBulkLessons}>
+            <h2>Bulk Upload Lessons</h2>
+            <p>
+              Upload the ChatGPT lesson-bank PDF or text file. Title, learning objectives, and the lesson body are
+              parsed into lesson cards.
+            </p>
+            <label>
+              Lesson bank file
+              <input
+                ref={bulkLessonFileInputRef}
+                type="file"
+                accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
+                onChange={onBulkLessonFileChange}
+              />
+            </label>
+            {bulkLessonFile ? <small>{bulkLessonFile.name}</small> : null}
+            {bulkLessonPreview.length > 0 ? (
+              <p className="success-text">
+                Parsed {bulkLessonPreview.length} lesson{bulkLessonPreview.length === 1 ? '' : 's'}
+                {bulkLessonPreview[0]?.title ? `: ${bulkLessonPreview[0].title}` : ''}. Upload to the selected topic
+                {subunit ? ` (${subunit})` : ''}.
+              </p>
+            ) : null}
+            {bulkLessonError ? <p className="error-text">{bulkLessonError}</p> : null}
+            {bulkLessonSuccess ? <p className="success-text">{bulkLessonSuccess}</p> : null}
+            <button className="btn primary" type="submit" disabled={isBulkLessonUploading || bulkLessonPreview.length === 0}>
+              {isBulkLessonUploading ? 'Uploading lessons...' : 'Upload Lessons'}
             </button>
           </form>
 
