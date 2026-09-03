@@ -27,7 +27,7 @@ import {
   toggleStudyQuestion,
 } from './studentStudy'
 import { readQuestionBankFile } from './parseQuestionBank'
-import { readLessonBankFile } from './parseLessonBank'
+import { readLessonBankFile, stripLearningObjectivesSection } from './parseLessonBank'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1305,25 +1305,22 @@ function contentBlocksToPlainText(blocks) {
     .trim()
 }
 
-function parseLearningObjectivePoints(value) {
-  return String(value || '')
-    .split(/\n+/)
-    .map((line) => line.replace(/^\s*(?:[-*•●▪]|\d+[.)])\s*/, '').trim())
-    .filter(Boolean)
-}
-
 function isLearningObjectivesLesson(item) {
   return /^learning\s*objectives?$/i.test(String(item?.title || '').trim())
 }
 
-function getLearningObjectivePoints(item) {
-  if (Array.isArray(item?.learningObjectives)) {
-    const fromField = item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
-    if (fromField.length) return fromField
+function lessonWithoutObjectives(item) {
+  if (!item) return item
+  return {
+    ...item,
+    learningObjectives: [],
+    description: stripLearningObjectivesSection(item.description),
+    descriptionBlocks: Array.isArray(item.descriptionBlocks)
+      ? item.descriptionBlocks.map((block) =>
+          block?.type === 'text' ? { ...block, text: stripLearningObjectivesSection(block.text) } : block,
+        )
+      : item.descriptionBlocks,
   }
-  if (!isLearningObjectivesLesson(item)) return []
-  const fromBlocks = contentBlocksToPlainText(item?.descriptionBlocks)
-  return parseLearningObjectivePoints(fromBlocks || item?.description || '')
 }
 
 function isOverviewLesson(item) {
@@ -1332,16 +1329,14 @@ function isOverviewLesson(item) {
 
 function collectCardTranslateFields(item) {
   const fields = {}
-  const title = String(item?.title || '').trim()
-  const description = String(item?.description || '').trim()
+  const source = lessonWithoutObjectives(item)
+  const title = String(source?.title || '').trim()
+  const description = String(source?.description || '').trim()
   const solution = String(item?.solution || '').trim()
   if (title) fields.title = title
   if (description) fields.description = description
   if (solution) fields.solution = solution
-  getLearningObjectivePoints(item).forEach((point, index) => {
-    if (point) fields[`obj_${index}`] = point
-  })
-  normalizeContentBlocks(item?.descriptionBlocks).forEach((block, index) => {
+  normalizeContentBlocks(source?.descriptionBlocks).forEach((block, index) => {
     if (block.type === 'text' && String(block.text || '').trim()) fields[`block_${index}`] = block.text
     if (String(block.caption || '').trim()) fields[`caption_${index}`] = block.caption
   })
@@ -1358,11 +1353,6 @@ function applyTranslatedFields(item, fields) {
   if (fields.title != null) next.title = fields.title
   if (fields.description != null) next.description = fields.description
   if (fields.solution != null) next.solution = fields.solution
-
-  const objectiveSource = getLearningObjectivePoints(item)
-  if (objectiveSource.length > 0) {
-    next.learningObjectives = objectiveSource.map((point, index) => fields[`obj_${index}`] ?? point)
-  }
 
   if (Array.isArray(item?.descriptionBlocks)) {
     next.descriptionBlocks = normalizeContentBlocks(item.descriptionBlocks).map((block, index) => ({
@@ -1424,22 +1414,21 @@ function CourseItemCard({
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
-  const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
-  const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
-  const objectivePoints = objectivesItem ? getLearningObjectivePoints(view) : []
-  const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
+  const viewSource = lang === 'en' ? item : applyTranslatedFields(item, fields)
+  const view = activeTab === 'lesson' ? lessonWithoutObjectives(viewSource) : viewSource
+  const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || index === 0)
 
   return (
     <article
       id={activeTab === 'question' ? `question-${item.id}` : undefined}
       className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
         activeTab === 'question' ? 'lesson-card-question' : ''
-      } ${overviewItem ? 'lesson-card-overview' : ''} ${objectivesItem ? 'lesson-card-objectives' : ''}${
+      } ${overviewItem ? 'lesson-card-overview' : ''}${
         isFocused ? ' is-focused-question' : ''
       }`}
     >
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      {activeTab !== 'question' && !objectivesItem ? (
+      {activeTab !== 'question' ? (
         index === 0 || overviewItem ? (
           <div className="record-top">
             <span className="pill">{item.itemType}</span>
@@ -1472,19 +1461,6 @@ function CourseItemCard({
             </button>
           </div>
         </div>
-      ) : objectivesItem ? (
-        <div className="objectives-head">
-          <span className="objectives-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
-              <circle cx="12" cy="12" r="3" fill="currentColor" />
-            </svg>
-          </span>
-          <h3>Learning Objectives</h3>
-          <span className="objectives-ribbon" aria-hidden="true">
-            ★
-          </span>
-        </div>
       ) : (
         <LatexText value={view.title} className="latex-heading" />
       )}
@@ -1500,23 +1476,7 @@ function CourseItemCard({
           </span>
         </div>
       ) : null}
-      {objectivesItem ? (
-        <>
-          <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
-          <ul className="objectives-list">
-            {(objectivePoints.length > 0 ? objectivePoints : ['Add learning objective points in the admin dashboard.']).map(
-              (point, pointIndex) => (
-                <li key={`${point}-${pointIndex}`}>
-                  <span className="objectives-check" aria-hidden="true">
-                    ✓
-                  </span>
-                  <LatexText value={point} className="latex-text" />
-                </li>
-              ),
-            )}
-          </ul>
-        </>
-      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+      {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
         renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
       ) : (
         <LatexText value={view.description} className="latex-text" />
@@ -3641,7 +3601,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
     if (aOrder !== bOrder) return aOrder - bOrder
     return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
   }
-  const lessons = [...scopedItems.filter((item) => item.itemType === 'lesson' || item.itemType === 'resource')].sort(sortByStoredOrder)
+  const lessons = [
+    ...scopedItems.filter(
+      (item) =>
+        (item.itemType === 'lesson' || item.itemType === 'resource') && !isLearningObjectivesLesson(item),
+    ),
+  ].sort(sortByStoredOrder)
   const questions = scopedItems.filter((item) => item.itemType === 'question')
   const isIbdpAaAiCourse = course.curriculumId === 'ibdp-aa-hl' || course.curriculumId === 'ibdp-ai-hl'
   const difficultyOptions = ['easy', 'medium', 'hard']
@@ -5696,7 +5661,6 @@ function AdminPage({ mode = 'admin' }) {
   const [subunit, setSubunit] = useState(curricula[0]?.units[0]?.subunits[0] ?? '')
   const [itemType, setItemType] = useState('lesson')
   const [title, setTitle] = useState('')
-  const [learningObjectivesText, setLearningObjectivesText] = useState('')
   const [descriptionBlocks, setDescriptionBlocks] = useState(() => [createTextContentBlock('')])
   const [solution, setSolution] = useState('')
   const [solutionBlocks, setSolutionBlocks] = useState([])
@@ -5782,7 +5746,6 @@ function AdminPage({ mode = 'admin' }) {
   const [editingRecordId, setEditingRecordId] = useState('')
   const [editingRecordType, setEditingRecordType] = useState('')
   const [editTitle, setEditTitle] = useState('')
-  const [editLearningObjectivesText, setEditLearningObjectivesText] = useState('')
   const [editDescriptionBlocks, setEditDescriptionBlocks] = useState([])
   const [editSolution, setEditSolution] = useState('')
   const [editSolutionBlocks, setEditSolutionBlocks] = useState([])
@@ -6573,15 +6536,14 @@ function AdminPage({ mode = 'admin' }) {
 
   async function submitItem(event) {
     event.preventDefault()
-    const objectivePoints = itemType === 'lesson' ? parseLearningObjectivePoints(learningObjectivesText) : []
     const descriptionBlocksEnabled = contentBlocksHaveMediaOrText(descriptionBlocks)
     const solutionBlocksEnabled = itemType === 'question' && contentBlocksHaveMediaOrText(solutionBlocks)
     const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : String(solution || '').trim()
-    if (!descriptionBlocksEnabled && objectivePoints.length === 0) {
-      setDataError('Add description blocks, or learning objective points (one per line).')
+    if (!descriptionBlocksEnabled) {
+      setDataError(itemType === 'question' ? 'Add description blocks.' : 'Add lesson description blocks.')
       return
     }
-    if (itemType !== 'question' && !String(title || '').trim() && objectivePoints.length === 0) {
+    if (itemType !== 'question' && !String(title || '').trim()) {
       setDataError('Title is required.')
       return
     }
@@ -6616,11 +6578,6 @@ function AdminPage({ mode = 'admin' }) {
         setDataError(error?.message || 'Unable to upload block images to Supabase.')
         return
       }
-    }
-    if (!descriptionBlocksEnabled && objectivePoints.length > 0) {
-      normalizedDescriptionBlocks = [
-        createTextContentBlock(objectivePoints.map((point, index) => `${index + 1}. ${point}`).join('\n')),
-      ]
     }
 
     if (selectedImageFile) {
@@ -6671,10 +6628,10 @@ function AdminPage({ mode = 'admin' }) {
 
     const newRecord = {
       itemType,
-      title: itemType === 'question' ? '' : title.trim() || (objectivePoints.length ? 'Learning Objectives' : ''),
+      title: itemType === 'question' ? '' : title.trim(),
       description: contentBlocksToPlainText(normalizedDescriptionBlocks),
       descriptionBlocks: normalizedDescriptionBlocks,
-      learningObjectives: itemType === 'lesson' ? objectivePoints : [],
+      learningObjectives: [],
       solution: itemType === 'question' ? (solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : solution) : '',
       solutionBlocks: itemType === 'question' && solutionBlocksEnabled ? normalizedSolutionBlocks : [],
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
@@ -6707,7 +6664,6 @@ function AdminPage({ mode = 'admin' }) {
     }
     setIsImageUploading(false)
     setTitle('')
-    setLearningObjectivesText('')
     setDescriptionBlocks([createTextContentBlock('')])
     setSolution('')
     setSolutionBlocks([])
@@ -6871,20 +6827,17 @@ function AdminPage({ mode = 'admin' }) {
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index] || {}
         const titleValue = String(item.title || '').trim()
-        const descriptionValue = String(item.description || '').trim()
-        const objectivePoints = Array.isArray(item.learningObjectives)
-          ? item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
-          : []
-        if (!titleValue && !descriptionValue && !objectivePoints.length) {
-          throw new Error(`Lesson ${index + 1} is missing title, objectives, and body text.`)
+        const descriptionValue = stripLearningObjectivesSection(String(item.description || '').trim())
+        if (!titleValue && !descriptionValue) {
+          throw new Error(`Lesson ${index + 1} is missing title and body text.`)
         }
 
         const newRecord = {
           itemType: 'lesson',
-          title: titleValue || (objectivePoints.length ? 'Learning Objectives' : ''),
+          title: titleValue,
           description: descriptionValue,
           descriptionBlocks: descriptionValue ? [createTextContentBlock(descriptionValue)] : [],
-          learningObjectives: objectivePoints,
+          learningObjectives: [],
           solution: '',
           solutionBlocks: [],
           solutionVideoLink: '',
@@ -6953,13 +6906,6 @@ function AdminPage({ mode = 'admin' }) {
     setEditingRecordId(record.id)
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
-    setEditLearningObjectivesText(
-      Array.isArray(record.learningObjectives) && record.learningObjectives.length
-        ? record.learningObjectives.join('\n')
-        : /learning\s*objectives?/i.test(String(record.title || ''))
-          ? getLearningObjectivePoints(record).join('\n')
-          : '',
-    )
     setEditDescriptionBlocks(normalizeContentBlocks(record.descriptionBlocks, record.description))
     setEditSolution(String(record.solution || ''))
     setEditSolutionBlocks(normalizeContentBlocks(record.solutionBlocks, record.solution))
@@ -6977,7 +6923,6 @@ function AdminPage({ mode = 'admin' }) {
     setEditingRecordId('')
     setEditingRecordType('')
     setEditTitle('')
-    setEditLearningObjectivesText('')
     setEditDescriptionBlocks([])
     setEditSolution('')
     setEditSolutionBlocks([])
@@ -7002,12 +6947,12 @@ function AdminPage({ mode = 'admin' }) {
     const editSolutionBlocksEnabled = editingRecordType === 'question' && contentBlocksHaveMediaOrText(editSolutionBlocks)
     const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : editSolution.trim()
 
-    if (editingRecordType !== 'question' && !editTitle.trim() && !parseLearningObjectivePoints(editLearningObjectivesText).length) {
+    if (editingRecordType !== 'question' && !editTitle.trim()) {
       setDataError('Title is required for lessons.')
       return
     }
-    if (!editDescriptionBlocksEnabled && !parseLearningObjectivePoints(editLearningObjectivesText).length) {
-      setDataError('Add description blocks, or learning objective points (one per line).')
+    if (!editDescriptionBlocksEnabled) {
+      setDataError('Add description blocks.')
       return
     }
     if (
@@ -7023,7 +6968,6 @@ function AdminPage({ mode = 'admin' }) {
 
     let normalizedDescriptionBlocks = []
     let normalizedSolutionBlocks = []
-    const editObjectivePoints = editingRecordType === 'lesson' ? parseLearningObjectivePoints(editLearningObjectivesText) : []
     if (editDescriptionBlocksEnabled || editSolutionBlocksEnabled) {
       try {
         setIsImageUploading(true)
@@ -7044,11 +6988,6 @@ function AdminPage({ mode = 'admin' }) {
         setDataError(error?.message || 'Unable to upload block images to Supabase.')
         return
       }
-    }
-    if (!editDescriptionBlocksEnabled && editObjectivePoints.length > 0) {
-      normalizedDescriptionBlocks = [
-        createTextContentBlock(editObjectivePoints.map((point, index) => `${index + 1}. ${point}`).join('\n')),
-      ]
     }
 
     const payload =
@@ -7072,10 +7011,10 @@ function AdminPage({ mode = 'admin' }) {
             updatedAt: new Date().toISOString(),
           }
         : {
-            title: editTitle.trim() || (parseLearningObjectivePoints(editLearningObjectivesText).length ? 'Learning Objectives' : ''),
+            title: editTitle.trim(),
             description: contentBlocksToPlainText(normalizedDescriptionBlocks),
             descriptionBlocks: normalizedDescriptionBlocks,
-            learningObjectives: parseLearningObjectivePoints(editLearningObjectivesText),
+            learningObjectives: [],
             geogebraLink: editGeogebraLink.trim(),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
@@ -8053,24 +7992,13 @@ function AdminPage({ mode = 'admin' }) {
             {itemType !== 'question' ? (
               <label>
                 Title
-                <input value={title} onChange={(event) => setTitle(event.target.value)} required={itemType !== 'lesson'} />
-              </label>
-            ) : null}
-            {itemType === 'lesson' ? (
-              <label>
-                Learning Objectives (one point per line)
-                <textarea
-                  rows={5}
-                  value={learningObjectivesText}
-                  onChange={(event) => setLearningObjectivesText(event.target.value)}
-                  placeholder={'Identify the common ratio of a geometric sequence\nFind the nth term using u_n = ar^{n-1}\nCalculate the sum of the first n terms'}
-                />
+                <input value={title} onChange={(event) => setTitle(event.target.value)} required />
               </label>
             ) : null}
             {renderAdminBlocksEditor({
               blocks: descriptionBlocks,
               setter: setDescriptionBlocks,
-              label: itemType === 'lesson' ? 'Description blocks (optional if objectives are set)' : 'Description blocks (required)',
+              label: 'Description blocks (required)',
             })}
             {itemType === 'question' ? (
               <>
@@ -8384,19 +8312,10 @@ function AdminPage({ mode = 'admin' }) {
                                 Title
                                 <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
                               </label>
-                              <label>
-                                Learning Objectives (one point per line)
-                                <textarea
-                                  rows={5}
-                                  value={editLearningObjectivesText}
-                                  onChange={(event) => setEditLearningObjectivesText(event.target.value)}
-                                  placeholder={'Point 1\nPoint 2\nPoint 3'}
-                                />
-                              </label>
                               {renderAdminBlocksEditor({
                                 blocks: editDescriptionBlocks,
                                 setter: setEditDescriptionBlocks,
-                                label: 'Description blocks (optional if objectives are set)',
+                                label: 'Description blocks',
                               })}
                               <label>
                                 GeoGebra Link

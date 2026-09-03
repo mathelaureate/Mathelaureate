@@ -37,6 +37,19 @@ function findOwnLineHeadings(text) {
   }))
 }
 
+export function stripLearningObjectivesSection(text) {
+  return String(text || '')
+    .replace(
+      /<b>\s*Learning Objectives\s*<\/b>[\s\S]*?(?:\$\\overline\{\\hspace\{15cm\}\}\$|(?=\n\s*<b>)|$)/gi,
+      '',
+    )
+    .replace(/<b>\s*Learning Objectives\s*<\/b>/gi, '')
+    .replace(/(?:^|\n)\s*Learning Objectives\s*(?:\n|$)/gi, '\n')
+    .replace(/(?:^|\n)\s*By the end of this lesson[^\n]*/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function stripTrailingTeacherNotes(text) {
   return String(text || '')
     .replace(/\n+(?:This completes|Below is a refined|Create a complete, website-ready)[\s\S]*$/i, '')
@@ -54,10 +67,12 @@ function parseOneLesson(raw, fallbackTitle = '') {
   const withoutTitle = titleHeading ? `${cleaned.slice(0, titleHeading.index)}${cleaned.slice(titleHeading.end)}` : cleaned
   const description = repairLatexNewlines(
     stripTrailingTeacherNotes(
-      withoutTitle
-        .replace(/^\s*(?:\$\\overline\{\\hspace\{15cm\}\}\$\s*)+/g, '')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim(),
+      stripLearningObjectivesSection(
+        withoutTitle
+          .replace(/^\s*(?:\$\\overline\{\\hspace\{15cm\}\}\$\s*)+/g, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim(),
+      ),
     ),
   )
   if (!title && !description) return null
@@ -122,13 +137,9 @@ function parseJsonLessons(text) {
   return items
     .map((item) => {
       const title = String(item?.title || '').trim()
-      let description = String(item?.description || item?.body || item?.content || '').trim()
-      const extraObjectives = Array.isArray(item?.learningObjectives)
-        ? item.learningObjectives.map((point) => collapseWs(point)).filter(Boolean)
-        : []
-      if (!description && extraObjectives.length) {
-        description = extraObjectives.map((point, index) => `${index + 1}. ${point}`).join('\n')
-      }
+      const description = stripLearningObjectivesSection(
+        String(item?.description || item?.body || item?.content || '').trim(),
+      )
       if (!title && !description) return null
       return {
         title,
@@ -154,7 +165,7 @@ export function parseLessonBankText(text) {
 
   const parsed = splitLessonBlocks(cleaned)
     .map((block, index) => parseOneLesson(block, index === 0 ? '' : `Lesson ${index + 1}`))
-    .filter((item) => item && (item.title || item.description || item.learningObjectives.length))
+    .filter((item) => item && (item.title || item.description))
 
   if (parsed.length === 0) {
     throw new Error('No lesson found. Use the Mathelaureate lesson prompt format.')
