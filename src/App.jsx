@@ -1327,10 +1327,6 @@ function isLearningObjectivesLesson(item) {
   return !title && !body
 }
 
-function isOverviewLesson(item) {
-  return /overview/i.test(String(item?.title || ''))
-}
-
 function collectCardTranslateFields(item) {
   const fields = {}
   const source = lessonWithoutObjectives(item)
@@ -1420,25 +1416,15 @@ function CourseItemCard({
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
   const viewSource = lang === 'en' ? item : applyTranslatedFields(item, fields)
   const view = activeTab === 'lesson' ? lessonWithoutObjectives(viewSource) : viewSource
-  const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || index === 0)
 
   return (
     <article
       id={activeTab === 'question' ? `question-${item.id}` : undefined}
       className={`lesson-card ${activeTab === 'lesson' ? 'lesson-card-lesson' : ''} ${
         activeTab === 'question' ? 'lesson-card-question' : ''
-      } ${overviewItem ? 'lesson-card-overview' : ''}${
-        isFocused ? ' is-focused-question' : ''
-      }`}
+      }${isFocused ? ' is-focused-question' : ''}`}
     >
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      {activeTab !== 'question' ? (
-        index === 0 || overviewItem ? (
-          <div className="record-top">
-            <span className="pill">{item.itemType}</span>
-          </div>
-        ) : null
-      ) : null}
       {activeTab === 'question' ? (
         <div className="question-card-head">
           <h3 className="question-number-title">Question {index + 1}</h3>
