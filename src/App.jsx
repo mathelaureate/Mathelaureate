@@ -27,7 +27,7 @@ import {
   toggleStudyQuestion,
 } from './studentStudy'
 import { readQuestionBankFile } from './parseQuestionBank'
-import { readLessonBankFile, stripLearningObjectivesSection } from './parseLessonBank'
+import { readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -1305,14 +1305,11 @@ function contentBlocksToPlainText(blocks) {
     .trim()
 }
 
-function isLearningObjectivesLesson(item) {
-  return /^learning\s*objectives?$/i.test(String(item?.title || '').trim())
-}
-
 function lessonWithoutObjectives(item) {
   if (!item) return item
   return {
     ...item,
+    title: stripLearningObjectiveTitle(item.title),
     learningObjectives: [],
     description: stripLearningObjectivesSection(item.description),
     descriptionBlocks: Array.isArray(item.descriptionBlocks)
@@ -1321,6 +1318,13 @@ function lessonWithoutObjectives(item) {
         )
       : item.descriptionBlocks,
   }
+}
+
+function isLearningObjectivesLesson(item) {
+  const stripped = lessonWithoutObjectives(item)
+  const title = String(stripped?.title || '').trim()
+  const body = (contentBlocksToPlainText(stripped?.descriptionBlocks) || stripped?.description || '').trim()
+  return !title && !body
 }
 
 function isOverviewLesson(item) {
@@ -1461,9 +1465,9 @@ function CourseItemCard({
             </button>
           </div>
         </div>
-      ) : (
+      ) : view.title ? (
         <LatexText value={view.title} className="latex-heading" />
-      )}
+      ) : null}
       {activeTab === 'question' ? (
         <div className="question-meta-row">
           <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
@@ -1478,9 +1482,9 @@ function CourseItemCard({
       ) : null}
       {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
         renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
-      ) : (
+      ) : String(view.description || '').trim() ? (
         <LatexText value={view.description} className="latex-text" />
-      )}
+      ) : null}
       {item.imageUrl ? (
         <div className="content-image-block">
           <button

@@ -14,7 +14,7 @@ function collapseWs(value) {
 function isReservedLessonHeading(text) {
   const heading = collapseWs(text)
   if (!heading) return true
-  if (/^learning objectives$/i.test(heading)) return true
+  if (/^learning\s*objectives?\s*:?$/i.test(heading)) return true
   if (/^(solution|diagram required|interactive exploration|important points to remember|key takeaway)$/i.test(heading)) {
     return true
   }
@@ -37,14 +37,27 @@ function findOwnLineHeadings(text) {
   }))
 }
 
+export function isLearningObjectiveHeading(text) {
+  const plain = String(text || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return /^learning\s*objectives?\s*:?$/i.test(plain)
+}
+
+export function stripLearningObjectiveTitle(title) {
+  return isLearningObjectiveHeading(title) ? '' : String(title || '').trim()
+}
+
 export function stripLearningObjectivesSection(text) {
   return String(text || '')
     .replace(
-      /<b>\s*Learning Objectives\s*<\/b>[\s\S]*?(?:\$\\overline\{\\hspace\{15cm\}\}\$|(?=\n\s*<b>)|$)/gi,
+      /<b>\s*Learning Objectives?\s*:?\s*<\/b>[\s\S]*?(?:\$\\overline\{\\hspace\{15cm\}\}\$|(?=\n\s*<b>)|$)/gi,
       '',
     )
-    .replace(/<b>\s*Learning Objectives\s*<\/b>/gi, '')
-    .replace(/(?:^|\n)\s*Learning Objectives\s*(?:\n|$)/gi, '\n')
+    .replace(/<b>\s*Learning Objectives?\s*:?\s*<\/b>/gi, '')
+    .replace(/(?:^|\n)\s*Learning Objectives?\s*:?\s*(?:\n|$)/gi, '\n')
     .replace(/(?:^|\n)\s*By the end of this lesson[^\n]*/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
