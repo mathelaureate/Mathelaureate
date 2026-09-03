@@ -1312,44 +1312,18 @@ function parseLearningObjectivePoints(value) {
     .filter(Boolean)
 }
 
-function getStoredObjectivePoints(item) {
-  if (!Array.isArray(item?.learningObjectives)) return []
-  return item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
-}
-
-function isRealObjectiveList(points) {
-  if (!Array.isArray(points) || points.length === 0 || points.length > 8) return false
-  const bodyish = /^(example|solution|suppose\b|<b>\d+\.|\\qquad|\\boxed)/i
-  const suspicious = points.filter((point) => bodyish.test(point) || point.length > 240 || /\\boxed/.test(point))
-  return suspicious.length === 0
-}
-
-function objectivesDuplicateLessonBody(points, item) {
-  const body = (contentBlocksToPlainText(item?.descriptionBlocks) || String(item?.description || ''))
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!body || !points?.length) return false
-  const joined = points.join(' ').replace(/\s+/g, ' ').trim()
-  if (joined.length < 60) return false
-  return body.startsWith(joined.slice(0, 80)) || joined.startsWith(body.slice(0, 80))
-}
-
 function isLearningObjectivesLesson(item) {
-  const title = String(item?.title || '').trim()
-  if (/^learning\s*objectives?$/i.test(title)) return true
-  if (title) return false
-  return getStoredObjectivePoints(item).length > 0
+  return /^learning\s*objectives?$/i.test(String(item?.title || '').trim())
 }
 
 function getLearningObjectivePoints(item) {
-  const stored = getStoredObjectivePoints(item)
-  if (isRealObjectiveList(stored)) return stored
-  if (isLearningObjectivesLesson(item)) {
-    if (stored.length) return stored
-    const fromBlocks = contentBlocksToPlainText(item?.descriptionBlocks)
-    return parseLearningObjectivePoints(fromBlocks || item?.description || '')
+  if (Array.isArray(item?.learningObjectives)) {
+    const fromField = item.learningObjectives.map((point) => String(point || '').trim()).filter(Boolean)
+    if (fromField.length) return fromField
   }
-  return []
+  if (!isLearningObjectivesLesson(item)) return []
+  const fromBlocks = contentBlocksToPlainText(item?.descriptionBlocks)
+  return parseLearningObjectivePoints(fromBlocks || item?.description || '')
 }
 
 function isOverviewLesson(item) {
@@ -1452,13 +1426,7 @@ function CourseItemCard({
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
   const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
   const objectivesItem = activeTab === 'lesson' && isLearningObjectivesLesson(item)
-  const objectivePoints = activeTab === 'lesson' ? getLearningObjectivePoints(view) : []
-  const storedObjectivePoints = activeTab === 'lesson' ? getStoredObjectivePoints(view) : []
-  const showInlineObjectives = Boolean(
-    !objectivesItem &&
-      isRealObjectiveList(storedObjectivePoints) &&
-      !objectivesDuplicateLessonBody(storedObjectivePoints, view),
-  )
+  const objectivePoints = objectivesItem ? getLearningObjectivePoints(view) : []
   const overviewItem = activeTab === 'lesson' && (isOverviewLesson(item) || (index === 0 && !objectivesItem))
 
   return (
@@ -1548,29 +1516,10 @@ function CourseItemCard({
             )}
           </ul>
         </>
+      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+        renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
       ) : (
-        <>
-          {showInlineObjectives ? (
-            <div className="lesson-inline-objectives">
-              <p className="objectives-intro">By the end of this lesson, you should be able to:</p>
-              <ul className="objectives-list">
-                {storedObjectivePoints.map((point, pointIndex) => (
-                  <li key={`${point}-${pointIndex}`}>
-                    <span className="objectives-check" aria-hidden="true">
-                      ✓
-                    </span>
-                    <LatexText value={point} className="latex-text" />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
-            renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
-          ) : (
-            <LatexText value={view.description} className="latex-text" />
-          )}
-        </>
+        <LatexText value={view.description} className="latex-text" />
       )}
       {item.imageUrl ? (
         <div className="content-image-block">

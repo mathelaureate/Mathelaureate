@@ -2,7 +2,6 @@ import { readBankFileText, repairLatexNewlines, stripPdfArtifacts } from './pars
 
 const LO_HEADING_RE = /<b>\s*Learning Objectives\s*<\/b>/i
 const OWN_LINE_HEADING_RE = /(?:^|\n)\s*<b>([\s\S]*?)<\/b>\s*(?=\n|$)/g
-const UL_OBJECTIVE_RE = /<ul>\s*<li>([\s\S]*?)<\/li>\s*<\/ul>/gi
 const GEOGEBRA_URL_RE = /https?:\/\/(?:www\.)?geogebra\.org\/[^\s<]+/i
 const YOUTUBE_URL_RE = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[^\s<]+/i
 
@@ -10,10 +9,6 @@ function collapseWs(value) {
   return String(value || '')
     .replace(/\s+/g, ' ')
     .trim()
-}
-
-function stripTagsKeepText(value) {
-  return collapseWs(String(value || '').replace(/<\/?[^>]+>/g, ' '))
 }
 
 function isReservedLessonHeading(text) {
@@ -42,44 +37,11 @@ function findOwnLineHeadings(text) {
   }))
 }
 
-function extractObjectivePoints(text) {
-  const points = []
-  const objectiveRe = new RegExp(UL_OBJECTIVE_RE.source, UL_OBJECTIVE_RE.flags)
-  for (const match of String(text || '').matchAll(objectiveRe)) {
-    const point = repairLatexNewlines(stripTagsKeepText(match[1]))
-    if (point) points.push(point)
-  }
-  return points
-}
-
 function stripTrailingTeacherNotes(text) {
   return String(text || '')
     .replace(/\n+(?:This completes|Below is a refined|Create a complete, website-ready)[\s\S]*$/i, '')
     .replace(/\n+[^\n]*Mathelaureate IBDP[\s\S]*$/i, '')
     .trim()
-}
-
-function sliceLearningObjectives(text) {
-  const source = String(text || '')
-  const heading = source.match(LO_HEADING_RE)
-  if (!heading || heading.index == null) {
-    const points = extractObjectivePoints(source)
-    return {
-      points,
-      remainder: points.length
-        ? source.replace(UL_OBJECTIVE_RE, '').replace(LO_HEADING_RE, '')
-        : source,
-    }
-  }
-
-  const afterHeading = source.slice(heading.index + heading[0].length)
-  const nextHeading = afterHeading.search(/\n\s*<b>/)
-  const objectiveChunk = nextHeading >= 0 ? afterHeading.slice(0, nextHeading) : afterHeading
-  const remainderTail = nextHeading >= 0 ? afterHeading.slice(nextHeading) : ''
-  return {
-    points: extractObjectivePoints(objectiveChunk),
-    remainder: `${source.slice(0, heading.index)}\n${remainderTail}`,
-  }
 }
 
 function parseOneLesson(raw, fallbackTitle = '') {
@@ -90,22 +52,21 @@ function parseOneLesson(raw, fallbackTitle = '') {
   const titleHeading = headings.find((item) => !isReservedLessonHeading(item.text))
   const title = titleHeading?.text || collapseWs(fallbackTitle)
   const withoutTitle = titleHeading ? `${cleaned.slice(0, titleHeading.index)}${cleaned.slice(titleHeading.end)}` : cleaned
-  const { points, remainder } = sliceLearningObjectives(withoutTitle)
   const description = repairLatexNewlines(
     stripTrailingTeacherNotes(
-      remainder
+      withoutTitle
         .replace(/^\s*(?:\$\\overline\{\\hspace\{15cm\}\}\$\s*)+/g, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim(),
     ),
   )
-  if (!title && !points.length && !description) return null
+  if (!title && !description) return null
 
   const geogebraMatch = description.match(GEOGEBRA_URL_RE)
   const youtubeMatch = description.match(YOUTUBE_URL_RE)
   return {
     title,
-    learningObjectives: points,
+    learningObjectives: [],
     description,
     geogebraLink: geogebraMatch ? geogebraMatch[0].replace(/[.,;]+$/, '') : '',
     resourceLink: youtubeMatch ? youtubeMatch[0].replace(/[.,;]+$/, '') : '',
@@ -161,14 +122,17 @@ function parseJsonLessons(text) {
   return items
     .map((item) => {
       const title = String(item?.title || '').trim()
-      const description = String(item?.description || item?.body || item?.content || '').trim()
-      const learningObjectives = Array.isArray(item?.learningObjectives)
+      let description = String(item?.description || item?.body || item?.content || '').trim()
+      const extraObjectives = Array.isArray(item?.learningObjectives)
         ? item.learningObjectives.map((point) => collapseWs(point)).filter(Boolean)
-        : extractObjectivePoints(String(item?.learningObjectives || ''))
-      if (!title && !description && !learningObjectives.length) return null
+        : []
+      if (!description && extraObjectives.length) {
+        description = extraObjectives.map((point, index) => `${index + 1}. ${point}`).join('\n')
+      }
+      if (!title && !description) return null
       return {
         title,
-        learningObjectives,
+        learningObjectives: [],
         description,
         geogebraLink: String(item?.geogebraLink || '').trim(),
         resourceLink: String(item?.resourceLink || '').trim(),
