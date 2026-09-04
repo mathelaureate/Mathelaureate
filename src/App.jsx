@@ -1466,7 +1466,15 @@ function CourseItemCard({
           </span>
         </div>
       ) : null}
-      {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+      {activeTab === 'question' ? (
+        <div className="question-stem">
+          {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+            renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
+          ) : String(view.description || '').trim() ? (
+            <LatexText value={view.description} className="latex-text" />
+          ) : null}
+        </div>
+      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
         renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
       ) : String(view.description || '').trim() ? (
         <LatexText value={view.description} className="latex-text" />
@@ -4812,11 +4820,13 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           {String(item.difficulty || 'medium')}
                         </span>
                       </div>
-                      {contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
-                        renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
-                      ) : (
-                        <LatexText value={item.description} className="latex-text" />
-                      )}
+                      <div className="question-stem">
+                        {contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
+                          renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
+                        ) : (
+                          <LatexText value={item.description} className="latex-text" />
+                        )}
+                      </div>
                       {item.imageUrl ? (
                         <div className="content-image-block">
                           <button
@@ -8063,7 +8073,7 @@ function AdminPage({ mode = 'admin' }) {
                 })}
                 <section className="latex-preview">
                   <h3>Live Preview</h3>
-                  <article className="lesson-card">
+                  <article className="lesson-card lesson-card-question">
                     <div className="record-top">
                       <span className="pill">question</span>
                     </div>
@@ -8076,7 +8086,9 @@ function AdminPage({ mode = 'admin' }) {
                         {questionDifficulty}
                       </span>
                     </div>
-                    <LatexText value={contentBlocksToPlainText(descriptionBlocks) || 'Question statement preview'} className="latex-text" />
+                    <div className="question-stem">
+                      <LatexText value={contentBlocksToPlainText(descriptionBlocks) || 'Question statement preview'} className="latex-text" />
+                    </div>
                     <div className="solution-box">
                       <LatexText value={solution || 'Solution preview'} className="latex-text" />
                     </div>

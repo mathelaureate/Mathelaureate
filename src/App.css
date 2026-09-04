@@ -2289,12 +2289,41 @@ select {
   margin: 0 0 0.8rem;
 }
 
-.lesson-card-question .latex-text {
+.lesson-card-question,
+.lesson-card-question .question-stem,
+.lesson-card-question .latex-text,
+.lesson-card-question .content-blocks-render {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.lesson-card-question .question-stem {
+  min-width: 0;
+  padding-bottom: 0.12rem;
+}
+
+.lesson-card-question .latex-text,
+.lesson-card-question .question-stem {
   margin: 0;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .lesson-card-question .content-blocks-render {
   gap: 0.4rem;
+}
+
+.lesson-card-question .katex,
+.lesson-card-question .katex-html {
+  overflow: visible;
+  max-width: none;
+}
+
+.lesson-card-question .katex-display,
+.lesson-card-question .katex-display > .katex {
+  max-width: 100%;
 }
 
 .lesson-card-question .content-image-block {
@@ -2318,6 +2347,8 @@ select {
 
 .lesson-card-question .katex-display {
   margin: 0.4rem 0;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .course-head {
@@ -4626,9 +4657,27 @@ body {
   color: #0f172a;
 }
 
+.study-question-card,
+.study-question-body,
+.study-question-body .latex-text,
+.study-question-body .content-blocks-render {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
 .study-question-body .latex-text {
   margin: 0;
   white-space: normal;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.study-question-body .katex,
+.study-question-body .katex-html {
+  overflow: visible;
+  max-width: none;
 }
 
 .study-question-body .content-blocks-render {
@@ -4903,6 +4952,37 @@ body {
 .course-page .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+.course-page .lesson-card-question,
+.course-page .lesson-card-question .question-stem,
+.course-page .lesson-card-question .latex-text,
+.course-page .lesson-card-question .content-blocks-render {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.course-page .lesson-card-question .question-stem,
+.course-page .lesson-card-question .latex-text {
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.course-page .lesson-card-question .katex,
+.course-page .lesson-card-question .katex-html {
+  overflow: visible;
+  max-width: none;
+}
+
+.course-page .lesson-card-question .katex-display {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.course-page .lesson-card-question .katex-display > .katex {
+  max-width: 100%;
 }
 
 .course-page .lesson-main-centered .lesson-card-lesson .latex-text,
