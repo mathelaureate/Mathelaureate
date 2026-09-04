@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   GoogleAuthProvider,
@@ -959,7 +959,34 @@ function renderLatexToHtml(value) {
 }
 
 function LatexText({ value, className = '' }) {
-  return <div className={className} dangerouslySetInnerHTML={{ __html: renderLatexToHtml(value) }} />
+  const ref = useRef(null)
+  const html = renderLatexToHtml(value)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const fitToWrappedHeight = () => {
+      el.style.maxHeight = 'none'
+      el.style.overflow = 'visible'
+      el.style.height = 'auto'
+      el.style.minHeight = '0px'
+      const nextHeight = Math.ceil(el.scrollHeight)
+      el.style.minHeight = nextHeight > 0 ? `${nextHeight}px` : ''
+    }
+
+    fitToWrappedHeight()
+    const parent = el.parentElement
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fitToWrappedHeight)
+    if (parent) observer?.observe(parent)
+    window.addEventListener('resize', fitToWrappedHeight)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', fitToWrappedHeight)
+    }
+  }, [html])
+
+  return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {

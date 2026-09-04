@@ -910,9 +910,25 @@ nav button:hover {
 
 .latex-text {
   color: #3a4a52;
-  line-height: 1.45;
+  display: block;
+  height: auto !important;
+  max-height: none !important;
+  min-height: min-content;
+  overflow: visible !important;
+  line-height: 1.85;
+  padding-bottom: 0.4em;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
+}
+
+.latex-text .katex,
+.latex-text .katex-html {
+  overflow: visible !important;
 }
 
 .latex-text ul,
@@ -963,7 +979,7 @@ nav button:hover {
 .lesson-card .katex-display,
 .solution-box .katex-display {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
 }
 
 .solution-modal-overlay {
@@ -1263,7 +1279,10 @@ nav button:hover {
   gap: 1rem;
 }
 
-.admin-grid > .panel {
+.admin-grid > .panel,
+.admin .records,
+.admin .record {
+  overflow: visible;
   min-width: 0;
 }
 
@@ -4878,7 +4897,7 @@ body {
 .course-page .lesson-main {
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: visible;
   position: relative;
   z-index: 1;
 }
@@ -4910,7 +4929,7 @@ body {
   width: min(100% - 1.25rem, 118rem);
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: clip;
+  overflow: visible;
 }
 
 .course-page .course-workspace-grid.course-workspace-lms {
@@ -4983,7 +5002,7 @@ body {
 
 .course-page .katex-display {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
 }
 
 .course-page .lesson-card-question,
