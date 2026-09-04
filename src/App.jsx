@@ -8253,7 +8253,7 @@ function AdminPage({ mode = 'admin' }) {
                 activeStoredRecords.map((record, index) => {
                   return (
                     <article
-                      className="record"
+                      className={`record${record.itemType === 'question' ? ' record-question' : ''}`}
                       key={record.id}
                       draggable={!isEditorMode}
                       onDragStart={isEditorMode ? undefined : () => setDragRecordIndex(index)}
@@ -8279,7 +8279,13 @@ function AdminPage({ mode = 'admin' }) {
                       ) : (
                         <LatexText value={record.title || 'Untitled'} className="latex-heading" />
                       )}
-                      <LatexText value={record.description} className="latex-text" />
+                      {record.itemType === 'question' ? (
+                        <div className="question-stem">
+                          <LatexText value={record.description} className="latex-text" />
+                        </div>
+                      ) : (
+                        <LatexText value={record.description} className="latex-text" />
+                      )}
                       {record.itemType === 'question' ? (
                         <small>
                           {String(record.gdc || 'not gdc').toUpperCase()} · {record.marks || 0} marks
