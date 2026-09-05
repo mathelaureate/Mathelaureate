@@ -4386,7 +4386,19 @@ function CoursePage({ user, authReady, cachedProfile }) {
   )
 }
 
-function MockQuestionCard({ item, index, paperId, renderBlocks, onOpenImage, onOpenSolution }) {
+function MockQuestionCard({
+  item,
+  index,
+  paperId,
+  renderBlocks,
+  onOpenImage,
+  onOpenSolution,
+  isBookmarked = false,
+  isWrong = false,
+  onToggleBookmark,
+  onToggleWrong,
+  studyBusy = false,
+}) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(`mock-${paperId}-${item.id}`, sourceFields)
   const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
@@ -4394,7 +4406,31 @@ function MockQuestionCard({ item, index, paperId, renderBlocks, onOpenImage, onO
   return (
     <article className="lesson-card lesson-card-question">
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      <h3 className="question-number-title">Question {index + 1}</h3>
+      <div className="question-card-head">
+        <h3 className="question-number-title">Question {index + 1}</h3>
+        <div className="question-card-tools">
+          <button
+            type="button"
+            className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
+            onClick={() => onToggleWrong?.(item)}
+            disabled={studyBusy || !onToggleWrong}
+            aria-label={isWrong ? 'Remove from mistakes' : 'Mark as wrong'}
+            title={isWrong ? 'In mistakes' : 'Mark as wrong'}
+          >
+            <WrongMarkIcon />
+          </button>
+          <button
+            type="button"
+            className={`question-tool-btn${isBookmarked ? ' is-bookmarked' : ''}`}
+            onClick={() => onToggleBookmark?.(item)}
+            disabled={studyBusy || !onToggleBookmark}
+            aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
+            title={isBookmarked ? 'Bookmarked' : 'Bookmark'}
+          >
+            <BookmarkIcon filled={isBookmarked} />
+          </button>
+        </div>
+      </div>
       <div className="question-meta-row">
         <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
         <span className="meta-chip">{item.marks || 0} marks</span>
@@ -4456,6 +4492,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerSecondsLeft, setTimerSecondsLeft] = useState(0)
+  const [savedQuestions, setSavedQuestions] = useState([])
+  const [wrongQuestions, setWrongQuestions] = useState([])
+  const [studyBusyId, setStudyBusyId] = useState('')
 
   const selectedCourse = courseCatalog.find((item) => item.slug === selectedCourseSlug) || courseCatalog[0]
   const blueprint = getMockBlueprint(selectedCourseSlug)
@@ -4482,12 +4521,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
       setBuildError('')
 
       try {
-        const [curriculaData, fetchedRecords] = await Promise.all([
+        const [curriculaData, fetchedRecords, progressSnap] = await Promise.all([
           getCachedAppDoc('curricula', curriculaDocRef),
           getCachedContentItems(),
+          getDoc(doc(db, 'userCourseProgress', user.uid)),
         ])
         const courses = ensureRequiredCurricula(curriculaData?.courses)
         const matchedCurriculum = courses.find((item) => item.id === selectedCourse.curriculumId) || null
+        const progressData = progressSnap.exists() ? progressSnap.data() : {}
 
         const questions = fetchedRecords
           .filter((item) => item.curriculumId === selectedCourse.curriculumId && item.itemType === 'question')
@@ -4495,6 +4536,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         if (!active) return
         setCurriculum(matchedCurriculum)
         setQuestionPool(questions)
+        setSavedQuestions(normalizeStudyList(progressData?.savedQuestions))
+        setWrongQuestions(normalizeStudyList(progressData?.wrongQuestions))
         setSelectedUnitIds([])
         const nextLevel = getMockBlueprint(selectedCourse.slug).defaultLevel
         setSelectedLevel(nextLevel)
@@ -4688,6 +4731,30 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     setActivePaperId(paper.id)
     setTimerSecondsLeft(paper.minutes * 60)
     setTimerRunning(true)
+  }
+
+  async function handleToggleStudy(listKey, item) {
+    if (!user || !item?.id) return
+    const list = listKey === SAVED_QUESTIONS_KEY ? savedQuestions : wrongQuestions
+    const currentlySaved = list.some((entry) => entry.questionId === item.id)
+    setStudyBusyId(`${listKey}:${item.id}`)
+    try {
+      const unit = units.find((entry) => entry.id === item.unitId)
+      const entry = buildStudyQuestionEntry({
+        item,
+        course: selectedCourse,
+        unitId: item.unitId,
+        subunit: item.subunit,
+        unitName: unit?.name,
+      })
+      const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved })
+      if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
+      else setWrongQuestions(next)
+    } catch {
+      // Non-blocking: saving a question should not break the mock paper.
+    } finally {
+      setStudyBusyId('')
+    }
   }
 
   const activeGeneratedPaper = generatedPapers?.papers?.find((paper) => paper.id === activePaperId) || generatedPapers?.papers?.[0]
@@ -4990,6 +5057,11 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         renderBlocks={renderMockContentBlocks}
                         onOpenImage={setExpandedImageUrl}
                         onOpenSolution={(view) => setActiveSolutionItem({ ...view, questionNumber: index + 1 })}
+                        isBookmarked={savedQuestions.some((entry) => entry.questionId === item.id)}
+                        isWrong={wrongQuestions.some((entry) => entry.questionId === item.id)}
+                        onToggleBookmark={(question) => handleToggleStudy(SAVED_QUESTIONS_KEY, question)}
+                        onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
+                        studyBusy={studyBusyId.endsWith(`:${item.id}`)}
                       />
                     ))}
                   </>
