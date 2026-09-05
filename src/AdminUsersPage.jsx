@@ -8,6 +8,7 @@ import { CountUp } from './motion'
 
 function normalizePayments(raw) {
   return {
+    email: String(raw?.email || '').trim(),
     courses: raw?.courses && typeof raw.courses === 'object' ? raw.courses : {},
     iaUnlocks: raw?.iaUnlocks && typeof raw.iaUnlocks === 'object' ? raw.iaUnlocks : {},
     subscription: raw?.subscription && typeof raw.subscription === 'object' ? raw.subscription : null,
@@ -63,18 +64,101 @@ function courseEntries(data) {
   return Array.isArray(data?.myCourses) ? data.myCourses : []
 }
 
+function formatMoney(entry) {
+  const amount = Number(entry?.amount || entry?.amountInr || 0)
+  const currency = String(entry?.currency || '').toUpperCase()
+  if (!Number.isFinite(amount) || amount <= 0) return ''
+  if (currency === 'INR' || (!currency && entry?.amountInr)) return `₹${amount}`
+  if (currency === 'USD') return `$${amount}`
+  return currency ? `${amount} ${currency}` : String(amount)
+}
+
+function parseSubunitKey(key) {
+  const raw = String(key || '').trim()
+  if (!raw) return null
+  const sep = raw.indexOf('::')
+  if (sep === -1) return { key: raw, unitId: '', name: raw }
+  const unitId = raw.slice(0, sep)
+  const name = raw.slice(sep + 2).trim() || raw
+  return { key: raw, unitId, name }
+}
+
+function courseSubunits(course) {
+  const keys = Array.isArray(course?.visitedSubunits) ? course.visitedSubunits : []
+  return keys.map(parseSubunitKey).filter(Boolean)
+}
+
+function purchaseItems(payments) {
+  const items = []
+  const subscription = payments?.subscription
+  if (subscription) {
+    const active = hasActiveSubscription(payments)
+    items.push({
+      id: 'subscription',
+      kind: 'Subscription',
+      title: subscription.title || 'Full access',
+      status: active ? 'Active' : subscription.active ? 'Expired' : 'Inactive',
+      expiresAt: subscription.expiresAt || '',
+      startsAt: subscription.startsAt || '',
+      amount: formatMoney(subscription),
+      verifiedAt: subscription.verifiedAt || '',
+      paymentId: subscription.paymentId || '',
+    })
+  }
+  for (const [courseId, entry] of Object.entries(payments?.courses || {})) {
+    if (!entry?.paid) continue
+    items.push({
+      id: `course-${courseId}`,
+      kind: 'Course',
+      title: entry.courseTitle || entry.title || entry.slug || courseId,
+      status: 'Paid',
+      amount: formatMoney(entry),
+      verifiedAt: entry.verifiedAt || '',
+      paymentId: entry.paymentId || '',
+    })
+  }
+  for (const [iaId, entry] of Object.entries(payments?.iaUnlocks || {})) {
+    if (!entry?.paid) continue
+    items.push({
+      id: `ia-${iaId}`,
+      kind: 'IA',
+      title: entry.title || `IA ${iaId}`,
+      status: 'Paid',
+      amount: formatMoney(entry),
+      verifiedAt: entry.verifiedAt || '',
+      paymentId: entry.paymentId || '',
+    })
+  }
+  return items
+}
+
 function paidLabels(payments) {
-  const labels = []
-  if (hasActiveSubscription(payments)) {
-    labels.push(`Subscription to ${payments.subscription?.expiresAt ? dateKey(payments.subscription.expiresAt) : 'active'}`)
-  }
-  for (const [courseId, entry] of Object.entries(payments.courses || {})) {
-    if (entry?.paid) labels.push(entry.courseTitle || entry.title || courseId)
-  }
-  for (const [iaId, entry] of Object.entries(payments.iaUnlocks || {})) {
-    if (entry?.paid) labels.push(entry.title || `IA ${iaId}`)
-  }
-  return labels
+  return purchaseItems(payments).map((item) => {
+    if (item.kind === 'Subscription') {
+      return item.expiresAt ? `${item.title} to ${dateKey(item.expiresAt)}` : item.title
+    }
+    return item.title
+  })
+}
+
+function uniqueEmails(rows) {
+  return [...new Set(rows.map((row) => String(row.email || '').trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  )
+}
+
+function downloadEmails(rows) {
+  const emails = uniqueEmails(rows)
+  const csv = ['email', ...emails].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `mathelaureate-emails-${todayKey()}.csv`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 function buildUserRow(progress, payments) {
@@ -104,7 +188,9 @@ function buildUserRow(progress, payments) {
     bookmarks,
     mistakes,
     payments,
+    purchases: purchaseItems(payments),
     paidLabels: paidLabels(payments),
+    visitCount: visitDates.length,
   }
 }
 
@@ -214,11 +300,22 @@ export default function AdminUsersPage({ adminEmail }) {
   const today = todayKey()
   const weekStart = daysAgoKey(6)
 
+  const emails = useMemo(() => uniqueEmails(rows), [rows])
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return rows
     return rows.filter((row) =>
-      [row.displayName, row.email, row.countryName, row.countryCode, row.uid, ...row.courses.map((item) => item.title || item.slug)]
+      [
+        row.displayName,
+        row.email,
+        row.countryName,
+        row.countryCode,
+        row.uid,
+        ...row.courses.map((item) => item.title || item.slug),
+        ...row.courses.flatMap((item) => courseSubunits(item).map((subunit) => subunit.name)),
+        ...row.purchases.map((item) => item.title),
+      ]
         .join(' ')
         .toLowerCase()
         .includes(needle),
@@ -349,16 +446,26 @@ export default function AdminUsersPage({ adminEmail }) {
           <div className="users-table-head">
             <div className="profile-section-head">
               <h2>All users</h2>
-              <p>Courses opened, bookmarks, mistakes, and purchases.</p>
+              <p>Subunits opened, purchases, bookmarks, and mistakes.</p>
             </div>
-            <label className="ia-search-simple">
-              <span className="sr-only">Search users</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search name, email, country, or course"
-              />
-            </label>
+            <div className="users-table-actions">
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => downloadEmails(rows)}
+                disabled={loading || emails.length === 0}
+              >
+                Download emails{emails.length ? ` (${emails.length})` : ''}
+              </button>
+              <label className="ia-search-simple">
+                <span className="sr-only">Search users</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search name, email, country, course, or subunit"
+                />
+              </label>
+            </div>
           </div>
 
           {loading ? (
@@ -388,7 +495,11 @@ export default function AdminUsersPage({ adminEmail }) {
                       </span>
                       <span className="users-person-meta">
                         <span className="meta-chip">{row.countryName}</span>
-                        <span className="meta-chip">{row.courses.length} courses</span>
+                        <span className="meta-chip">
+                          {row.courses.reduce((count, course) => count + courseSubunits(course).length, 0) ||
+                            row.courses.reduce((count, course) => count + Number(course.visitedSubunitsCount || 0), 0)}{' '}
+                          subunits
+                        </span>
                         <span className="meta-chip">{row.paidLabels.length ? 'Paid' : 'Free'}</span>
                         <small>{formatWhen(row.lastSeenAt)}</small>
                       </span>
@@ -398,48 +509,91 @@ export default function AdminUsersPage({ adminEmail }) {
                         <p>
                           {row.lastPath ? `Last page ${row.lastPath} · ` : ''}
                           {row.countryCode ? `${row.countryCode} · ` : ''}
+                          {row.uid ? `${row.uid} · ` : ''}
                           {row.bookmarks.length} bookmarks · {row.mistakes.length} mistakes
+                          {row.visitDates.length ? ` · ${row.visitDates.length} visit days` : ''}
                         </p>
-                        <div className="users-detail-grid">
+                        {row.visitDates.length ? (
+                          <p className="users-visit-dates">{row.visitDates.map(formatDayLabel).join(' · ')}</p>
+                        ) : null}
+                        <div className="users-detail-stack">
                           <div>
-                            <h4>Courses accessed</h4>
+                            <h4>Subunits accessed</h4>
                             {row.courses.length === 0 ? (
                               <p>No course visits saved yet.</p>
                             ) : (
-                              <ul>
-                                {row.courses.map((course) => (
-                                  <li key={course.slug || course.curriculumId || course.title}>
-                                    <strong>{course.title || course.slug || 'Course'}</strong>
-                                    <small>
-                                      {course.visitedSubunitsCount || (course.visitedSubunits || []).length || 0} topics
-                                      {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
-                                    </small>
-                                  </li>
-                                ))}
+                              <ul className="users-course-access">
+                                {row.courses.map((course) => {
+                                  const subunits = courseSubunits(course)
+                                  return (
+                                    <li key={course.slug || course.curriculumId || course.title}>
+                                      <strong>{course.title || course.slug || 'Course'}</strong>
+                                      <small>
+                                        {subunits.length || course.visitedSubunitsCount || 0} subunits
+                                        {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
+                                        {course.updatedAt ? ` · ${formatWhen(course.updatedAt)}` : ''}
+                                      </small>
+                                      {subunits.length ? (
+                                        <div className="users-subunit-row">
+                                          {subunits.map((subunit) => (
+                                            <span className="meta-chip" key={subunit.key} title={subunit.unitId || subunit.key}>
+                                              {subunit.name}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p>No subunit names stored yet.</p>
+                                      )}
+                                    </li>
+                                  )
+                                })}
                               </ul>
                             )}
                           </div>
-                          <div>
-                            <h4>Study lists</h4>
-                            {row.bookmarks.slice(0, 5).map((item) => (
-                              <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
-                            ))}
-                            {row.mistakes.slice(0, 5).map((item) => (
-                              <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
-                            ))}
-                            {row.bookmarks.length + row.mistakes.length === 0 ? <p>No saved questions.</p> : null}
-                          </div>
-                          <div>
-                            <h4>Purchases</h4>
-                            {row.paidLabels.length === 0 ? (
-                              <p>No paid products.</p>
-                            ) : (
-                              <ul>
-                                {row.paidLabels.map((label) => (
-                                  <li key={label}>{label}</li>
-                                ))}
-                              </ul>
-                            )}
+                          <div className="users-detail-grid">
+                            <div>
+                              <h4>Paid for</h4>
+                              {row.purchases.length === 0 ? (
+                                <p>No paid products.</p>
+                              ) : (
+                                <ul>
+                                  {row.purchases.map((item) => (
+                                    <li key={item.id}>
+                                      <strong>
+                                        {item.kind}: {item.title}
+                                      </strong>
+                                      <small>
+                                        {item.status}
+                                        {item.expiresAt ? ` · expires ${dateKey(item.expiresAt)}` : ''}
+                                        {item.amount ? ` · ${item.amount}` : ''}
+                                        {item.verifiedAt ? ` · ${formatWhen(item.verifiedAt)}` : ''}
+                                        {item.paymentId ? ` · ${item.paymentId}` : ''}
+                                      </small>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <div>
+                              <h4>Study lists</h4>
+                              {row.bookmarks.length ? (
+                                <>
+                                  <small className="users-list-label">Bookmarks</small>
+                                  {row.bookmarks.map((item) => (
+                                    <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
+                                  ))}
+                                </>
+                              ) : null}
+                              {row.mistakes.length ? (
+                                <>
+                                  <small className="users-list-label">Mistakes</small>
+                                  {row.mistakes.map((item) => (
+                                    <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
+                                  ))}
+                                </>
+                              ) : null}
+                              {row.bookmarks.length + row.mistakes.length === 0 ? <p>No saved questions.</p> : null}
+                            </div>
                           </div>
                         </div>
                       </div>
