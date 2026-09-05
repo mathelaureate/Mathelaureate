@@ -4551,7 +4551,8 @@ body {
   gap: 0.75rem;
 }
 
-.profile-page .profile-avatar {
+.profile-page .profile-avatar,
+.users-page .profile-avatar {
   width: 2.7rem;
   height: 2.7rem;
   font-size: 1.05rem;
@@ -4560,7 +4561,8 @@ body {
   flex-shrink: 0;
 }
 
-.profile-page .profile-email {
+.profile-page .profile-email,
+.users-page .profile-email {
   margin: 0;
   color: #0f2c4d;
   font-size: 0.88rem;
@@ -4586,11 +4588,13 @@ body {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.profile-page .profile-section-head {
+.profile-page .profile-section-head,
+.users-page .profile-section-head {
   margin-bottom: 0;
 }
 
-.profile-page .profile-section-head h2 {
+.profile-page .profile-section-head h2,
+.users-page .profile-section-head h2 {
   margin: 0 0 0.2rem;
   color: #0f172a;
   font-family: var(--font-sans);
@@ -4599,7 +4603,8 @@ body {
   letter-spacing: -0.02em;
 }
 
-.profile-page .profile-section-head p {
+.profile-page .profile-section-head p,
+.users-page .profile-section-head p {
   margin: 0;
   color: #64748b;
   font-size: 0.9rem;
@@ -7485,9 +7490,19 @@ select:focus {
   }
 }
 
-.users-dash {
+.users-page .users-shell {
   display: grid;
   gap: 1rem;
+}
+
+.users-page .users-hero-links {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.users-page .users-hero-links .ia-clear-inline {
+  padding: 0;
+  color: #64748b;
 }
 
 .users-stats {
@@ -7496,68 +7511,52 @@ select:focus {
   gap: 0.85rem;
 }
 
-.users-stat,
-.users-dash .panel {
+.users-stat {
+  background: #fff;
   border: 1px solid var(--ia-line, #e2e8f0);
   border-radius: 14px;
-  background: #fff;
-  box-shadow: none;
+  padding: 1rem 1.05rem 1.05rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.users-stat {
-  padding: 1rem 1.05rem;
-}
-
-.users-stat p,
-.users-table-head p,
-.users-dash .panel > p {
+.users-stat p {
   margin: 0;
   color: #64748b;
-  font-size: 0.86rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .users-stat strong {
   display: block;
-  margin-top: 0.25rem;
-  color: #0f172a;
-  font-size: 1.8rem;
-  line-height: 1.1;
+  margin-top: 0.4rem;
+  color: #0f2c4d;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 .users-split {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.8fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.85fr);
   gap: 0.85rem;
 }
 
-.users-daily {
-  display: grid;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  gap: 0.35rem;
-  align-items: end;
-  min-height: 160px;
-  margin-top: 1rem;
+.users-chart {
+  margin-top: 0.7rem;
 }
 
-.users-daily-col {
-  display: grid;
-  justify-items: center;
-  gap: 0.2rem;
-  min-height: 140px;
-  align-content: end;
-}
-
-.users-daily-bar {
+.users-chart svg {
   width: 100%;
-  border-radius: 6px 6px 2px 2px;
-  background: #0b7a75;
-  min-height: 8px;
+  height: auto;
+  display: block;
 }
 
-.users-daily-col small,
-.users-daily-col span {
-  color: #64748b;
-  font-size: 0.68rem;
+.users-chart-axis {
+  fill: #94a3b8;
+  font-size: 10px;
+  font-family: var(--font-sans);
 }
 
 .users-country-list {
@@ -7565,15 +7564,42 @@ select:focus {
   margin: 0.85rem 0 0;
   padding: 0;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.7rem;
 }
 
 .users-country-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid #eef2f6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.users-country-list li > div {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.users-country-list span {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.users-country-list strong {
+  color: #0f2c4d;
+}
+
+.users-loc-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #eef2f6;
+  overflow: hidden;
+}
+
+.users-loc-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0b7a75, #1b6ea8);
 }
 
 .users-table-head {
@@ -7584,66 +7610,92 @@ select:focus {
   margin-bottom: 0.85rem;
 }
 
-.users-table-head label {
-  min-width: min(280px, 100%);
+.users-table-head .ia-search-simple {
+  min-width: min(320px, 100%);
 }
 
-.users-table-wrap {
-  overflow-x: auto;
-}
-
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.users-table th,
-.users-table td {
-  text-align: left;
-  vertical-align: top;
-  padding: 0.7rem 0.55rem;
-  border-bottom: 1px solid #eef2f6;
-  color: #0f172a;
-  font-size: 0.88rem;
-}
-
-.users-table th {
-  color: #64748b;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.users-name-btn {
+.users-people {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.7rem;
+}
+
+.users-person {
+  border: 1px solid var(--ia-line, #e2e8f0);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-person.is-open {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.users-person-btn {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
   border: 0;
-  background: none;
-  padding: 0;
+  background: transparent;
+  padding: 0.85rem 0.95rem;
   text-align: left;
   cursor: pointer;
+  font: inherit;
   color: inherit;
 }
 
-.users-name-btn small,
-.users-table td small,
+.users-avatar-img,
+.users-page .profile-avatar {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.users-person-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.users-person-copy strong {
+  color: #0f172a;
+  font-size: 0.98rem;
+}
+
+.users-person-copy small,
+.users-person-meta small,
 .users-detail small {
-  display: block;
   color: #64748b;
-  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.users-person-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .users-detail {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid #e2e8f0;
+  padding: 0 0.95rem 0.95rem;
+  border-top: 1px solid var(--ia-line, #e2e8f0);
 }
 
-.users-detail h3,
-.users-detail h4,
-.users-dash .panel h2 {
+.users-detail > p {
+  margin: 0.75rem 0 0.85rem;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.users-detail h4 {
   margin: 0 0 0.35rem;
   color: #0f172a;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .users-detail-grid {
@@ -7653,16 +7705,29 @@ select:focus {
 }
 
 .users-detail-grid ul {
-  margin: 0.4rem 0 0;
-  padding-left: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.users-detail-grid p,
+.users-detail-grid small {
+  display: block;
+  margin: 0 0 0.3rem;
 }
 
 @media (max-width: 900px) {
   .users-stats,
   .users-split,
   .users-detail-grid,
-  .users-table-head {
+  .users-table-head,
+  .users-person-btn {
     grid-template-columns: 1fr;
-    display: grid;
+  }
+
+  .users-person-meta {
+    justify-content: flex-start;
   }
 }

@@ -4,6 +4,7 @@ import { collection, getDocs } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from './firebase'
 import { normalizeStudyList } from './studentStudy'
+import { CountUp } from './motion'
 
 function normalizePayments(raw) {
   return {
@@ -45,10 +46,15 @@ function formatWhen(value) {
   return parsed.toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
-    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatDayLabel(key) {
+  const [year, month, day] = String(key || '').split('-').map(Number)
+  if (!year || !month || !day) return key
+  return new Date(year, month - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
 function courseEntries(data) {
@@ -87,7 +93,10 @@ function buildUserRow(progress, payments) {
     displayName: String(progress?.displayName || '').trim(),
     photoURL: String(progress?.photoURL || '').trim(),
     countryCode: String(progress?.countryCode || '').trim().toUpperCase(),
-    countryName: String(progress?.countryName || '').trim() || String(progress?.countryCode || '').trim().toUpperCase() || 'Unknown',
+    countryName:
+      String(progress?.countryName || '').trim() ||
+      String(progress?.countryCode || '').trim().toUpperCase() ||
+      'Unknown',
     lastSeenAt,
     lastPath: String(progress?.lastPath || '').trim(),
     visitDates,
@@ -97,6 +106,62 @@ function buildUserRow(progress, payments) {
     payments,
     paidLabels: paidLabels(payments),
   }
+}
+
+function DailyUsersChart({ daily, maxDaily }) {
+  const width = 640
+  const height = 220
+  const pad = { top: 18, right: 12, bottom: 36, left: 28 }
+  const innerW = width - pad.left - pad.right
+  const innerH = height - pad.top - pad.bottom
+  const points = daily.map(([day, count], index) => {
+    const x = pad.left + (daily.length <= 1 ? innerW / 2 : (index / (daily.length - 1)) * innerW)
+    const y = pad.top + innerH - (count / maxDaily) * innerH
+    return { day, count, x, y }
+  })
+  const line = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')
+  const area = points.length
+    ? `${line} L${points[points.length - 1].x.toFixed(1)},${(pad.top + innerH).toFixed(1)} L${points[0].x.toFixed(1)},${(pad.top + innerH).toFixed(1)} Z`
+    : ''
+
+  return (
+    <div className="users-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily unique users for the last 14 days">
+        <defs>
+          <linearGradient id="usersDailyFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0b7a75" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#0b7a75" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {[0.25, 0.5, 0.75, 1].map((frac) => {
+          const y = pad.top + innerH * (1 - frac)
+          return (
+            <g key={frac}>
+              <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#e2e8f0" />
+              <text x={4} y={y + 4} className="users-chart-axis">
+                {Math.round(maxDaily * frac)}
+              </text>
+            </g>
+          )
+        })}
+        {area ? <path d={area} fill="url(#usersDailyFill)" /> : null}
+        {line ? <path d={line} fill="none" stroke="#0b7a75" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /> : null}
+        {points.map((point) => (
+          <g key={point.day}>
+            <circle cx={point.x} cy={point.y} r="3.4" fill="#fff" stroke="#0b7a75" strokeWidth="2" />
+            <text x={point.x} y={height - 10} textAnchor="middle" className="users-chart-axis">
+              {formatDayLabel(point.day).replace(' ', '\u00a0')}
+            </text>
+            <title>{`${formatDayLabel(point.day)}: ${point.count}`}</title>
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function userInitial(row) {
+  return (row.displayName || row.email || 'S').trim().charAt(0).toUpperCase() || 'S'
 }
 
 export default function AdminUsersPage({ adminEmail }) {
@@ -127,7 +192,9 @@ export default function AdminUsersPage({ adminEmail }) {
         })
         paymentSnap.forEach((item) => {
           if (next.some((row) => row.uid === item.id)) return
-          next.push(buildUserRow({ id: item.id, uid: item.id, email: item.data()?.email || '' }, paymentsByUid.get(item.id) || normalizePayments()))
+          next.push(
+            buildUserRow({ id: item.id, uid: item.id, email: item.data()?.email || '' }, paymentsByUid.get(item.id) || normalizePayments()),
+          )
         })
         next.sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
         if (active) setRows(next)
@@ -183,189 +250,206 @@ export default function AdminUsersPage({ adminEmail }) {
     const countries = [...countryCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     const daily = [...dailyCounts.entries()]
     const maxDaily = Math.max(1, ...daily.map((item) => item[1]))
-    return { todayCount, weekCount, paidCount, countries, daily, maxDaily }
+    const maxCountry = Math.max(1, ...countries.map((item) => item[1]), 1)
+    return { todayCount, weekCount, paidCount, countries, daily, maxDaily, maxCountry }
   }, [rows, today, weekStart])
 
   return (
-    <main className="admin site-full users-dash">
-      <header className="admin-header">
-        <div>
-          <p className="eyebrow">Admin</p>
-          <h1>User activity</h1>
-          <p>Signed in as <strong>{adminEmail}</strong>. Read-only view of saved student data.</p>
-        </div>
-        <div className="admin-header-actions">
-          <Link className="btn ghost" to="/admin">
-            Content admin
-          </Link>
-          <button type="button" className="btn ghost" onClick={() => signOut(auth)}>
-            Sign out
-          </button>
-          <Link className="btn ghost" to="/">
-            Back to Website
-          </Link>
-        </div>
-      </header>
-
-      {loading ? <p>Loading user activity...</p> : null}
-      {error ? <p className="error-text">{error}</p> : null}
-
-      <section className="users-stats">
-        <article className="users-stat">
-          <p>Total users</p>
-          <strong>{rows.length}</strong>
-        </article>
-        <article className="users-stat">
-          <p>Active today</p>
-          <strong>{stats.todayCount}</strong>
-        </article>
-        <article className="users-stat">
-          <p>Active last 7 days</p>
-          <strong>{stats.weekCount}</strong>
-        </article>
-        <article className="users-stat">
-          <p>Paid users</p>
-          <strong>{stats.paidCount}</strong>
-        </article>
-      </section>
-
-      <section className="users-split">
-        <article className="panel">
-          <h2>Daily users</h2>
-          <p>Unique students seen on each of the last 14 days.</p>
-          <div className="users-daily">
-            {stats.daily.map(([day, count]) => (
-              <div className="users-daily-col" key={day} title={`${day}: ${count}`}>
-                <div className="users-daily-bar" style={{ height: `${Math.max(8, (count / stats.maxDaily) * 100)}%` }} />
-                <small>{day.slice(5)}</small>
-                <span>{count}</span>
+    <main className="site site-full ia-page users-page">
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="ia-breadcrumb">
+            <Link to="/admin">Admin</Link>
+            <span aria-hidden="true"> / </span>
+            <span>User activity</span>
+          </p>
+          <div className="profile-hero-row">
+            <div>
+              <h1>User activity</h1>
+              <p className="ia-hero-sub">Monitor sign-ins, course use, location, and purchases.</p>
+            </div>
+            <div className="profile-account">
+              <span className="profile-avatar" aria-hidden="true">
+                {(adminEmail || 'A').charAt(0).toUpperCase()}
+              </span>
+              <div>
+                <p className="profile-email">{adminEmail}</p>
+                <div className="users-hero-links">
+                  <Link className="ia-clear-inline" to="/admin">
+                    Content admin
+                  </Link>
+                  <button type="button" className="ia-clear-inline" onClick={() => signOut(auth)}>
+                    Log out
+                  </button>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </article>
-        <article className="panel">
-          <h2>Location</h2>
-          <p>Country from the student&apos;s last detected IP lookup.</p>
-          {stats.countries.length === 0 ? (
-            <p>No location data yet. It is stored the next time a student opens the site.</p>
-          ) : (
-            <ul className="users-country-list">
-              {stats.countries.map(([name, count]) => (
-                <li key={name}>
-                  <span>{name}</span>
-                  <strong>{count}</strong>
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
+        </div>
       </section>
 
-      <section className="panel users-table-panel">
-        <div className="users-table-head">
-          <div>
-            <h2>All users</h2>
-            <p>Courses opened, bookmarks, mistakes, and purchases saved for each account.</p>
+      <section className="ia-browse-shell users-shell">
+        {error ? <p className="error-text">{error}</p> : null}
+
+        <section className="users-stats">
+          {[
+            ['Total users', rows.length],
+            ['Active today', stats.todayCount],
+            ['Last 7 days', stats.weekCount],
+            ['Paid users', stats.paidCount],
+          ].map(([label, value]) => (
+            <article className="users-stat" key={label}>
+              <p>{label}</p>
+              <strong>
+                <CountUp value={String(value)} />
+              </strong>
+            </article>
+          ))}
+        </section>
+
+        <section className="users-split">
+          <article className="profile-panel">
+            <div className="profile-section-head">
+              <h2>Daily users</h2>
+              <p>Unique students seen across the last 14 days.</p>
+            </div>
+            {loading ? <p className="ia-status">Loading chart...</p> : <DailyUsersChart daily={stats.daily} maxDaily={stats.maxDaily} />}
+          </article>
+          <article className="profile-panel">
+            <div className="profile-section-head">
+              <h2>Location</h2>
+              <p>Country from the last detected visit.</p>
+            </div>
+            {loading ? (
+              <p className="ia-status">Loading locations...</p>
+            ) : stats.countries.length === 0 ? (
+              <div className="ia-empty">
+                <h2>No locations yet</h2>
+                <p>Country is stored the next time a student opens the site.</p>
+              </div>
+            ) : (
+              <ul className="users-country-list">
+                {stats.countries.map(([name, count]) => (
+                  <li key={name}>
+                    <div>
+                      <span>{name}</span>
+                      <div className="users-loc-track" aria-hidden="true">
+                        <div className="users-loc-fill" style={{ width: `${Math.max(8, (count / stats.maxCountry) * 100)}%` }} />
+                      </div>
+                    </div>
+                    <strong>{count}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </section>
+
+        <section className="profile-panel">
+          <div className="users-table-head">
+            <div className="profile-section-head">
+              <h2>All users</h2>
+              <p>Courses opened, bookmarks, mistakes, and purchases.</p>
+            </div>
+            <label className="ia-search-simple">
+              <span className="sr-only">Search users</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search name, email, country, or course"
+              />
+            </label>
           </div>
-          <label>
-            Search
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Name, email, country, or course"
-            />
-          </label>
-        </div>
-        {filtered.length === 0 && !loading ? (
-          <p>No matching users.</p>
-        ) : (
-          <div className="users-table-wrap">
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Location</th>
-                  <th>Last seen</th>
-                  <th>Courses</th>
-                  <th>Saved</th>
-                  <th>Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row) => (
-                  <tr key={row.uid}>
-                    <td>
-                      <button type="button" className="users-name-btn" onClick={() => setOpenId((current) => (current === row.uid ? '' : row.uid))}>
+
+          {loading ? (
+            <p className="ia-status">Loading students...</p>
+          ) : filtered.length === 0 ? (
+            <div className="ia-empty">
+              <h2>No matching users</h2>
+              <p>Try another name, email, or course.</p>
+            </div>
+          ) : (
+            <div className="users-people">
+              {filtered.map((row) => {
+                const open = openId === row.uid
+                return (
+                  <article className={`users-person${open ? ' is-open' : ''}`} key={row.uid}>
+                    <button type="button" className="users-person-btn" onClick={() => setOpenId(open ? '' : row.uid)}>
+                      {row.photoURL ? (
+                        <img className="users-avatar-img" src={row.photoURL} alt="" />
+                      ) : (
+                        <span className="profile-avatar" aria-hidden="true">
+                          {userInitial(row)}
+                        </span>
+                      )}
+                      <span className="users-person-copy">
                         <strong>{row.displayName || 'Unnamed student'}</strong>
                         <small>{row.email || row.uid}</small>
-                      </button>
-                    </td>
-                    <td>{row.countryName}</td>
-                    <td>
-                      <span>{formatWhen(row.lastSeenAt)}</span>
-                      {row.lastPath ? <small>{row.lastPath}</small> : null}
-                    </td>
-                    <td>{row.courses.length}</td>
-                    <td>
-                      {row.bookmarks.length} bookmarks
-                      <br />
-                      {row.mistakes.length} mistakes
-                    </td>
-                    <td>{row.paidLabels.length ? row.paidLabels.join(', ') : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {openId
-          ? filtered
-              .filter((row) => row.uid === openId)
-              .map((row) => (
-                <article className="users-detail" key={`${row.uid}-detail`}>
-                  <h3>{row.displayName || row.email || row.uid}</h3>
-                  <p>
-                    {row.email || 'No email'} · {row.countryName}
-                    {row.countryCode ? ` (${row.countryCode})` : ''} · last seen {formatWhen(row.lastSeenAt)}
-                  </p>
-                  <div className="users-detail-grid">
-                    <div>
-                      <h4>Courses accessed</h4>
-                      {row.courses.length === 0 ? (
-                        <p>No course visits saved yet.</p>
-                      ) : (
-                        <ul>
-                          {row.courses.map((course) => (
-                            <li key={course.slug || course.curriculumId || course.title}>
-                              <strong>{course.title || course.slug || 'Course'}</strong>
-                              <small>
-                                {course.visitedSubunitsCount || (course.visitedSubunits || []).length || 0} topics
-                                {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
-                                {course.updatedAt ? ` · ${formatWhen(course.updatedAt)}` : ''}
-                              </small>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <div>
-                      <h4>Study lists</h4>
-                      <p>{row.bookmarks.length} bookmarks · {row.mistakes.length} mistakes</p>
-                      {row.bookmarks.slice(0, 6).map((item) => (
-                        <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
-                      ))}
-                      {row.mistakes.slice(0, 6).map((item) => (
-                        <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
-                      ))}
-                    </div>
-                    <div>
-                      <h4>Purchases</h4>
-                      {row.paidLabels.length === 0 ? <p>No paid products.</p> : <ul>{row.paidLabels.map((label) => <li key={label}>{label}</li>)}</ul>}
-                    </div>
-                  </div>
-                </article>
-              ))
-          : null}
+                      </span>
+                      <span className="users-person-meta">
+                        <span className="meta-chip">{row.countryName}</span>
+                        <span className="meta-chip">{row.courses.length} courses</span>
+                        <span className="meta-chip">{row.paidLabels.length ? 'Paid' : 'Free'}</span>
+                        <small>{formatWhen(row.lastSeenAt)}</small>
+                      </span>
+                    </button>
+                    {open ? (
+                      <div className="users-detail">
+                        <p>
+                          {row.lastPath ? `Last page ${row.lastPath} · ` : ''}
+                          {row.countryCode ? `${row.countryCode} · ` : ''}
+                          {row.bookmarks.length} bookmarks · {row.mistakes.length} mistakes
+                        </p>
+                        <div className="users-detail-grid">
+                          <div>
+                            <h4>Courses accessed</h4>
+                            {row.courses.length === 0 ? (
+                              <p>No course visits saved yet.</p>
+                            ) : (
+                              <ul>
+                                {row.courses.map((course) => (
+                                  <li key={course.slug || course.curriculumId || course.title}>
+                                    <strong>{course.title || course.slug || 'Course'}</strong>
+                                    <small>
+                                      {course.visitedSubunitsCount || (course.visitedSubunits || []).length || 0} topics
+                                      {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
+                                    </small>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div>
+                            <h4>Study lists</h4>
+                            {row.bookmarks.slice(0, 5).map((item) => (
+                              <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
+                            ))}
+                            {row.mistakes.slice(0, 5).map((item) => (
+                              <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
+                            ))}
+                            {row.bookmarks.length + row.mistakes.length === 0 ? <p>No saved questions.</p> : null}
+                          </div>
+                          <div>
+                            <h4>Purchases</h4>
+                            {row.paidLabels.length === 0 ? (
+                              <p>No paid products.</p>
+                            ) : (
+                              <ul>
+                                {row.paidLabels.map((label) => (
+                                  <li key={label}>{label}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   )
