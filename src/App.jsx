@@ -26,7 +26,7 @@ import {
   suggestSimilarQuestionsByTopic,
   toggleStudyQuestion,
 } from './studentStudy'
-import { parseQuestionBankText, readQuestionBankFile } from './parseQuestionBank'
+import { decodeBankHtmlEntities, parseQuestionBankText, readQuestionBankFile, wrapBareDisplayLatex } from './parseQuestionBank'
 import { parseLessonBankText, readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
 import './App.css'
 
@@ -915,20 +915,33 @@ function normalizeQuestionTypography(value) {
     .replace(/(^|[^A-Za-z0-9])\(\s*c\s*\)(?![A-Za-z0-9])/gi, (_, prefix) => `${prefix}${OPTION_C_MARK}`)
 }
 
+function renderKatex(expression, displayMode) {
+  return katex.renderToString(decodeBankHtmlEntities(expression), {
+    throwOnError: false,
+    displayMode,
+    strict: 'ignore',
+  })
+}
+
 function renderLatexToHtml(value) {
   if (!value) return ''
 
   const tokenPrefix = '__LATEX_TOKEN__'
-  const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g
-  const tokenizedText = normalizeQuestionTypography(value).replace(pattern, (segment, _rawMatch, offset) => {
+  const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\))/g
+  const prepared = wrapBareDisplayLatex(decodeBankHtmlEntities(normalizeQuestionTypography(value)))
+  const tokenizedText = prepared.replace(pattern, (segment, _rawMatch, offset) => {
     const token = `${tokenPrefix}${offset}__`
     if (segment.startsWith('$$') && segment.endsWith('$$')) {
-      const expression = segment.slice(2, -2).trim()
-      return `${token}${katex.renderToString(expression, { throwOnError: false, displayMode: true })}${token}`
+      return `${token}${renderKatex(segment.slice(2, -2).trim(), true)}${token}`
+    }
+    if (segment.startsWith('\\[') && segment.endsWith('\\]')) {
+      return `${token}${renderKatex(segment.slice(2, -2).trim(), true)}${token}`
+    }
+    if (segment.startsWith('\\(') && segment.endsWith('\\)')) {
+      return `${token}${renderKatex(segment.slice(2, -2).trim(), false)}${token}`
     }
     if (segment.startsWith('$') && segment.endsWith('$')) {
-      const expression = segment.slice(1, -1).trim()
-      return `${token}${katex.renderToString(expression, { throwOnError: false, displayMode: false })}${token}`
+      return `${token}${renderKatex(segment.slice(1, -1).trim(), false)}${token}`
     }
     return segment
   })

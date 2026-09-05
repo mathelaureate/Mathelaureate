@@ -6,8 +6,64 @@ const PAGE_MARKER_RE = /(?:^|\n)\s*(?:[-–—]+\s*)?\d+\s+of\s+\d+\s*(?:[-–�
 const META_FIELD_RE =
   /<b>\s*(Course|Level|Difficulty|GDC|Calculator|Maximum Mark|Max Mark|Marks)\s*:\s*<\/b>\s*/gi
 
+const HTML_ENTITIES = {
+  nbsp: ' ',
+  amp: '&',
+  gt: '>',
+  lt: '<',
+  quot: '"',
+  apos: "'",
+  le: '≤',
+  ge: '≥',
+  ne: '≠',
+  times: '×',
+  minus: '−',
+  plusmn: '±',
+  deg: '°',
+  pi: 'π',
+  infin: '∞',
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  thinsp: ' ',
+  emsp: ' ',
+  ensp: ' ',
+}
+
+export function decodeBankHtmlEntities(value) {
+  let text = String(value || '')
+  for (let pass = 0; pass < 3; pass += 1) {
+    text = text
+      .replace(/&([a-z]+);/gi, (match, name) => HTML_ENTITIES[name.toLowerCase()] ?? match)
+      .replace(/&#(\d+);/g, (match, digits) => {
+        const code = Number(digits)
+        if (code === 36) return match
+        return Number.isFinite(code) ? String.fromCharCode(code) : match
+      })
+      .replace(/&#x([0-9a-f]+);/gi, (match, hex) => {
+        const code = Number.parseInt(hex, 16)
+        if (code === 0x24) return match
+        return Number.isFinite(code) ? String.fromCharCode(code) : match
+      })
+  }
+  return text
+}
+
+export function wrapBareDisplayLatex(value) {
+  return String(value || '')
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) return line
+      if (/\$|\\\[|\\\(/.test(trimmed)) return line
+      if (/^(?:\\qquad|\\displaystyle|\\begin\{)/.test(trimmed)) return `$$${trimmed}$$`
+      return line
+    })
+    .join('\n')
+}
+
 export function stripPdfArtifacts(text) {
-  return String(text || '')
+  return decodeBankHtmlEntities(String(text || ''))
     .replace(/\r\n?/g, '\n')
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
     .replace(/__([^_\n]+)__/g, '<b>$1</b>')
