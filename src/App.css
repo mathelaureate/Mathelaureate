@@ -1433,6 +1433,19 @@ input[type='radio']:focus-visible {
   margin-bottom: 0.75rem;
 }
 
+.bulk-source-tabs {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.bulk-paste-box {
+  min-height: 14rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
 .stored-tab {
   border: 1px solid #c2ddd9;
   border-radius: 999px;

@@ -9,6 +9,8 @@ const META_FIELD_RE =
 export function stripPdfArtifacts(text) {
   return String(text || '')
     .replace(/\r\n?/g, '\n')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/__([^_\n]+)__/g, '<b>$1</b>')
     .replace(/<b>\s*/gi, '<b>')
     .replace(/\s*<\/b>/gi, '</b>')
     .replace(/<b>Question\s+(\d+)<\/b>/gi, '<b>Question $1</b>')

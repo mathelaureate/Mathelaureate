@@ -26,8 +26,8 @@ import {
   suggestSimilarQuestionsByTopic,
   toggleStudyQuestion,
 } from './studentStudy'
-import { readQuestionBankFile } from './parseQuestionBank'
-import { readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
+import { parseQuestionBankText, readQuestionBankFile } from './parseQuestionBank'
+import { parseLessonBankText, readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
 import './App.css'
 
 const IaDocumentViewer = lazy(() =>
@@ -5706,12 +5706,16 @@ function AdminPage({ mode = 'admin' }) {
   const [imageWidthPercent, setImageWidthPercent] = useState(100)
   const [isImageUploading, setIsImageUploading] = useState(false)
   const [bulkQuestionFile, setBulkQuestionFile] = useState(null)
+  const [bulkQuestionPaste, setBulkQuestionPaste] = useState('')
+  const [bulkQuestionSource, setBulkQuestionSource] = useState('file')
   const [bulkPreview, setBulkPreview] = useState([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [bulkUploadError, setBulkUploadError] = useState('')
   const [bulkUploadSuccess, setBulkUploadSuccess] = useState('')
   const bulkQuestionFileInputRef = useRef(null)
   const [bulkLessonFile, setBulkLessonFile] = useState(null)
+  const [bulkLessonPaste, setBulkLessonPaste] = useState('')
+  const [bulkLessonSource, setBulkLessonSource] = useState('file')
   const [bulkLessonPreview, setBulkLessonPreview] = useState([])
   const [isBulkLessonUploading, setIsBulkLessonUploading] = useState(false)
   const [bulkLessonError, setBulkLessonError] = useState('')
@@ -6709,9 +6713,24 @@ function AdminPage({ mode = 'admin' }) {
     setImageWidthPercent(100)
   }
 
+  function parseBulkQuestionText(text) {
+    const raw = String(text || '').trim()
+    setBulkPreview([])
+    setBulkUploadError('')
+    setBulkUploadSuccess('')
+    if (!raw) return
+    try {
+      setBulkPreview(parseQuestionBankText(raw))
+    } catch (error) {
+      setBulkUploadError(error?.message || 'Unable to parse that text.')
+    }
+  }
+
   async function onBulkQuestionFileChange(event) {
     const file = event.target.files?.[0] || null
     setBulkQuestionFile(file)
+    setBulkQuestionPaste('')
+    setBulkQuestionSource('file')
     setBulkPreview([])
     setBulkUploadError('')
     setBulkUploadSuccess('')
@@ -6724,6 +6743,14 @@ function AdminPage({ mode = 'admin' }) {
     }
   }
 
+  function onBulkQuestionPasteChange(event) {
+    const text = event.target.value
+    setBulkQuestionPaste(text)
+    setBulkQuestionFile(null)
+    if (bulkQuestionFileInputRef.current) bulkQuestionFileInputRef.current.value = ''
+    parseBulkQuestionText(text)
+  }
+
   async function submitBulkQuestions(event) {
     event.preventDefault()
     setDataError('')
@@ -6732,8 +6759,15 @@ function AdminPage({ mode = 'admin' }) {
     setIsBulkUploading(true)
 
     try {
-      const items = bulkPreview.length > 0 ? bulkPreview : bulkQuestionFile ? await readQuestionBankFile(bulkQuestionFile) : []
-      if (!items.length) throw new Error('Upload a question-bank PDF or text file first.')
+      const items =
+        bulkPreview.length > 0
+          ? bulkPreview
+          : bulkQuestionPaste.trim()
+            ? parseQuestionBankText(bulkQuestionPaste)
+            : bulkQuestionFile
+              ? await readQuestionBankFile(bulkQuestionFile)
+              : []
+      if (!items.length) throw new Error('Upload a question-bank file or paste the ChatGPT question bank first.')
       if (!curriculumId || !unitId || !subunit) {
         throw new Error('Select course, topic, and subtopic before bulk upload.')
       }
@@ -6797,6 +6831,7 @@ function AdminPage({ mode = 'admin' }) {
 
       persistRecords([...created, ...records])
       setBulkQuestionFile(null)
+      setBulkQuestionPaste('')
       setBulkPreview([])
       if (bulkQuestionFileInputRef.current) bulkQuestionFileInputRef.current.value = ''
       setBulkUploadSuccess(`Uploaded ${created.length} question${created.length === 1 ? '' : 's'} successfully.`)
@@ -6808,9 +6843,24 @@ function AdminPage({ mode = 'admin' }) {
     }
   }
 
+  function parseBulkLessonText(text) {
+    const raw = String(text || '').trim()
+    setBulkLessonPreview([])
+    setBulkLessonError('')
+    setBulkLessonSuccess('')
+    if (!raw) return
+    try {
+      setBulkLessonPreview(parseLessonBankText(raw))
+    } catch (error) {
+      setBulkLessonError(error?.message || 'Unable to parse that text.')
+    }
+  }
+
   async function onBulkLessonFileChange(event) {
     const file = event.target.files?.[0] || null
     setBulkLessonFile(file)
+    setBulkLessonPaste('')
+    setBulkLessonSource('file')
     setBulkLessonPreview([])
     setBulkLessonError('')
     setBulkLessonSuccess('')
@@ -6823,6 +6873,14 @@ function AdminPage({ mode = 'admin' }) {
     }
   }
 
+  function onBulkLessonPasteChange(event) {
+    const text = event.target.value
+    setBulkLessonPaste(text)
+    setBulkLessonFile(null)
+    if (bulkLessonFileInputRef.current) bulkLessonFileInputRef.current.value = ''
+    parseBulkLessonText(text)
+  }
+
   async function submitBulkLessons(event) {
     event.preventDefault()
     setDataError('')
@@ -6832,8 +6890,14 @@ function AdminPage({ mode = 'admin' }) {
 
     try {
       const items =
-        bulkLessonPreview.length > 0 ? bulkLessonPreview : bulkLessonFile ? await readLessonBankFile(bulkLessonFile) : []
-      if (!items.length) throw new Error('Upload a lesson-bank PDF or text file first.')
+        bulkLessonPreview.length > 0
+          ? bulkLessonPreview
+          : bulkLessonPaste.trim()
+            ? parseLessonBankText(bulkLessonPaste)
+            : bulkLessonFile
+              ? await readLessonBankFile(bulkLessonFile)
+              : []
+      if (!items.length) throw new Error('Upload a lesson-bank file or paste the ChatGPT lesson bank first.')
       if (!curriculumId || !unitId || !subunit) {
         throw new Error('Select course, topic, and subtopic before bulk upload.')
       }
@@ -6895,6 +6959,7 @@ function AdminPage({ mode = 'admin' }) {
 
       persistRecords([...created, ...records])
       setBulkLessonFile(null)
+      setBulkLessonPaste('')
       setBulkLessonPreview([])
       if (bulkLessonFileInputRef.current) bulkLessonFileInputRef.current.value = ''
       setBulkLessonSuccess(`Uploaded ${created.length} lesson${created.length === 1 ? '' : 's'} successfully.`)
@@ -8191,19 +8256,48 @@ function AdminPage({ mode = 'admin' }) {
           <form className="panel" onSubmit={submitBulkQuestions}>
             <h2>Bulk Upload Questions</h2>
             <p>
-              Upload the ChatGPT question-bank PDF or text file. Each <code>Question N</code> block is parsed
+              Use the same ChatGPT question-bank format as the PDF. Each <code>Question N</code> block is parsed
               into its own card with solution, marks, GDC, difficulty, and level.
             </p>
-            <label>
-              Question bank file
-              <input
-                ref={bulkQuestionFileInputRef}
-                type="file"
-                accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
-                onChange={onBulkQuestionFileChange}
-              />
-            </label>
-            {bulkQuestionFile ? <small>{bulkQuestionFile.name}</small> : null}
+            <div className="stored-items-tabs bulk-source-tabs">
+              <button
+                type="button"
+                className={`stored-tab ${bulkQuestionSource === 'file' ? 'active' : ''}`}
+                onClick={() => setBulkQuestionSource('file')}
+              >
+                Upload file
+              </button>
+              <button
+                type="button"
+                className={`stored-tab ${bulkQuestionSource === 'paste' ? 'active' : ''}`}
+                onClick={() => setBulkQuestionSource('paste')}
+              >
+                Paste from ChatGPT
+              </button>
+            </div>
+            {bulkQuestionSource === 'file' ? (
+              <label>
+                Question bank file
+                <input
+                  ref={bulkQuestionFileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
+                  onChange={onBulkQuestionFileChange}
+                />
+              </label>
+            ) : (
+              <label>
+                Paste question bank
+                <textarea
+                  className="bulk-paste-box"
+                  rows={12}
+                  value={bulkQuestionPaste}
+                  onChange={onBulkQuestionPasteChange}
+                  placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution."
+                />
+              </label>
+            )}
+            {bulkQuestionSource === 'file' && bulkQuestionFile ? <small>{bulkQuestionFile.name}</small> : null}
             {bulkPreview.length > 0 ? (
               <p className="success-text">
                 Parsed {bulkPreview.length} question{bulkPreview.length === 1 ? '' : 's'}. Upload to the selected topic
@@ -8220,19 +8314,47 @@ function AdminPage({ mode = 'admin' }) {
           <form className="panel" onSubmit={submitBulkLessons}>
             <h2>Bulk Upload Lessons</h2>
             <p>
-              Upload the ChatGPT lesson-bank PDF or text file. Title, learning objectives, and the lesson body are
-              parsed into lesson cards.
+              Use the same ChatGPT lesson-bank format as the PDF. Title and lesson body are parsed into lesson cards.
             </p>
-            <label>
-              Lesson bank file
-              <input
-                ref={bulkLessonFileInputRef}
-                type="file"
-                accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
-                onChange={onBulkLessonFileChange}
-              />
-            </label>
-            {bulkLessonFile ? <small>{bulkLessonFile.name}</small> : null}
+            <div className="stored-items-tabs bulk-source-tabs">
+              <button
+                type="button"
+                className={`stored-tab ${bulkLessonSource === 'file' ? 'active' : ''}`}
+                onClick={() => setBulkLessonSource('file')}
+              >
+                Upload file
+              </button>
+              <button
+                type="button"
+                className={`stored-tab ${bulkLessonSource === 'paste' ? 'active' : ''}`}
+                onClick={() => setBulkLessonSource('paste')}
+              >
+                Paste from ChatGPT
+              </button>
+            </div>
+            {bulkLessonSource === 'file' ? (
+              <label>
+                Lesson bank file
+                <input
+                  ref={bulkLessonFileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.html,.md,.json,application/pdf,text/plain,text/html"
+                  onChange={onBulkLessonFileChange}
+                />
+              </label>
+            ) : (
+              <label>
+                Paste lesson bank
+                <textarea
+                  className="bulk-paste-box"
+                  rows={12}
+                  value={bulkLessonPaste}
+                  onChange={onBulkLessonPasteChange}
+                  placeholder="Paste the ChatGPT lesson bank here. Same format as the PDF: a bold lesson title, then the lesson body."
+                />
+              </label>
+            )}
+            {bulkLessonSource === 'file' && bulkLessonFile ? <small>{bulkLessonFile.name}</small> : null}
             {bulkLessonPreview.length > 0 ? (
               <p className="success-text">
                 Parsed {bulkLessonPreview.length} lesson{bulkLessonPreview.length === 1 ? '' : 's'}
