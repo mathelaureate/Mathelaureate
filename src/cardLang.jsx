@@ -162,7 +162,6 @@ export function CardLangToggle({ lang, busy, error, onChange }) {
           </button>
         ))}
       </div>
-      {busy ? <small className="card-lang-status">Translating…</small> : null}
       {error ? <small className="card-lang-error">{error}</small> : null}
     </div>
   )
