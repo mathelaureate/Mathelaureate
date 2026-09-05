@@ -153,7 +153,75 @@ function stripMetaHeaders(text) {
 }
 
 function isMathContentLine(line) {
-  return /\$|\\boxed|<b>\s*[a-z0-9]+\)/i.test(line)
+  return /\$|\\boxed|<b>\s*[a-z0-9]+\)|<img|\[img:|\[\d+\]|^\s*(calculate|find|show|prove|determine|write|sketch|draw|state|hence)\b/i.test(
+    line,
+  )
+}
+
+const IMAGE_PLACEHOLDER_RE =
+  /<img\s+[^>]*src=["']([^"']+)["'][^>]*\/?>|<img>\s*([^<]+?)\s*<\/img>|\[img:\s*([^\]]+?)\]/gi
+
+export function normalizeImageFilename(name) {
+  return String(name || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .split('/')
+    .pop()
+    .toLowerCase()
+}
+
+export function extractImageFilenames(text) {
+  const names = []
+  const re = new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi')
+  for (const match of String(text || '').matchAll(re)) {
+    const name = String(match[1] || match[2] || match[3] || '').trim()
+    if (name) names.push(name)
+  }
+  return names
+}
+
+export function collectBankImageNames(items) {
+  const names = []
+  for (const item of items || []) {
+    names.push(...extractImageFilenames(item?.description))
+    names.push(...extractImageFilenames(item?.solution))
+  }
+  return [...new Set(names)]
+}
+
+export function splitTextWithImages(text) {
+  const source = String(text || '')
+  const blocks = []
+  const re = new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi')
+  let cursor = 0
+  for (const match of source.matchAll(re)) {
+    const before = source.slice(cursor, match.index).trim()
+    if (before) blocks.push({ type: 'text', text: before })
+    const filename = String(match[1] || match[2] || match[3] || '').trim()
+    if (filename) blocks.push({ type: 'image', filename })
+    cursor = match.index + match[0].length
+  }
+  const after = source.slice(cursor).trim()
+  if (after) blocks.push({ type: 'text', text: after })
+  if (blocks.length === 0 && source.trim()) blocks.push({ type: 'text', text: source.trim() })
+  return blocks
+}
+
+export function stripImageTags(text) {
+  return String(text || '')
+    .replace(new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi'), '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export function findMatchingImageFile(filename, files) {
+  const wanted = normalizeImageFilename(filename)
+  if (!wanted) return null
+  const list = Array.isArray(files) ? files : []
+  const exact = list.find((file) => normalizeImageFilename(file?.name) === wanted)
+  if (exact) return exact
+  const stem = wanted.replace(/\.[a-z0-9]+$/, '')
+  return list.find((file) => normalizeImageFilename(file?.name).replace(/\.[a-z0-9]+$/, '') === stem) || null
 }
 
 function trimTrailingCommentary(text) {

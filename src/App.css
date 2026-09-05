@@ -1446,6 +1446,44 @@ input[type='radio']:focus-visible {
   resize: vertical;
 }
 
+.bulk-image-attach {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.55rem;
+}
+
+.bulk-image-refs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.bulk-image-refs li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.32rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d5e0e8;
+  background: #f8fbfd;
+  font-size: 0.82rem;
+}
+
+.bulk-image-refs li.is-matched {
+  border-color: #b7f0cf;
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.bulk-image-refs li.is-missing {
+  border-color: #f6c1c1;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .stored-tab {
   border: 1px solid #c2ddd9;
   border-radius: 999px;

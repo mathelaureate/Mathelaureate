@@ -26,7 +26,16 @@ import {
   suggestSimilarQuestionsByTopic,
   toggleStudyQuestion,
 } from './studentStudy'
-import { decodeBankHtmlEntities, parseQuestionBankText, readQuestionBankFile, wrapBareDisplayLatex } from './parseQuestionBank'
+import {
+  collectBankImageNames,
+  decodeBankHtmlEntities,
+  findMatchingImageFile,
+  parseQuestionBankText,
+  readQuestionBankFile,
+  splitTextWithImages,
+  stripImageTags,
+  wrapBareDisplayLatex,
+} from './parseQuestionBank'
 import { parseLessonBankText, readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
 import './App.css'
 
@@ -1302,6 +1311,80 @@ function createImageContentBlock() {
     caption: '',
     widthPercent: 100,
   }
+}
+
+async function materializeBankContent(text, files, folder, label) {
+  const parts = splitTextWithImages(text)
+  const blocks = []
+  const uploaded = new Map()
+  for (const part of parts) {
+    if (part.type === 'image') {
+      const file = findMatchingImageFile(part.filename, files)
+      if (!file) {
+        throw new Error(`${label}: missing image file "${part.filename}". Upload a file with that exact name.`)
+      }
+      if (!supabaseConfigured) {
+        throw new Error('Supabase not configured. Add Supabase env values before uploading images.')
+      }
+      const cacheKey = `${file.name}:${file.size}:${file.lastModified}`
+      let result = uploaded.get(cacheKey)
+      if (!result) {
+        result = await uploadImageToSupabase(file, folder)
+        uploaded.set(cacheKey, result)
+      }
+      blocks.push({
+        id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: 'image',
+        imageUrl: result.publicUrl,
+        imagePath: result.path,
+        caption: '',
+        widthPercent: 100,
+      })
+    } else if (String(part.text || '').trim()) {
+      blocks.push(createTextContentBlock(part.text))
+    }
+  }
+  return {
+    blocks,
+    plain: stripImageTags(text),
+  }
+}
+
+function BulkImageAttach({ inputRef, files, referencedNames, onChange }) {
+  const names = Array.isArray(referencedNames) ? referencedNames : []
+  const selected = Array.isArray(files) ? files : []
+  return (
+    <div className="bulk-image-attach">
+      <label>
+        Matching image files
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+          onChange={onChange}
+        />
+      </label>
+      {names.length > 0 ? (
+        <ul className="bulk-image-refs">
+          {names.map((name) => {
+            const matched = Boolean(findMatchingImageFile(name, selected))
+            return (
+              <li key={name} className={matched ? 'is-matched' : 'is-missing'}>
+                <code>{name}</code>
+                <span>{matched ? 'ready' : 'upload this file'}</span>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <small>
+          To place a picture, put <code>&lt;img&gt;filename.png&lt;/img&gt;</code> in the bank, then upload a file with
+          that exact name.
+        </small>
+      )}
+    </div>
+  )
 }
 
 function normalizeContentBlocks(rawBlocks, fallbackText = '') {
@@ -5726,6 +5809,8 @@ function AdminPage({ mode = 'admin' }) {
   const [bulkUploadError, setBulkUploadError] = useState('')
   const [bulkUploadSuccess, setBulkUploadSuccess] = useState('')
   const bulkQuestionFileInputRef = useRef(null)
+  const bulkQuestionImageInputRef = useRef(null)
+  const [bulkQuestionImages, setBulkQuestionImages] = useState([])
   const [bulkLessonFile, setBulkLessonFile] = useState(null)
   const [bulkLessonPaste, setBulkLessonPaste] = useState('')
   const [bulkLessonSource, setBulkLessonSource] = useState('file')
@@ -5734,6 +5819,8 @@ function AdminPage({ mode = 'admin' }) {
   const [bulkLessonError, setBulkLessonError] = useState('')
   const [bulkLessonSuccess, setBulkLessonSuccess] = useState('')
   const bulkLessonFileInputRef = useRef(null)
+  const bulkLessonImageInputRef = useRef(null)
+  const [bulkLessonImages, setBulkLessonImages] = useState([])
   const [paywallConfig, setPaywallConfig] = useState(() => normalizePaywallConfig())
   const [paywallCourseId, setPaywallCourseId] = useState(defaultCurricula[0]?.id ?? '')
   const [paywallUnitId, setPaywallUnitId] = useState(defaultCurricula[0]?.units?.[0]?.id ?? '')
@@ -6805,14 +6892,31 @@ function AdminPage({ mode = 'admin' }) {
           throw new Error(`Question ${item.number || index + 1} is missing question text.`)
         }
         const solutionValue = String(item.solution || '').trim()
+        const questionLabel = `Question ${item.number || index + 1}`
+        const descriptionContent = await materializeBankContent(
+          descriptionValue,
+          bulkQuestionImages,
+          `${curriculumId}/${unitId}/blocks/description`,
+          questionLabel,
+        )
+        const solutionContent = solutionValue
+          ? await materializeBankContent(
+              solutionValue,
+              bulkQuestionImages,
+              `${curriculumId}/${unitId}/blocks/solution`,
+              `${questionLabel} solution`,
+            )
+          : { blocks: [], plain: '' }
 
         const newRecord = {
           itemType: 'question',
           title: '',
-          description: descriptionValue,
-          descriptionBlocks: [createTextContentBlock(descriptionValue)],
-          solution: solutionValue,
-          solutionBlocks: solutionValue ? [createTextContentBlock(solutionValue)] : [],
+          description: descriptionContent.plain || descriptionValue,
+          descriptionBlocks: descriptionContent.blocks.length
+            ? descriptionContent.blocks
+            : [createTextContentBlock(descriptionContent.plain || descriptionValue)],
+          solution: solutionContent.plain || solutionValue,
+          solutionBlocks: solutionContent.blocks,
           solutionVideoLink: '',
           solutionImageUrl: '',
           solutionImagePath: '',
@@ -6845,8 +6949,10 @@ function AdminPage({ mode = 'admin' }) {
       persistRecords([...created, ...records])
       setBulkQuestionFile(null)
       setBulkQuestionPaste('')
+      setBulkQuestionImages([])
       setBulkPreview([])
       if (bulkQuestionFileInputRef.current) bulkQuestionFileInputRef.current.value = ''
+      if (bulkQuestionImageInputRef.current) bulkQuestionImageInputRef.current.value = ''
       setBulkUploadSuccess(`Uploaded ${created.length} question${created.length === 1 ? '' : 's'} successfully.`)
     } catch (error) {
       setDataError(error?.message || 'Unable to parse/upload bulk questions.')
@@ -6935,12 +7041,20 @@ function AdminPage({ mode = 'admin' }) {
         if (!titleValue && !descriptionValue) {
           throw new Error(`Lesson ${index + 1} is missing title and body text.`)
         }
+        const descriptionContent = descriptionValue
+          ? await materializeBankContent(
+              descriptionValue,
+              bulkLessonImages,
+              `${curriculumId}/${unitId}/blocks/description`,
+              `Lesson ${index + 1}`,
+            )
+          : { blocks: [], plain: '' }
 
         const newRecord = {
           itemType: 'lesson',
           title: titleValue,
-          description: descriptionValue,
-          descriptionBlocks: descriptionValue ? [createTextContentBlock(descriptionValue)] : [],
+          description: descriptionContent.plain || descriptionValue,
+          descriptionBlocks: descriptionContent.blocks,
           learningObjectives: [],
           solution: '',
           solutionBlocks: [],
@@ -6973,8 +7087,10 @@ function AdminPage({ mode = 'admin' }) {
       persistRecords([...created, ...records])
       setBulkLessonFile(null)
       setBulkLessonPaste('')
+      setBulkLessonImages([])
       setBulkLessonPreview([])
       if (bulkLessonFileInputRef.current) bulkLessonFileInputRef.current.value = ''
+      if (bulkLessonImageInputRef.current) bulkLessonImageInputRef.current.value = ''
       setBulkLessonSuccess(`Uploaded ${created.length} lesson${created.length === 1 ? '' : 's'} successfully.`)
     } catch (error) {
       setDataError(error?.message || 'Unable to parse/upload bulk lessons.')
@@ -8270,7 +8386,9 @@ function AdminPage({ mode = 'admin' }) {
             <h2>Bulk Upload Questions</h2>
             <p>
               Use the same ChatGPT question-bank format as the PDF. Each <code>Question N</code> block is parsed
-              into its own card with solution, marks, GDC, difficulty, and level.
+              into its own card with solution, marks, GDC, difficulty, and level. Put{' '}
+              <code>&lt;img&gt;filename.png&lt;/img&gt;</code> where a picture should appear, then attach a file
+              with that exact name below.
             </p>
             <div className="stored-items-tabs bulk-source-tabs">
               <button
@@ -8306,20 +8424,40 @@ function AdminPage({ mode = 'admin' }) {
                   rows={12}
                   value={bulkQuestionPaste}
                   onChange={onBulkQuestionPasteChange}
-                  placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution."
+                  placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution. Put <img>filename.png</img> where a picture should appear."
                 />
               </label>
             )}
             {bulkQuestionSource === 'file' && bulkQuestionFile ? <small>{bulkQuestionFile.name}</small> : null}
+            <BulkImageAttach
+              inputRef={bulkQuestionImageInputRef}
+              files={bulkQuestionImages}
+              referencedNames={collectBankImageNames(bulkPreview)}
+              onChange={(event) => setBulkQuestionImages(Array.from(event.target.files || []))}
+            />
             {bulkPreview.length > 0 ? (
               <p className="success-text">
-                Parsed {bulkPreview.length} question{bulkPreview.length === 1 ? '' : 's'}. Upload to the selected topic
+                Parsed {bulkPreview.length} question{bulkPreview.length === 1 ? '' : 's'}
+                {collectBankImageNames(bulkPreview).length
+                  ? ` with ${collectBankImageNames(bulkPreview).length} image tag${
+                      collectBankImageNames(bulkPreview).length === 1 ? '' : 's'
+                    }`
+                  : ''}
+                . Upload to the selected topic
                 {subunit ? ` (${subunit})` : ''}.
               </p>
             ) : null}
             {bulkUploadError ? <p className="error-text">{bulkUploadError}</p> : null}
             {bulkUploadSuccess ? <p className="success-text">{bulkUploadSuccess}</p> : null}
-            <button className="btn primary" type="submit" disabled={isBulkUploading || bulkPreview.length === 0}>
+            <button
+              className="btn primary"
+              type="submit"
+              disabled={
+                isBulkUploading ||
+                bulkPreview.length === 0 ||
+                collectBankImageNames(bulkPreview).some((name) => !findMatchingImageFile(name, bulkQuestionImages))
+              }
+            >
               {isBulkUploading ? 'Uploading questions...' : 'Upload Questions'}
             </button>
           </form>
@@ -8328,6 +8466,8 @@ function AdminPage({ mode = 'admin' }) {
             <h2>Bulk Upload Lessons</h2>
             <p>
               Use the same ChatGPT lesson-bank format as the PDF. Title and lesson body are parsed into lesson cards.
+              Put <code>&lt;img&gt;filename.png&lt;/img&gt;</code> where a picture should appear, then attach a file
+              with that exact name below.
             </p>
             <div className="stored-items-tabs bulk-source-tabs">
               <button
@@ -8363,21 +8503,41 @@ function AdminPage({ mode = 'admin' }) {
                   rows={12}
                   value={bulkLessonPaste}
                   onChange={onBulkLessonPasteChange}
-                  placeholder="Paste the ChatGPT lesson bank here. Same format as the PDF: a bold lesson title, then the lesson body."
+                  placeholder="Paste the ChatGPT lesson bank here. Same format as the PDF: a bold lesson title, then the lesson body. Put <img>filename.png</img> where a picture should appear."
                 />
               </label>
             )}
             {bulkLessonSource === 'file' && bulkLessonFile ? <small>{bulkLessonFile.name}</small> : null}
+            <BulkImageAttach
+              inputRef={bulkLessonImageInputRef}
+              files={bulkLessonImages}
+              referencedNames={collectBankImageNames(bulkLessonPreview)}
+              onChange={(event) => setBulkLessonImages(Array.from(event.target.files || []))}
+            />
             {bulkLessonPreview.length > 0 ? (
               <p className="success-text">
                 Parsed {bulkLessonPreview.length} lesson{bulkLessonPreview.length === 1 ? '' : 's'}
-                {bulkLessonPreview[0]?.title ? `: ${bulkLessonPreview[0].title}` : ''}. Upload to the selected topic
+                {bulkLessonPreview[0]?.title ? `: ${bulkLessonPreview[0].title}` : ''}
+                {collectBankImageNames(bulkLessonPreview).length
+                  ? ` with ${collectBankImageNames(bulkLessonPreview).length} image tag${
+                      collectBankImageNames(bulkLessonPreview).length === 1 ? '' : 's'
+                    }`
+                  : ''}
+                . Upload to the selected topic
                 {subunit ? ` (${subunit})` : ''}.
               </p>
             ) : null}
             {bulkLessonError ? <p className="error-text">{bulkLessonError}</p> : null}
             {bulkLessonSuccess ? <p className="success-text">{bulkLessonSuccess}</p> : null}
-            <button className="btn primary" type="submit" disabled={isBulkLessonUploading || bulkLessonPreview.length === 0}>
+            <button
+              className="btn primary"
+              type="submit"
+              disabled={
+                isBulkLessonUploading ||
+                bulkLessonPreview.length === 0 ||
+                collectBankImageNames(bulkLessonPreview).some((name) => !findMatchingImageFile(name, bulkLessonImages))
+              }
+            >
               {isBulkLessonUploading ? 'Uploading lessons...' : 'Upload Lessons'}
             </button>
           </form>
