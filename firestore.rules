@@ -20,7 +20,7 @@ service cloud.firestore {
     }
 
     match /userPayments/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
       allow write: if false;
     }
 
@@ -39,7 +39,8 @@ service cloud.firestore {
 
     // Per-user progress, bookmarks, mistakes, and profile-style state.
     match /userCourseProgress/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if signedIn() && request.auth.uid == uid;
     }
 
     // Default deny for all other documents.

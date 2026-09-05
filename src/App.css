@@ -7484,3 +7484,185 @@ select:focus {
     transform: none;
   }
 }
+
+.users-dash {
+  display: grid;
+  gap: 1rem;
+}
+
+.users-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.users-stat,
+.users-dash .panel {
+  border: 1px solid var(--ia-line, #e2e8f0);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.users-stat {
+  padding: 1rem 1.05rem;
+}
+
+.users-stat p,
+.users-table-head p,
+.users-dash .panel > p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.users-stat strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #0f172a;
+  font-size: 1.8rem;
+  line-height: 1.1;
+}
+
+.users-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.8fr);
+  gap: 0.85rem;
+}
+
+.users-daily {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 0.35rem;
+  align-items: end;
+  min-height: 160px;
+  margin-top: 1rem;
+}
+
+.users-daily-col {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  min-height: 140px;
+  align-content: end;
+}
+
+.users-daily-bar {
+  width: 100%;
+  border-radius: 6px 6px 2px 2px;
+  background: #0b7a75;
+  min-height: 8px;
+}
+
+.users-daily-col small,
+.users-daily-col span {
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+.users-country-list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.users-country-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.users-table-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.users-table-head label {
+  min-width: min(280px, 100%);
+}
+
+.users-table-wrap {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.7rem 0.55rem;
+  border-bottom: 1px solid #eef2f6;
+  color: #0f172a;
+  font-size: 0.88rem;
+}
+
+.users-table th {
+  color: #64748b;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.users-name-btn {
+  display: grid;
+  gap: 0.1rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.users-name-btn small,
+.users-table td small,
+.users-detail small {
+  display: block;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.users-detail {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.users-detail h3,
+.users-detail h4,
+.users-dash .panel h2 {
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+}
+
+.users-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.users-detail-grid ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+@media (max-width: 900px) {
+  .users-stats,
+  .users-split,
+  .users-detail-grid,
+  .users-table-head {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}

@@ -15,6 +15,8 @@ import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
+import { detectUserLocation, recordUserPresence } from './userPresence'
+import AdminUsersPage from './AdminUsersPage'
 import {
   SAVED_QUESTIONS_KEY,
   WRONG_QUESTIONS_KEY,
@@ -391,6 +393,7 @@ const adminPasscodeKey = 'mathelaureate-admin-passcode-ok'
 const editorPasscode = (import.meta.env.VITE_EDITOR_PASSCODE || '').trim()
 const editorPasscodeKey = 'mathelaureate-editor-passcode-ok'
 const editorAllowedEmail = (import.meta.env.VITE_EDITOR_EMAIL || 'editor.mathelaureate@gmail.com').trim().toLowerCase()
+const adminAllowedEmail = 'mathelaureate@gmail.com'
 const adminIaOptionId = '__ia_management__'
 const adminTeachersResourcesOptionId = '__teachers_resources_management__'
 const adminPricingOptionId = '__pricing__'
@@ -1183,17 +1186,8 @@ function renderNormalizedContentBlock(block, keyPrefix, index, onOpenImage) {
 }
 
 async function detectUserCountryCode() {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 1200)
-    const response = await fetch('https://ipapi.co/json/', { cache: 'no-store', signal: controller.signal })
-    clearTimeout(timer)
-    if (!response.ok) return ''
-    const data = await response.json()
-    return String(data?.country_code || '').toUpperCase()
-  } catch {
-    return ''
-  }
+  const location = await detectUserLocation()
+  return location.countryCode || ''
 }
 
 function toYouTubeEmbedUrl(input) {
@@ -3992,6 +3986,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
             uid: user.uid,
             email: user.email || '',
             displayName: user.displayName || '',
+            photoURL: user.photoURL || '',
+            lastSeenAt: timestamp,
+            lastPath: `/courses/${course.slug}`,
             courses: updatedCourses,
             myCourses: updatedMyCourses,
             updatedAt: timestamp,
@@ -5720,6 +5717,9 @@ function AdminPasscodeGate({ setUnlocked }) {
         placeholder="Admin passcode"
         value={passcode}
         onChange={(event) => setPasscode(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') unlock()
+        }}
       />
       {!isAdminPasscodeConfigured ? <p className="error-text">Admin passcode is not configured.</p> : null}
       {error && <p className="error-text">{error}</p>}
@@ -5783,6 +5783,91 @@ function ProtectedAdmin() {
   }
 
   return <AdminPage mode="admin" />
+}
+
+function ProtectedAdminUsers() {
+  const [passcodeUnlocked, setPasscodeUnlocked] = useState(() => sessionStorage.getItem(adminPasscodeKey) === 'true')
+  const [authUser, setAuthUser] = useState(() => auth.currentUser)
+  const [authReady, setAuthReady] = useState(false)
+  const [loginPending, setLoginPending] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setAuthUser(nextUser)
+      setAuthReady(true)
+    })
+    return unsubscribe
+  }, [])
+
+  async function startGoogleLogin() {
+    setLoginPending(true)
+    setLoginError('')
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      setLoginError(error?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.')
+    } finally {
+      setLoginPending(false)
+    }
+  }
+
+  if (!passcodeUnlocked) {
+    return (
+      <main className="admin site-full">
+        <AdminPasscodeGate setUnlocked={setPasscodeUnlocked} />
+      </main>
+    )
+  }
+
+  if (!authReady) {
+    return (
+      <main className="admin site-full">
+        <section className="panel passcode-card">
+          <p>Checking admin session...</p>
+        </section>
+      </main>
+    )
+  }
+
+  const signedEmail = String(authUser?.email || '').trim().toLowerCase()
+  const isAllowedAdmin = signedEmail === adminAllowedEmail
+
+  if (!authUser || !isAllowedAdmin) {
+    return (
+      <main className="admin site-full">
+        <section className="panel passcode-card">
+          <h2>Admin Google Sign-in</h2>
+          <p>
+            User activity is limited to the owner Google account:
+            <br />
+            <strong>{adminAllowedEmail}</strong>
+          </p>
+          {authUser && !isAllowedAdmin ? (
+            <p className="error-text">
+              Signed in as {authUser.email}, which cannot view student data. Sign out and use {adminAllowedEmail}.
+            </p>
+          ) : null}
+          {loginError ? <p className="error-text">{loginError}</p> : null}
+          <div className="editor-auth-actions">
+            {authUser ? (
+              <button type="button" className="btn ghost" onClick={() => signOut(auth)}>
+                Sign out
+              </button>
+            ) : null}
+            <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
+              {loginPending ? 'Signing in...' : 'Continue with Google'}
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  return <AdminUsersPage adminEmail={signedEmail} />
 }
 
 function ProtectedEditor() {
@@ -7763,7 +7848,11 @@ function AdminPage({ mode = 'admin' }) {
             <button type="button" className="btn ghost" onClick={() => signOut(auth)}>
               Sign out
             </button>
-          ) : null}
+          ) : (
+            <Link className="btn ghost" to="/admin/users">
+              User activity
+            </Link>
+          )}
           <Link className="btn ghost" to="/">
             Back to Website
           </Link>
@@ -8945,6 +9034,7 @@ function App() {
           }
           setCachedProfile(profile)
           localStorage.setItem(profileCacheKey, JSON.stringify(profile))
+          recordUserPresence(nextUser).catch(() => {})
         } else {
           setCachedProfile(null)
           localStorage.removeItem(profileCacheKey)
@@ -9032,6 +9122,7 @@ function App() {
         />
         <Route path="/profile" element={<ProfilePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/admin" element={<ProtectedAdmin />} />
+        <Route path="/admin/users" element={<ProtectedAdminUsers />} />
         <Route path="/editor" element={<ProtectedEditor />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
