@@ -1398,6 +1398,10 @@ input[type='radio']:focus-visible {
   gap: 0.35rem;
 }
 
+.content-blocks-render .geogebra-block {
+  margin-top: 0.2rem;
+}
+
 .content-block-caption {
   color: #5c6b74;
   display: block;

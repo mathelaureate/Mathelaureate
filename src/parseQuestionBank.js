@@ -153,13 +153,16 @@ function stripMetaHeaders(text) {
 }
 
 function isMathContentLine(line) {
-  return /\$|\\boxed|<b>\s*[a-z0-9]+\)|<img|\[img:|\[\d+\]|^\s*(calculate|find|show|prove|determine|write|sketch|draw|state|hence)\b/i.test(
+  return /\$|\\boxed|<b>\s*[a-z0-9]+\)|<img|\[img:|<geogebra|\[geogebra:|geogebra\[iframe\]|<iframe|\[\d+\]|^\s*(calculate|find|show|prove|determine|write|sketch|draw|state|hence)\b/i.test(
     line,
   )
 }
 
 const IMAGE_PLACEHOLDER_RE =
   /<img\s+[^>]*src=["']([^"']+)["'][^>]*\/?>|<img>\s*([^<]+?)\s*<\/img>|\[img:\s*([^\]]+?)\]/gi
+
+const GEOGEBRA_PLACEHOLDER_RE =
+  /<geogebra(?:\s*\[iframe\])?>\s*([\s\S]*?)\s*<\/geogebra(?:\s*\[iframe\])?>|\[geogebra:\s*([^\]]+?)\]|geogebra\[iframe\]\s*(\S+)|<iframe\b[^>]*\bsrc=["']([^"']*geogebra\.org[^"']*)["'][^>]*>\s*<\/iframe>/gi
 
 export function normalizeImageFilename(name) {
   return String(name || '')
@@ -180,6 +183,37 @@ export function extractImageFilenames(text) {
   return names
 }
 
+export function toGeoGebraEmbedUrl(input) {
+  const rawInput = String(input || '').trim()
+  const iframeSrcMatch = rawInput.match(/src=["']([^"']+)["']/i)
+  const raw = String(iframeSrcMatch?.[1] || rawInput).trim()
+  if (!raw) return ''
+  if (raw.includes('geogebra.org/material/iframe/id/')) return raw
+
+  const idMatch =
+    raw.match(/geogebra\.org\/m\/([a-zA-Z0-9]+)/) ||
+    raw.match(/material\/show\/id\/([a-zA-Z0-9]+)/) ||
+    raw.match(/^([a-zA-Z0-9]{6,})$/)
+  const materialId = idMatch?.[1]
+  if (!materialId) return /geogebra\.org/i.test(raw) ? raw : ''
+  return `https://www.geogebra.org/material/iframe/id/${materialId}/width/900/height/520/border/888888/sfsb/true/smb/false/stb/false/stbh/false/ai/false/asb/false/sri/true/rc/false`
+}
+
+export function normalizeGeoGebraSource(input) {
+  const embed = toGeoGebraEmbedUrl(input)
+  return /geogebra\.org/i.test(embed) ? embed : ''
+}
+
+export function extractGeoGebraSources(text) {
+  const sources = []
+  const re = new RegExp(GEOGEBRA_PLACEHOLDER_RE.source, 'gi')
+  for (const match of String(text || '').matchAll(re)) {
+    const source = normalizeGeoGebraSource(match[1] || match[2] || match[3] || match[4] || '')
+    if (source) sources.push(source)
+  }
+  return sources
+}
+
 export function collectBankImageNames(items) {
   const names = []
   for (const item of items || []) {
@@ -189,17 +223,39 @@ export function collectBankImageNames(items) {
   return [...new Set(names)]
 }
 
+function nextMediaMatch(source, from) {
+  const imageRe = new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi')
+  const geoRe = new RegExp(GEOGEBRA_PLACEHOLDER_RE.source, 'gi')
+  imageRe.lastIndex = from
+  geoRe.lastIndex = from
+  const image = imageRe.exec(source)
+  const geo = geoRe.exec(source)
+  if (image && geo) {
+    return image.index <= geo.index ? { kind: 'image', match: image } : { kind: 'geogebra', match: geo }
+  }
+  if (image) return { kind: 'image', match: image }
+  if (geo) return { kind: 'geogebra', match: geo }
+  return null
+}
+
 export function splitTextWithImages(text) {
   const source = String(text || '')
   const blocks = []
-  const re = new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi')
   let cursor = 0
-  for (const match of source.matchAll(re)) {
+  let found = nextMediaMatch(source, cursor)
+  while (found) {
+    const { kind, match } = found
     const before = source.slice(cursor, match.index).trim()
     if (before) blocks.push({ type: 'text', text: before })
-    const filename = String(match[1] || match[2] || match[3] || '').trim()
-    if (filename) blocks.push({ type: 'image', filename })
+    if (kind === 'image') {
+      const filename = String(match[1] || match[2] || match[3] || '').trim()
+      if (filename) blocks.push({ type: 'image', filename })
+    } else {
+      const url = normalizeGeoGebraSource(match[1] || match[2] || match[3] || match[4] || '')
+      if (url) blocks.push({ type: 'geogebra', url })
+    }
     cursor = match.index + match[0].length
+    found = nextMediaMatch(source, cursor)
   }
   const after = source.slice(cursor).trim()
   if (after) blocks.push({ type: 'text', text: after })
@@ -210,6 +266,7 @@ export function splitTextWithImages(text) {
 export function stripImageTags(text) {
   return String(text || '')
     .replace(new RegExp(IMAGE_PLACEHOLDER_RE.source, 'gi'), '\n')
+    .replace(new RegExp(GEOGEBRA_PLACEHOLDER_RE.source, 'gi'), '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

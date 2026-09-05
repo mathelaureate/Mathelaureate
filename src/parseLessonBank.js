@@ -1,11 +1,15 @@
-import { readBankFileText, repairLatexNewlines, stripPdfArtifacts } from './parseQuestionBank.js'
+import {
+  extractGeoGebraSources,
+  readBankFileText,
+  repairLatexNewlines,
+  stripPdfArtifacts,
+} from './parseQuestionBank.js'
 
 const LO_HEADING_RE = /(?:^|\n)\s*(?:<b>)?\s*Learning\s*Objectives?\s*:?\s*(?:<\/b>)?\s*(?=\n|$)/gi
 const LESSON_HEADING_RE =
   /(?:^|\n)\s*(?:<b>)?\s*Lesson\s+(\d+)\s*[:.\-–—]?\s*(.*?)\s*(?:<\/b>)?\s*(?=\n|$)/gi
 const BY_END_RE = /(?:^|\n)\s*By the end of this lesson/gi
 const OWN_LINE_HEADING_RE = /(?:^|\n)\s*<b>([\s\S]*?)<\/b>\s*(?=\n|$)/g
-const GEOGEBRA_URL_RE = /https?:\/\/(?:www\.)?geogebra\.org\/[^\s<]+/i
 const YOUTUBE_URL_RE = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[^\s<]+/i
 
 function collapseWs(value) {
@@ -154,13 +158,14 @@ function parseOneLesson(raw, fallbackTitle = '') {
   )
   if (!title && !description) return null
 
-  const geogebraMatch = description.match(GEOGEBRA_URL_RE)
   const youtubeMatch = description.match(YOUTUBE_URL_RE)
   return {
     title,
     learningObjectives: [],
     description,
-    geogebraLink: geogebraMatch ? geogebraMatch[0].replace(/[.,;]+$/, '') : '',
+    geogebraLink:
+      extractGeoGebraSources(description)[0] ||
+      (description.match(/https?:\/\/(?:www\.)?geogebra\.org\/[^\s<]+/i)?.[0] || '').replace(/[.,;]+$/, ''),
     resourceLink: youtubeMatch ? youtubeMatch[0].replace(/[.,;]+$/, '') : '',
   }
 }

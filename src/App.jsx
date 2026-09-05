@@ -31,10 +31,12 @@ import {
   collectBankImageNames,
   decodeBankHtmlEntities,
   findMatchingImageFile,
+  normalizeGeoGebraSource,
   parseQuestionBankText,
   readQuestionBankFile,
   splitTextWithImages,
   stripImageTags,
+  toGeoGebraEmbedUrl,
   wrapBareDisplayLatex,
 } from './parseQuestionBank'
 import { parseLessonBankText, readLessonBankFile, stripLearningObjectiveTitle, stripLearningObjectivesSection } from './parseLessonBank'
@@ -1127,38 +1129,57 @@ function RichTextEditor({ value, onChange, rows = 5, placeholder = '' }) {
   )
 }
 
-function toGeoGebraEmbedUrl(input) {
-  const rawInput = String(input || '').trim()
-  const iframeSrcMatch = rawInput.match(/src=["']([^"']+)["']/i)
-  const raw = String(iframeSrcMatch?.[1] || rawInput).trim()
-  if (!raw) return ''
-  if (raw.includes('geogebra.org/material/iframe/id/')) return raw
-
-  const idMatch =
-    raw.match(/geogebra\.org\/m\/([a-zA-Z0-9]+)/) ||
-    raw.match(/material\/show\/id\/([a-zA-Z0-9]+)/) ||
-    raw.match(/^([a-zA-Z0-9]{6,})$/)
-  const materialId = idMatch?.[1]
-  if (!materialId) return raw
-  return `https://www.geogebra.org/material/iframe/id/${materialId}/width/900/height/520/border/888888/sfsb/true/smb/false/stb/false/stbh/false/ai/false/asb/false/sri/true/rc/false`
+function createGeoGebraContentBlock(url = '') {
+  return {
+    id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'geogebra',
+    url: normalizeGeoGebraSource(url),
+  }
 }
 
-function toGeoGebraOpenUrl(input) {
-  const rawInput = String(input || '').trim()
-  const iframeSrcMatch = rawInput.match(/src=["']([^"']+)["']/i)
-  const raw = String(iframeSrcMatch?.[1] || rawInput).trim()
-  if (!raw) return ''
-  if (raw.includes('geogebra.org/material/iframe/id/')) {
-    const iframeMatch = raw.match(/material\/iframe\/id\/([a-zA-Z0-9]+)/)
-    return iframeMatch?.[1] ? `https://www.geogebra.org/m/${iframeMatch[1]}` : 'https://www.geogebra.org/'
+function firstGeoGebraUrl(blocks) {
+  const match = (Array.isArray(blocks) ? blocks : []).find((block) => block?.type === 'geogebra' && block.url)
+  return String(match?.url || '').trim()
+}
+
+function contentBlocksHaveGeoGebra(blocks) {
+  return Boolean(firstGeoGebraUrl(blocks))
+}
+
+function GeoGebraEmbed({ url, title }) {
+  const src = toGeoGebraEmbedUrl(url)
+  if (!src) return null
+  return (
+    <div className="geogebra-block">
+      <iframe title={title} src={src} loading="lazy" allowFullScreen />
+    </div>
+  )
+}
+
+function renderNormalizedContentBlock(block, keyPrefix, index, onOpenImage) {
+  if (block.type === 'image') {
+    return (
+      <div className="content-image-block" key={`${keyPrefix}-img-${index}`}>
+        <button
+          type="button"
+          className="image-open-btn"
+          onClick={() => onOpenImage?.(block.imageUrl)}
+          aria-label="Open image in full view"
+        >
+          <img
+            src={block.imageUrl}
+            alt={block.caption || 'Content visual'}
+            style={getContentBlockImageStyle(block)}
+          />
+        </button>
+        {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
+      </div>
+    )
   }
-  const idMatch =
-    raw.match(/geogebra\.org\/m\/([a-zA-Z0-9]+)/) ||
-    raw.match(/material\/show\/id\/([a-zA-Z0-9]+)/) ||
-    raw.match(/^([a-zA-Z0-9]{6,})$/)
-  const materialId = idMatch?.[1]
-  if (materialId) return `https://www.geogebra.org/m/${materialId}`
-  return raw
+  if (block.type === 'geogebra') {
+    return <GeoGebraEmbed key={`${keyPrefix}-geo-${index}`} url={block.url} title={`${keyPrefix}-geogebra-${index}`} />
+  }
+  return <LatexText key={`${keyPrefix}-txt-${index}`} value={block.text} className="latex-text" />
 }
 
 async function detectUserCountryCode() {
@@ -1341,6 +1362,9 @@ async function materializeBankContent(text, files, folder, label) {
         caption: '',
         widthPercent: 100,
       })
+    } else if (part.type === 'geogebra' && part.url) {
+      const url = normalizeGeoGebraSource(part.url)
+      if (url) blocks.push(createGeoGebraContentBlock(url))
     } else if (String(part.text || '').trim()) {
       blocks.push(createTextContentBlock(part.text))
     }
@@ -1392,8 +1416,7 @@ function normalizeContentBlocks(rawBlocks, fallbackText = '') {
   const source = Array.isArray(rawBlocks) ? rawBlocks : []
   const normalized = source
     .map((block, index) => {
-      const type = block?.type === 'image' ? 'image' : 'text'
-      if (type === 'image') {
+      if (block?.type === 'image') {
         return {
           id: String(block?.id || `blk-${index}`),
           type: 'image',
@@ -1403,13 +1426,28 @@ function normalizeContentBlocks(rawBlocks, fallbackText = '') {
           widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
         }
       }
+      if (block?.type === 'geogebra') {
+        const url = normalizeGeoGebraSource(block.url || block.geogebraLink || block.embedUrl)
+        return url
+          ? {
+              id: String(block?.id || `blk-${index}`),
+              type: 'geogebra',
+              url,
+            }
+          : null
+      }
       return {
         id: String(block?.id || `blk-${index}`),
         type: 'text',
         text: String(block?.text || '').trim(),
       }
     })
-    .filter((block) => (block.type === 'image' ? Boolean(block.imageUrl) : Boolean(block.text)))
+    .filter((block) => {
+      if (!block) return false
+      if (block.type === 'image') return Boolean(block.imageUrl)
+      if (block.type === 'geogebra') return Boolean(block.url)
+      return Boolean(block.text)
+    })
 
   if (normalized.length > 0) return normalized
   if (String(fallbackText || '').trim()) return [createTextContentBlock(String(fallbackText || '').trim())]
@@ -1417,7 +1455,14 @@ function normalizeContentBlocks(rawBlocks, fallbackText = '') {
 }
 
 function contentBlocksHaveMediaOrText(blocks) {
-  return Array.isArray(blocks) && blocks.some((block) => (block?.type === 'image' ? Boolean(block?.imageUrl || block?.imageFile) : Boolean(String(block?.text || '').trim())))
+  return (
+    Array.isArray(blocks) &&
+    blocks.some((block) => {
+      if (block?.type === 'image') return Boolean(block?.imageUrl || block?.imageFile)
+      if (block?.type === 'geogebra') return Boolean(normalizeGeoGebraSource(block?.url || block?.geogebraLink))
+      return Boolean(String(block?.text || '').trim())
+    })
+  )
 }
 
 function contentBlocksToPlainText(blocks) {
@@ -1448,7 +1493,7 @@ function isLearningObjectivesLesson(item) {
   const stripped = lessonWithoutObjectives(item)
   const title = String(stripped?.title || '').trim()
   const body = (contentBlocksToPlainText(stripped?.descriptionBlocks) || stripped?.description || '').trim()
-  return !title && !body
+  return !title && !body && !contentBlocksHaveGeoGebra(stripped?.descriptionBlocks)
 }
 
 function collectCardTranslateFields(item) {
@@ -1636,15 +1681,8 @@ function CourseItemCard({
           />
         </div>
       ) : null}
-      {activeTab === 'lesson' && item.geogebraLink ? (
-        <div className="geogebra-block">
-          <iframe
-            title={`geogebra-${item.id}`}
-            src={toGeoGebraEmbedUrl(item.geogebraLink)}
-            loading="lazy"
-            allowFullScreen
-          />
-        </div>
+      {activeTab === 'lesson' && item.geogebraLink && !contentBlocksHaveGeoGebra(view.descriptionBlocks) ? (
+        <GeoGebraEmbed url={item.geogebraLink} title={`geogebra-${item.id}`} />
       ) : null}
     </article>
   )
@@ -3813,25 +3851,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
     return (
       <div className="content-blocks-render">
         {normalizedBlocks.map((block, index) =>
-          block.type === 'image' ? (
-            <div className="content-image-block" key={`${keyPrefix}-img-${index}`}>
-              <button
-                type="button"
-                className="image-open-btn"
-                onClick={() => setExpandedImageUrl(block.imageUrl)}
-                aria-label="Open image in full view"
-              >
-                <img
-                  src={block.imageUrl}
-                  alt={block.caption || 'Content visual'}
-                  style={getContentBlockImageStyle(block)}
-                />
-              </button>
-              {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
-            </div>
-          ) : (
-            <LatexText key={`${keyPrefix}-txt-${index}`} value={block.text} className="latex-text" />
-          ),
+          renderNormalizedContentBlock(block, keyPrefix, index, setExpandedImageUrl),
         )}
       </div>
     )
@@ -4641,21 +4661,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     return (
       <div className="content-blocks-render">
         {normalizedBlocks.map((block, index) =>
-          block.type === 'image' ? (
-            <div className="content-image-block" key={`${keyPrefix}-img-${index}`}>
-              <button
-                type="button"
-                className="image-open-btn"
-                onClick={() => setExpandedImageUrl(block.imageUrl)}
-                aria-label="Open image in full view"
-              >
-                <img src={block.imageUrl} alt={block.caption || 'Content visual'} style={getContentBlockImageStyle(block)} />
-              </button>
-              {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
-            </div>
-          ) : (
-            <LatexText key={`${keyPrefix}-txt-${index}`} value={block.text} className="latex-text" />
-          ),
+          renderNormalizedContentBlock(block, keyPrefix, index, setExpandedImageUrl),
         )}
       </div>
     )
@@ -5148,25 +5154,7 @@ function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
   return (
     <div className="content-blocks-render">
       {normalizedBlocks.map((block, index) =>
-        block.type === 'image' ? (
-          <div className="content-image-block" key={`${idPrefix}-img-${index}`}>
-            <button
-              type="button"
-              className="image-open-btn"
-              onClick={() => onOpenImage?.(block.imageUrl)}
-              aria-label="Open image in full view"
-            >
-              <img
-                src={block.imageUrl}
-                alt={block.caption || 'Question visual'}
-                style={getContentBlockImageStyle(block)}
-              />
-            </button>
-            {block.caption ? <small className="content-block-caption">{block.caption}</small> : null}
-          </div>
-        ) : (
-          <LatexText key={`${idPrefix}-txt-${index}`} value={block.text} className="latex-text" />
-        ),
+        renderNormalizedContentBlock(block, idPrefix, index, onOpenImage),
       )}
     </div>
   )
@@ -6638,7 +6626,13 @@ function AdminPage({ mode = 'admin' }) {
   }
 
   function addBlock(setter, type) {
-    setter((current) => [...current, type === 'image' ? createImageContentBlock() : createTextContentBlock('')])
+    const next =
+      type === 'image'
+        ? createImageContentBlock()
+        : type === 'geogebra'
+          ? createGeoGebraContentBlock('')
+          : createTextContentBlock('')
+    setter((current) => [...current, next])
   }
 
   function moveBlock(setter, fromIndex, toIndex) {
@@ -6686,6 +6680,14 @@ function AdminPage({ mode = 'admin' }) {
           caption: String(block?.caption || '').trim(),
           widthPercent: clampImageWidthPercent(block?.widthPercent, 100),
         })
+      } else if (block?.type === 'geogebra') {
+        const url = normalizeGeoGebraSource(block.url)
+        if (!url) continue
+        normalized.push({
+          id: String(block.id || `blk-${Date.now()}`),
+          type: 'geogebra',
+          url,
+        })
       } else {
         const text = String(block?.text || '').trim()
         if (!text) continue
@@ -6706,7 +6708,9 @@ function AdminPage({ mode = 'admin' }) {
         {blocks.map((block, index) => (
           <div className="block-editor-item" key={block.id}>
             <div className="block-editor-head">
-              <span>{block.type === 'image' ? 'Image block' : 'Text block'}</span>
+              <span>
+                {block.type === 'image' ? 'Image block' : block.type === 'geogebra' ? 'GeoGebra block' : 'Text block'}
+              </span>
               <div className="block-editor-actions">
                 <button type="button" onClick={() => moveBlock(setter, index, Math.max(0, index - 1))} disabled={index === 0}>
                   ↑
@@ -6752,6 +6756,17 @@ function AdminPage({ mode = 'admin' }) {
                   <small>{clampImageWidthPercent(block.widthPercent, 100)}%</small>
                 </label>
               </>
+            ) : block.type === 'geogebra' ? (
+              <>
+                <input
+                  value={block.url || ''}
+                  onChange={(event) => updateBlock(setter, block.id, { url: event.target.value })}
+                  placeholder="https://www.geogebra.org/m/abc123 or abc123"
+                />
+                {normalizeGeoGebraSource(block.url) ? (
+                  <GeoGebraEmbed url={block.url} title={`admin-geogebra-${block.id}`} />
+                ) : null}
+              </>
             ) : (
               <RichTextEditor
                 rows={4}
@@ -6768,6 +6783,9 @@ function AdminPage({ mode = 'admin' }) {
           </button>
           <button type="button" className="btn ghost" onClick={() => addBlock(setter, 'image')}>
             + Image block
+          </button>
+          <button type="button" className="btn ghost" onClick={() => addBlock(setter, 'geogebra')}>
+            + GeoGebra block
           </button>
         </div>
       </div>
@@ -6881,7 +6899,7 @@ function AdminPage({ mode = 'admin' }) {
       difficulty: itemType === 'question' ? questionDifficulty : '',
       marks: itemType === 'question' ? Number(questionMarks || 0) : 0,
       gdc: itemType === 'question' ? questionGdc : '',
-      geogebraLink: itemType === 'lesson' ? geogebraLink : '',
+      geogebraLink: String(geogebraLink || '').trim() || firstGeoGebraUrl(normalizedDescriptionBlocks),
       resourceLink,
       attachedFileName,
       imageUrl,
@@ -7036,7 +7054,7 @@ function AdminPage({ mode = 'admin' }) {
           difficulty: String(item.difficulty || 'medium').toLowerCase(),
           marks: Math.max(1, Number(item.marks || 1)),
           gdc: String(item.gdc || 'not gdc').toLowerCase() === 'gdc' ? 'gdc' : 'not gdc',
-          geogebraLink: '',
+          geogebraLink: firstGeoGebraUrl(descriptionContent.blocks),
           resourceLink: '',
           attachedFileName: '',
           imageUrl: '',
@@ -7174,7 +7192,7 @@ function AdminPage({ mode = 'admin' }) {
           difficulty: '',
           marks: 0,
           gdc: '',
-          geogebraLink: String(item.geogebraLink || '').trim(),
+          geogebraLink: String(item.geogebraLink || firstGeoGebraUrl(descriptionContent.blocks) || '').trim(),
           resourceLink: String(item.resourceLink || '').trim(),
           attachedFileName: '',
           imageUrl: '',
@@ -7345,7 +7363,7 @@ function AdminPage({ mode = 'admin' }) {
             description: contentBlocksToPlainText(normalizedDescriptionBlocks),
             descriptionBlocks: normalizedDescriptionBlocks,
             learningObjectives: [],
-            geogebraLink: editGeogebraLink.trim(),
+            geogebraLink: editGeogebraLink.trim() || firstGeoGebraUrl(normalizedDescriptionBlocks),
             resourceLink: editResourceLink.trim(),
             imageWidthPercent: clampImageWidthPercent(editImageWidthPercent, 100),
             updatedAt: new Date().toISOString(),
@@ -8497,7 +8515,9 @@ function AdminPage({ mode = 'admin' }) {
               Use the same ChatGPT question-bank format as the PDF. Each <code>Question N</code> block is parsed
               into its own card with solution, marks, GDC, difficulty, and level. Put{' '}
               <code>&lt;img&gt;filename.png&lt;/img&gt;</code> where a picture should appear, then attach a file
-              with that exact name below.
+              with that exact name below. Put a GeoGebra applet with{' '}
+              <code>&lt;geogebra&gt;https://www.geogebra.org/m/abc123&lt;/geogebra&gt;</code> or{' '}
+              <code>geogebra[iframe]abc123</code>.
             </p>
             <div className="stored-items-tabs bulk-source-tabs">
               <button
@@ -8533,7 +8553,7 @@ function AdminPage({ mode = 'admin' }) {
                   rows={12}
                   value={bulkQuestionPaste}
                   onChange={onBulkQuestionPasteChange}
-                  placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution. Put <img>filename.png</img> where a picture should appear."
+                  placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution. Put <img>filename.png</img> where a picture should appear. Put <geogebra>https://www.geogebra.org/m/abc123</geogebra> or geogebra[iframe]abc123 for an applet."
                 />
               </label>
             )}
@@ -8577,7 +8597,9 @@ function AdminPage({ mode = 'admin' }) {
               Use the same ChatGPT lesson-bank format as the PDF. Each lesson title — bold, <code>Lesson 1</code>,
               markdown heading, or the line before Learning Objectives — becomes its own card.
               Put <code>&lt;img&gt;filename.png&lt;/img&gt;</code> where a picture should appear, then attach a file
-              with that exact name below.
+              with that exact name below. Put a GeoGebra applet with{' '}
+              <code>&lt;geogebra&gt;https://www.geogebra.org/m/abc123&lt;/geogebra&gt;</code> or{' '}
+              <code>geogebra[iframe]abc123</code>.
             </p>
             <div className="stored-items-tabs bulk-source-tabs">
               <button
@@ -8613,7 +8635,7 @@ function AdminPage({ mode = 'admin' }) {
                   rows={12}
                   value={bulkLessonPaste}
                   onChange={onBulkLessonPasteChange}
-                  placeholder="Paste the ChatGPT lesson bank here. Start each lesson with a bold title, Lesson 1 / Lesson 2, or a title above Learning Objectives. Put <img>filename.png</img> where a picture should appear."
+                  placeholder="Paste the ChatGPT lesson bank here. Start each lesson with a bold title, Lesson 1 / Lesson 2, or a title above Learning Objectives. Put <img>filename.png</img> where a picture should appear. Put <geogebra>https://www.geogebra.org/m/abc123</geogebra> or geogebra[iframe]abc123 for an applet."
                 />
               </label>
             )}
