@@ -1,6 +1,9 @@
 import { readBankFileText, repairLatexNewlines, stripPdfArtifacts } from './parseQuestionBank.js'
 
-const LO_HEADING_RE = /<b>\s*Learning Objectives\s*<\/b>/i
+const LO_HEADING_RE = /(?:^|\n)\s*(?:<b>)?\s*Learning\s*Objectives?\s*:?\s*(?:<\/b>)?\s*(?=\n|$)/gi
+const LESSON_HEADING_RE =
+  /(?:^|\n)\s*(?:<b>)?\s*Lesson\s+(\d+)\s*[:.\-–—]?\s*(.*?)\s*(?:<\/b>)?\s*(?=\n|$)/gi
+const BY_END_RE = /(?:^|\n)\s*By the end of this lesson/gi
 const OWN_LINE_HEADING_RE = /(?:^|\n)\s*<b>([\s\S]*?)<\/b>\s*(?=\n|$)/g
 const GEOGEBRA_URL_RE = /https?:\/\/(?:www\.)?geogebra\.org\/[^\s<]+/i
 const YOUTUBE_URL_RE = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[^\s<]+/i
@@ -9,6 +12,10 @@ function collapseWs(value) {
   return String(value || '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function stripTags(value) {
+  return collapseWs(String(value || '').replace(/<[^>]+>/g, ' '))
 }
 
 function isReservedLessonHeading(text) {
@@ -28,6 +35,24 @@ function isReservedLessonHeading(text) {
   return false
 }
 
+function normalizeLessonMarkup(text) {
+  return String(text || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:p|div|section|article)[^>]*>/gi, '\n')
+    .replace(/<strong\b[^>]*>/gi, '<b>')
+    .replace(/<\/strong>/gi, '</b>')
+    .replace(/<h[1-4][^>]*>/gi, '\n<b>')
+    .replace(/<\/h[1-4]>/gi, '</b>\n')
+    .replace(/^\s{0,3}#{1,3}\s+(.+?)\s*#*\s*$/gm, '<b>$1</b>')
+    .replace(new RegExp(LESSON_HEADING_RE.source, 'gi'), (_, number, rest) => {
+      const title = collapseWs(rest) || `Lesson ${number}`
+      return `\n<b>${title}</b>\n`
+    })
+    .replace(new RegExp(LO_HEADING_RE.source, 'gi'), '\n<b>Learning Objectives</b>\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function findOwnLineHeadings(text) {
   const headingRe = new RegExp(OWN_LINE_HEADING_RE.source, OWN_LINE_HEADING_RE.flags)
   return [...String(text || '').matchAll(headingRe)].map((match) => ({
@@ -35,6 +60,33 @@ function findOwnLineHeadings(text) {
     end: match.index + match[0].length,
     text: collapseWs(match[1]),
   }))
+}
+
+function findPrecedingTitleLine(text, beforeIndex, knownHeadings) {
+  const fromHeading = knownHeadings.filter((item) => item.index < beforeIndex).at(-1)
+  if (fromHeading) return fromHeading
+
+  const before = String(text || '').slice(0, beforeIndex)
+  const lines = before.split('\n')
+  let offset = 0
+  const ranges = lines.map((line) => {
+    const start = offset
+    offset += line.length + 1
+    return { start, end: start + line.length, line }
+  })
+  for (let index = ranges.length - 1; index >= 0; index -= 1) {
+    const heading = stripTags(ranges[index].line)
+    if (!heading) continue
+    if (isReservedLessonHeading(heading)) continue
+    if (heading.length > 90) return null
+    if (/[.!?]$/.test(heading) && heading.length > 40) return null
+    return {
+      index: ranges[index].start,
+      end: ranges[index].end,
+      text: heading,
+    }
+  }
+  return null
 }
 
 export function isLearningObjectiveHeading(text) {
@@ -52,13 +104,10 @@ export function stripLearningObjectiveTitle(title) {
 
 export function stripLearningObjectivesSection(text) {
   return String(text || '')
-    .replace(
-      /<b>\s*Learning Objectives?\s*:?\s*<\/b>[\s\S]*?(?:\$\\overline\{\\hspace\{15cm\}\}\$|(?=\n\s*<b>)|$)/gi,
-      '',
-    )
     .replace(/<b>\s*Learning Objectives?\s*:?\s*<\/b>/gi, '')
     .replace(/(?:^|\n)\s*Learning Objectives?\s*:?\s*(?:\n|$)/gi, '\n')
     .replace(/(?:^|\n)\s*By the end of this lesson[^\n]*/gi, '')
+    .replace(/^\s*(?:<ul>\s*<li>[\s\S]*?<\/li>\s*<\/ul>\s*)+/i, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -70,12 +119,27 @@ function stripTrailingTeacherNotes(text) {
     .trim()
 }
 
+function leadingPlainTitle(text) {
+  const source = String(text || '')
+  const match = source.match(/^\s*([^\n]+)/)
+  if (!match) return null
+  const heading = stripTags(match[1])
+  if (!heading || isReservedLessonHeading(heading) || heading.length > 90) return null
+  if (/[.!?]$/.test(heading) && heading.length > 40) return null
+  return {
+    index: match.index + match[0].indexOf(match[1]),
+    end: match.index + match[0].length,
+    text: heading,
+  }
+}
+
 function parseOneLesson(raw, fallbackTitle = '') {
   const cleaned = String(raw || '').trim()
   if (!cleaned) return null
 
   const headings = findOwnLineHeadings(cleaned)
-  const titleHeading = headings.find((item) => !isReservedLessonHeading(item.text))
+  const titleHeading =
+    headings.find((item) => !isReservedLessonHeading(item.text)) || leadingPlainTitle(cleaned)
   const title = titleHeading?.text || collapseWs(fallbackTitle)
   const withoutTitle = titleHeading ? `${cleaned.slice(0, titleHeading.index)}${cleaned.slice(titleHeading.end)}` : cleaned
   const description = repairLatexNewlines(
@@ -101,29 +165,41 @@ function parseOneLesson(raw, fallbackTitle = '') {
   }
 }
 
+function uniqueStarts(values) {
+  const next = []
+  for (const value of values) {
+    if (!Number.isFinite(value) || value < 0) continue
+    if (!next.length || next[next.length - 1] !== value) next.push(value)
+  }
+  return next
+}
+
 function splitLessonBlocks(text) {
   const cleaned = String(text || '').trim()
   const headings = findOwnLineHeadings(cleaned)
   const lessonStarts = headings.filter((item) => !isReservedLessonHeading(item.text))
   const loMatches = [...cleaned.matchAll(new RegExp(LO_HEADING_RE.source, 'gi'))]
+  const byEndMatches = [...cleaned.matchAll(new RegExp(BY_END_RE.source, 'gi'))]
 
-  if (lessonStarts.length <= 1 && loMatches.length <= 1) {
+  const markerStarts = []
+  for (const match of [...loMatches, ...byEndMatches]) {
+    const title = findPrecedingTitleLine(cleaned, match.index, lessonStarts)
+    markerStarts.push(title ? title.index : match.index)
+  }
+
+  const starts = uniqueStarts(
+    (markerStarts.length > 1 ? markerStarts : lessonStarts.map((item) => item.index)).sort((a, b) => a - b),
+  )
+
+  if (starts.length <= 1) {
+    if (lessonStarts.length > 1) {
+      return lessonStarts.map((item, index) => {
+        const end = index + 1 < lessonStarts.length ? lessonStarts[index + 1].index : cleaned.length
+        return cleaned.slice(item.index, end).trim()
+      }).filter(Boolean)
+    }
     return [cleaned]
   }
-
-  const starts = []
-  if (loMatches.length > 1) {
-    for (const lo of loMatches) {
-      const preceding = lessonStarts.filter((item) => item.index < lo.index)
-      const titleHeading = preceding[preceding.length - 1]
-      const startAt = titleHeading ? titleHeading.index : lo.index
-      if (!starts.length || starts[starts.length - 1] !== startAt) starts.push(startAt)
-    }
-  } else {
-    for (const item of lessonStarts) starts.push(item.index)
-  }
-
-  if (starts.length <= 1) return [cleaned]
 
   const blocks = []
   for (let index = 0; index < starts.length; index += 1) {
@@ -166,7 +242,7 @@ function parseJsonLessons(text) {
 }
 
 export function parseLessonBankText(text) {
-  const cleaned = stripPdfArtifacts(text)
+  const cleaned = normalizeLessonMarkup(stripPdfArtifacts(text))
   if (!cleaned) return []
 
   try {

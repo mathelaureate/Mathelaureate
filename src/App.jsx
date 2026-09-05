@@ -8574,7 +8574,8 @@ function AdminPage({ mode = 'admin' }) {
           <form className="panel" onSubmit={submitBulkLessons}>
             <h2>Bulk Upload Lessons</h2>
             <p>
-              Use the same ChatGPT lesson-bank format as the PDF. Title and lesson body are parsed into lesson cards.
+              Use the same ChatGPT lesson-bank format as the PDF. Each lesson title — bold, <code>Lesson 1</code>,
+              markdown heading, or the line before Learning Objectives — becomes its own card.
               Put <code>&lt;img&gt;filename.png&lt;/img&gt;</code> where a picture should appear, then attach a file
               with that exact name below.
             </p>
@@ -8612,7 +8613,7 @@ function AdminPage({ mode = 'admin' }) {
                   rows={12}
                   value={bulkLessonPaste}
                   onChange={onBulkLessonPasteChange}
-                  placeholder="Paste the ChatGPT lesson bank here. Same format as the PDF: a bold lesson title, then the lesson body. Put <img>filename.png</img> where a picture should appear."
+                  placeholder="Paste the ChatGPT lesson bank here. Start each lesson with a bold title, Lesson 1 / Lesson 2, or a title above Learning Objectives. Put <img>filename.png</img> where a picture should appear."
                 />
               </label>
             )}
@@ -8626,7 +8627,11 @@ function AdminPage({ mode = 'admin' }) {
             {bulkLessonPreview.length > 0 ? (
               <p className="success-text">
                 Parsed {bulkLessonPreview.length} lesson{bulkLessonPreview.length === 1 ? '' : 's'}
-                {bulkLessonPreview[0]?.title ? `: ${bulkLessonPreview[0].title}` : ''}
+                {bulkLessonPreview.some((item) => item.title)
+                  ? `: ${bulkLessonPreview
+                      .map((item, index) => item.title || `Lesson ${index + 1}`)
+                      .join(' · ')}`
+                  : ''}
                 {collectBankImageNames(bulkLessonPreview).length
                   ? ` with ${collectBankImageNames(bulkLessonPreview).length} image tag${
                       collectBankImageNames(bulkLessonPreview).length === 1 ? '' : 's'
