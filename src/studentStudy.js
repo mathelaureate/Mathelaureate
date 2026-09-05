@@ -119,10 +119,14 @@ export function resolveLastViewedCourse(data) {
   return fromMap[0] || resolveMyCourses(data)[0] || null
 }
 
-const SUGGEST_PER_TOPIC = 4
+const SUGGEST_PER_TOPIC = 3
+
+function topicPart(value) {
+  return String(value || '').trim()
+}
 
 function topicKey(entry) {
-  return `${entry?.curriculumId || ''}::${entry?.unitId || ''}::${entry?.subunit || ''}`
+  return `${topicPart(entry?.curriculumId)}::${topicPart(entry?.unitId)}::${topicPart(entry?.subunit)}`
 }
 
 function suggestionScore(item, seeds) {
@@ -148,7 +152,7 @@ export function suggestSimilarQuestionsByTopic({ wrongQuestions, bankItems, cour
     }
   }
 
-  const wrongIds = new Set(wrongList.map((item) => item.questionId))
+  const wrongIds = new Set(wrongList.map((item) => String(item.questionId)))
   const bankQuestions = (bankItems || []).filter((item) => item?.itemType === 'question' && item?.id)
   const topicOrder = []
   const topicMeta = new Map()
@@ -177,26 +181,29 @@ export function suggestSimilarQuestionsByTopic({ wrongQuestions, bankItems, cour
       const seeds = wrongList.filter((item) => topicKey(item) === key)
       const sameTopic = bankQuestions.filter(
         (item) =>
-          item.curriculumId === meta.curriculumId &&
-          item.unitId === meta.unitId &&
-          item.subunit === meta.subunit &&
-          !wrongIds.has(item.id),
+          topicPart(item.curriculumId) === topicPart(meta.curriculumId) &&
+          topicPart(item.unitId) === topicPart(meta.unitId) &&
+          topicPart(item.subunit) === topicPart(meta.subunit) &&
+          !wrongIds.has(String(item.id)),
       )
       const sameUnit =
-        sameTopic.length >= 2
+        sameTopic.length > 0
           ? []
           : bankQuestions.filter(
               (item) =>
-                item.curriculumId === meta.curriculumId &&
-                item.unitId === meta.unitId &&
-                item.subunit !== meta.subunit &&
-                !wrongIds.has(item.id),
+                topicPart(item.curriculumId) === topicPart(meta.curriculumId) &&
+                topicPart(item.unitId) === topicPart(meta.unitId) &&
+                topicPart(item.subunit) !== topicPart(meta.subunit) &&
+                !wrongIds.has(String(item.id)),
             )
       const pool = [...sameTopic, ...sameUnit]
+      const seen = new Set()
       const suggestions = pool
-        .map((item) => ({ item, score: suggestionScore(item, seeds) + (item.subunit === meta.subunit ? 4 : 0) }))
+        .map((item) => ({
+          item,
+          score: suggestionScore(item, seeds) + (topicPart(item.subunit) === topicPart(meta.subunit) ? 4 : 0),
+        }))
         .sort((a, b) => b.score - a.score || String(a.item.id).localeCompare(String(b.item.id)))
-        .slice(0, SUGGEST_PER_TOPIC)
         .map(({ item }) =>
           buildStudyQuestionEntry({
             item,
@@ -206,7 +213,12 @@ export function suggestSimilarQuestionsByTopic({ wrongQuestions, bankItems, cour
             unitName: unitNameByKey.get(`${item.curriculumId}::${item.unitId}`) || meta.unitName,
           }),
         )
-        .filter((entry) => entry.questionId && entry.courseSlug)
+        .filter((entry) => {
+          if (!entry.questionId || !entry.courseSlug || seen.has(entry.questionId)) return false
+          seen.add(entry.questionId)
+          return true
+        })
+        .slice(0, SUGGEST_PER_TOPIC)
 
       if (suggestions.length === 0) return null
       return {
@@ -218,6 +230,13 @@ export function suggestSimilarQuestionsByTopic({ wrongQuestions, bankItems, cour
       }
     })
     .filter(Boolean)
+}
+
+export function countSimilarSuggestions(groups) {
+  return (groups || []).reduce(
+    (sum, group) => sum + (Array.isArray(group?.suggestions) ? group.suggestions.length : 0),
+    0,
+  )
 }
 
 export async function toggleStudyQuestion({ user, listKey, entry, currentlySaved }) {

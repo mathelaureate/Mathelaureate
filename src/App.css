@@ -4744,6 +4744,11 @@ body {
   box-shadow: none;
 }
 
+.study-question-card .card-lang,
+.lesson-card-question .card-lang {
+  margin-bottom: 0.2rem;
+}
+
 .study-question-kicker {
   margin: 0 0 0.25rem;
   color: #64748b;

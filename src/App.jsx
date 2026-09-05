@@ -24,6 +24,7 @@ import {
   resolveLastViewedCourse,
   resolveMyCourses,
   suggestSimilarQuestionsByTopic,
+  countSimilarSuggestions,
   toggleStudyQuestion,
 } from './studentStudy'
 import {
@@ -4385,6 +4386,56 @@ function CoursePage({ user, authReady, cachedProfile }) {
   )
 }
 
+function MockQuestionCard({ item, index, paperId, renderBlocks, onOpenImage, onOpenSolution }) {
+  const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
+  const { lang, fields, busy, error, chooseLang } = useCardLang(`mock-${paperId}-${item.id}`, sourceFields)
+  const view = lang === 'en' ? item : applyTranslatedFields(item, fields)
+
+  return (
+    <article className="lesson-card lesson-card-question">
+      <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
+      <h3 className="question-number-title">Question {index + 1}</h3>
+      <div className="question-meta-row">
+        <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+        <span className="meta-chip">{item.marks || 0} marks</span>
+        {String(item.questionLevel || '').trim() ? (
+          <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+        ) : null}
+        <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+          {String(item.difficulty || 'medium')}
+        </span>
+      </div>
+      <div className="question-stem">
+        {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
+          renderBlocks(view.descriptionBlocks, `mock-${item.id}`)
+        ) : (
+          <LatexText value={view.description} className="latex-text" />
+        )}
+      </div>
+      {item.imageUrl ? (
+        <div className="content-image-block">
+          <button
+            type="button"
+            className="image-open-btn"
+            onClick={() => onOpenImage?.(item.imageUrl)}
+            aria-label="Open image in full view"
+          >
+            <img src={item.imageUrl} alt="Question visual" style={getRecordImageStyle(item)} />
+          </button>
+        </div>
+      ) : null}
+      {item.solution ||
+      item.solutionVideoLink ||
+      item.solutionImageUrl ||
+      contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+        <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution?.(view)}>
+          View Solution
+        </button>
+      ) : null}
+    </article>
+  )
+}
+
 function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loginPending, setLoginPending] = useState(false)
   const [loginError, setLoginError] = useState('')
@@ -4931,51 +4982,16 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                       </button>
                     </div>
                     {activeGeneratedPaper.questions.map((item, index) => (
-                    <article className="lesson-card lesson-card-question" key={`${activeGeneratedPaper.id}-${item.id}`}>
-                      <h3 className="question-number-title">Question {index + 1}</h3>
-                      <div className="question-meta-row">
-                        <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                        <span className="meta-chip">{item.marks || 0} marks</span>
-                        {String(item.questionLevel || '').trim() ? (
-                          <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
-                        ) : null}
-                        <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-                          {String(item.difficulty || 'medium')}
-                        </span>
-                      </div>
-                      <div className="question-stem">
-                        {contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
-                          renderMockContentBlocks(item.descriptionBlocks, `mock-${item.id}`)
-                        ) : (
-                          <LatexText value={item.description} className="latex-text" />
-                        )}
-                      </div>
-                      {item.imageUrl ? (
-                        <div className="content-image-block">
-                          <button
-                            type="button"
-                            className="image-open-btn"
-                            onClick={() => setExpandedImageUrl(item.imageUrl)}
-                            aria-label="Open image in full view"
-                          >
-                            <img src={item.imageUrl} alt="Question visual" style={getRecordImageStyle(item)} />
-                          </button>
-                        </div>
-                      ) : null}
-                      {item.solution ||
-                      item.solutionVideoLink ||
-                      item.solutionImageUrl ||
-                      contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
-                        <button
-                          type="button"
-                          className="btn ghost text-btn"
-                          onClick={() => setActiveSolutionItem({ ...item, questionNumber: index + 1 })}
-                        >
-                          View Solution
-                        </button>
-                      ) : null}
-                    </article>
-                  ))}
+                      <MockQuestionCard
+                        key={`${activeGeneratedPaper.id}-${item.id}`}
+                        item={item}
+                        index={index}
+                        paperId={activeGeneratedPaper.id}
+                        renderBlocks={renderMockContentBlocks}
+                        onOpenImage={setExpandedImageUrl}
+                        onOpenSolution={(view) => setActiveSolutionItem({ ...view, questionNumber: index + 1 })}
+                      />
+                    ))}
                   </>
                 )}
               </section>
@@ -5086,11 +5102,28 @@ function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
 
 function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenImage, showRemove = false }) {
   const [showSolution, setShowSolution] = useState(false)
-  const bodyText = item?.description || entry.preview || 'Saved question'
+  const translateSource = useMemo(
+    () =>
+      item || {
+        description: entry.preview || 'Saved question',
+        descriptionBlocks: [],
+        solution: '',
+        solutionBlocks: [],
+      },
+    [item, entry.preview],
+  )
+  const sourceFields = useMemo(() => collectCardTranslateFields(translateSource), [translateSource])
+  const { lang, fields, busy, error, chooseLang } = useCardLang(
+    `profile-${entry.questionId || entry.preview || 'card'}`,
+    sourceFields,
+  )
+  const view = item ? (lang === 'en' ? item : applyTranslatedFields(item, fields)) : null
+  const bodyText = view?.description || fields.description || entry.preview || 'Saved question'
   const hasSolution = questionHasSolution(item)
   const solutionVideo = toYouTubeEmbedUrl(item?.solutionVideoLink)
   return (
     <article className="study-question-card">
+      <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
       <p className="study-question-kicker">
         {[entry.courseTitle || entry.courseSlug, entry.unitName || item?.unitName, entry.subunit]
           .filter(Boolean)
@@ -5109,9 +5142,9 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
         ) : null}
       </div>
       <div className="study-question-body">
-        {item && contentBlocksHaveMediaOrText(item.descriptionBlocks) ? (
+        {view && contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
           <StudyContentBlocks
-            blocks={item.descriptionBlocks}
+            blocks={view.descriptionBlocks}
             idPrefix={`study-${entry.questionId}`}
             onOpenImage={onOpenImage}
           />
@@ -5145,14 +5178,14 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
       </div>
       {showSolution && hasSolution ? (
         <div className="study-question-solution">
-          {item.solution && !contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+          {view?.solution && !contentBlocksHaveMediaOrText(view.solutionBlocks) ? (
             <div className="solution-box">
-              <LatexText value={item.solution} className="latex-text" />
+              <LatexText value={view.solution} className="latex-text" />
             </div>
           ) : null}
-          {contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+          {contentBlocksHaveMediaOrText(view?.solutionBlocks) ? (
             <StudyContentBlocks
-              blocks={item.solutionBlocks}
+              blocks={view.solutionBlocks}
               idPrefix={`study-sol-${entry.questionId}`}
               onOpenImage={onOpenImage}
             />
@@ -5247,7 +5280,10 @@ function SimilarPracticeSection({ groups, empty = false, embedded = false, quest
           <div className="similar-topic-head">
             <h3>{group.topicLabel}</h3>
             <p>
-              {group.wrongCount} mistake{group.wrongCount === 1 ? '' : 's'}
+              {group.suggestions.length} similar question{group.suggestions.length === 1 ? '' : 's'}
+              {group.wrongCount
+                ? ` · ${group.wrongCount} mistake${group.wrongCount === 1 ? '' : 's'}`
+                : ''}
               {group.courseTitle ? ` in ${group.courseTitle}` : ''}
             </p>
           </div>
@@ -5309,6 +5345,7 @@ function ProfilePage({ user, cachedProfile }) {
     }
     return map
   }, [questionBank])
+  const similarQuestionCount = useMemo(() => countSimilarSuggestions(suggestionGroups), [suggestionGroups])
 
   function nextSuggestionGroups(wrongList, bank = questionBank, courseList = curricula) {
     return suggestSimilarQuestionsByTopic({
@@ -5531,7 +5568,7 @@ function ProfilePage({ user, cachedProfile }) {
                 onClick={() => setStudyTab('similar')}
               >
                 Similar practice
-                {suggestionGroups.length ? <span>{suggestionGroups.length}</span> : null}
+                {similarQuestionCount ? <span>{similarQuestionCount}</span> : null}
               </button>
             </div>
             {isLoadingCourses ? (
