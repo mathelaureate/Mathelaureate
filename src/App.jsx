@@ -15,7 +15,9 @@ import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
-import { collectVisitDates, detectUserLocation, recordUserPresence, studyStreak } from './userPresence'
+import { collectVisitDates, detectUserLocation, localDateKey, recordUserPresence, studyStreak } from './userPresence'
+import { applyGamifyEvent, emitXp } from './gamify'
+import { DailyQuestList, GameHud, GamifyProvider, useGamify } from './gameHud'
 import AdminUsersPage from './AdminUsersPage'
 import {
   SAVED_QUESTIONS_KEY,
@@ -1582,6 +1584,8 @@ function CourseItemCard({
   onToggleWrong,
   studyBusy = false,
   isFocused = false,
+  isMastered = false,
+  onMaster,
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
@@ -1671,14 +1675,27 @@ function CourseItemCard({
           </button>
         </div>
       ) : null}
-      {activeTab === 'question' &&
-      (item.solution ||
-        item.solutionVideoLink ||
-        item.solutionImageUrl ||
-        contentBlocksHaveMediaOrText(item.solutionBlocks)) ? (
-        <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution(view, index)}>
-          View Solution
-        </button>
+      {activeTab === 'question' ? (
+        <div className="question-study-row">
+          {item.solution ||
+          item.solutionVideoLink ||
+          item.solutionImageUrl ||
+          contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+            <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution(view, index)}>
+              View Solution
+            </button>
+          ) : null}
+          {onMaster ? (
+            <button
+              type="button"
+              className={`btn ghost text-btn${isMastered ? ' is-mastered' : ''}`}
+              onClick={() => onMaster(item)}
+              disabled={isMastered}
+            >
+              {isMastered ? 'Got it' : 'Got it · +15 XP'}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {lessonVideoUrl ? (
         <div className="lesson-video-wrap">
@@ -2069,9 +2086,14 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           </Link>
           <a href="/#contact">Contact</a>
           {user || cachedProfile ? (
-            <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
-              {profileLabel}
-            </Link>
+            <>
+              <Link to="/profile" className="game-hud-link" aria-label="Study progress">
+                <GameHud compact />
+              </Link>
+              <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
+                {profileLabel}
+              </Link>
+            </>
           ) : (
             <button type="button" className="login-btn" onClick={onLoginSignupClick}>
               Login / Signup
@@ -2191,12 +2213,25 @@ function HomePage({ user, cachedProfile }) {
               examples, and exam-focused practice.
             </p>
             <div className="hero-actions k-hero-actions">
-              <a href="#programs" className="btn primary">
-                Start Learning →
-              </a>
-              <a href="#programs" className="btn ghost">
-                Explore Courses
-              </a>
+              {user || cachedProfile ? (
+                <>
+                  <Link to="/profile" className="btn primary">
+                    Continue studying →
+                  </Link>
+                  <a href="#programs" className="btn ghost">
+                    Explore Courses
+                  </a>
+                </>
+              ) : (
+                <>
+                  <a href="#programs" className="btn primary">
+                    Start Learning →
+                  </a>
+                  <a href="#programs" className="btn ghost">
+                    Explore Courses
+                  </a>
+                </>
+              )}
             </div>
             <ul className="hero-trust k-hero-trust">
               <li>
@@ -3645,6 +3680,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
   const [studyBusyId, setStudyBusyId] = useState('')
+  const { award, mastered } = useGamify()
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -3867,6 +3903,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
       ...item,
       questionNumber: index + 1,
     })
+    if (item?.id) award({ type: 'practice', kind: 'solution', questionId: item.id }).catch(() => {})
   }
 
   function closeSolution() {
@@ -4012,6 +4049,23 @@ function CoursePage({ user, authReady, cachedProfile }) {
             updatedAt: courseEntry.updatedAt || timestamp,
           }))
 
+        const { gamify, gained, label } = applyGamifyEvent(
+          existingData.gamify,
+          {
+            type: 'subunit',
+            courseSlug: course.slug,
+            subunitKey,
+            unitId: selectedUnit.id,
+            unitComplete:
+              (selectedUnit.subunits || []).length > 0 &&
+              (selectedUnit.subunits || []).every((name) =>
+                updatedVisitedSubunits.includes(`${selectedUnit.id}::${name}`),
+              ),
+          },
+          localDateKey(),
+          existingData,
+        )
+
         if (!active) return
 
         await setDoc(
@@ -4025,10 +4079,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
             lastPath: `/courses/${course.slug}`,
             courses: updatedCourses,
             myCourses: updatedMyCourses,
+            gamify,
             updatedAt: timestamp,
           },
           { merge: true },
         )
+        emitXp({ gained, label, gamify })
 
         if (active) {
           setVisitedSubunitKeys(updatedVisitedSubunits)
@@ -4317,6 +4373,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                           studyBusy={studyBusyId.endsWith(`:${item.id}`)}
                           isFocused={item.id === focusQuestionId}
+                          isMastered={mastered.has(item.id)}
+                          onMaster={(question) =>
+                            award({ type: 'practice', kind: 'master', questionId: question.id }).catch(() => {})
+                          }
                         />
                       ))
                     )}
@@ -4335,6 +4395,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
 
                 return (
                   <>
+                    <article className="rail-card game-rail-card">
+                      <DailyQuestList />
+                    </article>
                     <article className="rail-card">
                       <h3>
                         <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -4449,6 +4512,8 @@ function MockQuestionCard({
   onToggleBookmark,
   onToggleWrong,
   studyBusy = false,
+  isMastered = false,
+  onMaster,
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(`mock-${paperId}-${item.id}`, sourceFields)
@@ -4511,14 +4576,26 @@ function MockQuestionCard({
           </button>
         </div>
       ) : null}
-      {item.solution ||
-      item.solutionVideoLink ||
-      item.solutionImageUrl ||
-      contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
-        <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution?.(view)}>
-          View Solution
-        </button>
-      ) : null}
+      <div className="question-study-row">
+        {item.solution ||
+        item.solutionVideoLink ||
+        item.solutionImageUrl ||
+        contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
+          <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution?.(view)}>
+            View Solution
+          </button>
+        ) : null}
+        {onMaster ? (
+          <button
+            type="button"
+            className={`btn ghost text-btn${isMastered ? ' is-mastered' : ''}`}
+            onClick={() => onMaster(item)}
+            disabled={isMastered}
+          >
+            {isMastered ? 'Got it' : 'Got it · +15 XP'}
+          </button>
+        ) : null}
+      </div>
     </article>
   )
 }
@@ -4526,6 +4603,7 @@ function MockQuestionCard({
 function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loginPending, setLoginPending] = useState(false)
   const [loginError, setLoginError] = useState('')
+  const { award, mastered } = useGamify()
   const [curriculum, setCurriculum] = useState(null)
   const [questionPool, setQuestionPool] = useState([])
   const [loading, setLoading] = useState(false)
@@ -5093,12 +5171,19 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         paperId={activeGeneratedPaper.id}
                         renderBlocks={renderMockContentBlocks}
                         onOpenImage={setExpandedImageUrl}
-                        onOpenSolution={(view) => setActiveSolutionItem({ ...view, questionNumber: index + 1 })}
+                        onOpenSolution={(view) => {
+                          setActiveSolutionItem({ ...view, questionNumber: index + 1 })
+                          if (view?.id) award({ type: 'practice', kind: 'solution', questionId: view.id }).catch(() => {})
+                        }}
                         isBookmarked={savedQuestions.some((entry) => entry.questionId === item.id)}
                         isWrong={wrongQuestions.some((entry) => entry.questionId === item.id)}
                         onToggleBookmark={(question) => handleToggleStudy(SAVED_QUESTIONS_KEY, question)}
                         onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                         studyBusy={studyBusyId.endsWith(`:${item.id}`)}
+                        isMastered={mastered.has(item.id)}
+                        onMaster={(question) =>
+                          award({ type: 'practice', kind: 'master', questionId: question.id }).catch(() => {})
+                        }
                       />
                     ))}
                   </>
@@ -5191,7 +5276,15 @@ function StudyContentBlocks({ blocks, idPrefix, onOpenImage }) {
   )
 }
 
-function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenImage, showRemove = false }) {
+function ProfileQuestionCard({
+  entry,
+  item,
+  onRemove,
+  removing = false,
+  onOpenImage,
+  showRemove = false,
+  awardReview = false,
+}) {
   const [showSolution, setShowSolution] = useState(false)
   const translateSource = useMemo(
     () =>
@@ -5212,6 +5305,7 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
   const bodyText = view?.description || fields.description || entry.preview || 'Saved question'
   const hasSolution = questionHasSolution(item)
   const solutionVideo = toYouTubeEmbedUrl(item?.solutionVideoLink)
+  const { award } = useGamify()
   return (
     <article className="study-question-card">
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
@@ -5257,7 +5351,16 @@ function ProfileQuestionCard({ entry, item, onRemove, removing = false, onOpenIm
       </div>
       <div className="study-question-actions">
         {hasSolution ? (
-          <button type="button" className="btn ghost text-btn" onClick={() => setShowSolution((open) => !open)}>
+          <button
+            type="button"
+            className="btn ghost text-btn"
+            onClick={() => {
+              setShowSolution((open) => !open)
+              if (!showSolution && awardReview && entry.questionId) {
+                award({ type: 'practice', kind: 'review', questionId: entry.questionId }).catch(() => {})
+              }
+            }}
+          >
             {showSolution ? 'Hide solution' : 'View Solution'}
           </button>
         ) : null}
@@ -5322,6 +5425,7 @@ function StudyQuestionList({
   embedded = false,
   questionById,
   onOpenImage,
+  awardReview = false,
 }) {
   const body =
     items.length === 0 ? (
@@ -5340,6 +5444,7 @@ function StudyQuestionList({
             removing={removingId === entry.questionId}
             onOpenImage={onOpenImage}
             showRemove
+            awardReview={awardReview}
           />
         ))}
       </div>
@@ -5430,6 +5535,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [studyBusyId, setStudyBusyId] = useState('')
   const [studyTab, setStudyTab] = useState('bookmarks')
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const { quests } = useGamify()
   const questionById = useMemo(() => {
     const map = new Map()
     for (const item of questionBank) {
@@ -5566,11 +5672,8 @@ function ProfilePage({ user, cachedProfile }) {
       <section className="ia-browse-shell ia-browse-split profile-shell">
         <aside className="ia-filter-rail">
           <div className="ia-filter-block">
-            <h2>Streak</h2>
-            <p className="profile-streak">
-              <strong>{streak}</strong>
-              <span>{streak === 1 ? 'day in a row' : streak > 0 ? 'days in a row' : 'Study today to start a streak'}</span>
-            </p>
+            <h2>Today's quests</h2>
+            <DailyQuestList />
           </div>
           {lastViewedCourse ? (
             <div className="ia-filter-block">
@@ -5581,6 +5684,7 @@ function ProfilePage({ user, cachedProfile }) {
                   {lastViewedCourse.lastViewedSubunit
                     ? lastViewedCourse.lastViewedSubunit
                     : 'Pick up where you left off'}
+                  {quests.some((quest) => quest.id === 'topic' && !quest.done) ? ' · +20 XP' : ''}
                 </span>
               </Link>
             </div>
@@ -5703,8 +5807,8 @@ function ProfilePage({ user, cachedProfile }) {
                 removingId={studyBusyId}
                 questionById={questionById}
                 onOpenImage={setExpandedImageUrl}
+                awardReview
               />
-            ) : studyTab === 'similar' ? (
               wrongQuestions.length === 0 ? (
                 <div className="ia-empty">
                   <h2>No similar practice yet</h2>
@@ -9145,6 +9249,7 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <PresenceTracker user={user} />
+      <GamifyProvider user={user}>
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />
@@ -9175,6 +9280,7 @@ function App() {
         <Route path="/editor" element={<ProtectedEditor />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </GamifyProvider>
     </BrowserRouter>
   )
 }
