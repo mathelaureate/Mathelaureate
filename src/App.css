@@ -8096,7 +8096,12 @@ select:focus {
   position: fixed;
   right: 1.15rem;
   bottom: 1.15rem;
-  z-index: 70;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.tutor-root > * {
+  pointer-events: auto;
 }
 
 .tutor-fab {

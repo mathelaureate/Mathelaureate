@@ -5,6 +5,13 @@ const WINDOW_MS = 10 * 60 * 1000
 const MAX_REQUESTS_PER_WINDOW = 30
 const MAX_MESSAGE_CHARS = 2000
 const MAX_HISTORY = 12
+const PUBLIC_ERRORS = {
+  400: 'Send a message.',
+  401: 'Sign in to chat with Laureate.',
+  403: 'Tutor is not available from this site.',
+  429: 'Too many tutor messages. Wait a few minutes.',
+  503: 'Tutor is not configured.',
+}
 const rateLimitStore = globalThis.__tutorRateLimitStore || new Map()
 globalThis.__tutorRateLimitStore = rateLimitStore
 
@@ -21,6 +28,23 @@ Style:
 
 function geminiKey() {
   return String(env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || '').trim()
+}
+
+function isAllowedOrigin(request) {
+  const configured = String(env.CONTACT_ALLOWED_ORIGINS || '').trim()
+  if (!configured) return true
+  const allowed = configured
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (!allowed.length) return true
+  const origin = String(request.headers?.origin || '').trim()
+  if (!origin) return true
+  return allowed.includes(origin)
+}
+
+function clientError(status) {
+  return PUBLIC_ERRORS[status] || 'Unable to chat right now.'
 }
 
 function enforceRateLimit(uid) {
@@ -55,9 +79,9 @@ function normalizeMessages(raw) {
 }
 
 function contextBlock(context) {
-  const course = String(context?.courseTitle || context?.courseSlug || '').trim()
-  const subunit = String(context?.subunit || '').trim()
-  const path = String(context?.path || '').trim()
+  const course = String(context?.courseTitle || context?.courseSlug || '').trim().slice(0, 120)
+  const subunit = String(context?.subunit || '').trim().slice(0, 160)
+  const path = String(context?.path || '').trim().slice(0, 160)
   if (!course && !subunit && !path) return ''
   return `Student context: ${[course, subunit, path].filter(Boolean).join(' · ')}`
 }
@@ -71,28 +95,32 @@ export default async function handler(request, response) {
     sendJson(response, 405, { error: 'Method not allowed.' })
     return
   }
+  if (!isAllowedOrigin(request)) {
+    sendJson(response, 403, { error: clientError(403) })
+    return
+  }
 
   try {
     const authUser = await getAuthUserFromRequest(request)
     if (!authUser?.uid) {
-      sendJson(response, 401, { error: 'Sign in to chat with Laureate.' })
+      sendJson(response, 401, { error: clientError(401) })
       return
     }
     if (!enforceRateLimit(authUser.uid)) {
-      sendJson(response, 429, { error: 'Too many tutor messages. Wait a few minutes.' })
+      sendJson(response, 429, { error: clientError(429) })
       return
     }
 
     const key = geminiKey()
     if (!key) {
-      sendJson(response, 503, { error: 'Tutor is not configured.' })
+      sendJson(response, 503, { error: clientError(503) })
       return
     }
 
     const body = await readRequestBody(request)
     const messages = normalizeMessages(body?.messages)
     if (!messages.length) {
-      sendJson(response, 400, { error: 'Send a message.' })
+      sendJson(response, 400, { error: clientError(400) })
       return
     }
 
@@ -102,21 +130,21 @@ export default async function handler(request, response) {
       parts: [{ text: prefix && index === 0 && item.role === 'user' ? `${prefix}\n\n${item.text}` : item.text }],
     }))
 
-    const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents,
-          generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
-        }),
+    const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key,
       },
-    )
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents,
+        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
+      }),
+    })
     const payload = await upstream.json().catch(() => ({}))
     if (!upstream.ok) {
-      sendJson(response, 502, { error: payload?.error?.message || 'Tutor is unavailable right now.' })
+      sendJson(response, 502, { error: 'Tutor is unavailable right now.' })
       return
     }
     const text = (payload?.candidates?.[0]?.content?.parts || [])
@@ -128,7 +156,7 @@ export default async function handler(request, response) {
       return
     }
     sendJson(response, 200, { text })
-  } catch (error) {
-    sendJson(response, 500, { error: error?.message || 'Unable to chat right now.' })
+  } catch {
+    sendJson(response, 500, { error: clientError(500) })
   }
 }

@@ -5810,6 +5810,7 @@ function ProfilePage({ user, cachedProfile }) {
                 onOpenImage={setExpandedImageUrl}
                 awardReview
               />
+            ) : studyTab === 'similar' ? (
               wrongQuestions.length === 0 ? (
                 <div className="ia-empty">
                   <h2>No similar practice yet</h2>

@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import katex from 'katex'
-import { auth, firebaseWebApiKey } from './firebase'
+import { auth } from './firebase'
 import { useGamify } from './gameHud'
-
-const SYSTEM_PROMPT = `You are Laureate, the in-app maths tutor for Mathelaureate.
-You help Grade 9–12 students with IBDP Mathematics AA/AI, IGCSE, and MYP.
-Warm, clear, exam-aware. Short paragraphs. Hint first, then a full method if they ask or stay stuck.
-Use LaTeX with $inline$ and $$display$$. Do not mention being an AI model.`
 
 const COURSE_TITLES = {
   'ibdp-aa': 'IBDP Mathematics AA',
@@ -70,60 +65,21 @@ function starterPrompts(context) {
 }
 
 async function askTutor({ messages, context, token }) {
-  const payload = {
-    messages: messages.map((item) => ({ role: item.role, text: item.text })),
-    context,
-  }
-  if (token) {
-    try {
-      const response = await fetch(`${apiBase()}/tutor-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (response.ok && data?.text) return String(data.text)
-      if (response.status !== 404 && response.status !== 503) {
-        throw new Error(data?.error || 'Tutor is unavailable right now.')
-      }
-    } catch (error) {
-      if (error?.message && !/fetch|404|Failed to fetch/i.test(error.message)) throw error
-    }
-  }
-
-  const key = firebaseWebApiKey
-  if (!key) throw new Error('Tutor is not configured.')
-  const contents = payload.messages.map((item, index) => ({
-    role: item.role === 'assistant' ? 'model' : 'user',
-    parts: [
-      {
-        text:
-          index === 0 && item.role === 'user' && (context.courseTitle || context.subunit)
-            ? `Student context: ${[context.courseTitle, context.subunit, context.path].filter(Boolean).join(' · ')}\n\n${item.text}`
-            : item.text,
-      },
-    ],
-  }))
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
-      }),
+  if (!token) throw new Error('Sign in to chat with Laureate.')
+  const response = await fetch(`${apiBase()}/tutor-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
-  )
-  const data = await upstream.json().catch(() => ({}))
-  if (!upstream.ok) throw new Error(data?.error?.message || 'Tutor is unavailable right now.')
-  const text = (data?.candidates?.[0]?.content?.parts || []).map((part) => String(part?.text || '')).join('').trim()
-  if (!text) throw new Error('Laureate did not return a reply. Try again.')
-  return text
+    body: JSON.stringify({
+      messages: messages.map((item) => ({ role: item.role, text: item.text })),
+      context,
+    }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (response.ok && data?.text) return String(data.text)
+  throw new Error(data?.error || 'Tutor is unavailable right now.')
 }
 
 function ChatBubble({ message }) {
