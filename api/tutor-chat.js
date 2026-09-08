@@ -1,10 +1,11 @@
-import { getAuthUserFromRequest, sendJson } from './_lib/payment.js'
+import { getAuthUserFromRequest, sendJson } from './_lib/firebaseAdmin.js'
 
 const env = globalThis.process?.env || {}
 const WINDOW_MS = 10 * 60 * 1000
 const MAX_REQUESTS_PER_WINDOW = 30
 const MAX_MESSAGE_CHARS = 2000
-const MAX_HISTORY = 12
+const MAX_HISTORY = 8
+const MODELS = ['gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-flash-latest']
 const PUBLIC_ERRORS = {
   400: 'Send a message.',
   401: 'Sign in to chat with Laureate.',
@@ -19,12 +20,11 @@ const SYSTEM_PROMPT = `You are Laureate, the in-app maths tutor for Mathelaureat
 You help Grade 9–12 students with IBDP Mathematics AA/AI, IGCSE, and MYP.
 
 Style:
-- Warm, clear, and exam-aware. Short paragraphs.
-- Prefer a hint or a next step first. If they ask for the full method or are still stuck, give a complete worked solution.
-- Use LaTeX with $inline$ and $$display$$ so it renders on the site.
+- Warm, clear, exam-aware. Short paragraphs.
+- Default to a hint or next step in 2–5 sentences. Only give a full worked solution if they ask.
+- Use LaTeX with $inline$ and $$display$$.
 - Do not mention being an AI model or Gemini.
-- If the page context names a course, topic, or attached question, stay on that unless they change it.
-- If a question is attached, tutor THAT question. Hint first. Do not dump the full answer unless they ask.
+- If a question or topic is attached, stay on that.
 - Never invent IB markschemes. If unsure, say so and show a standard method.`
 
 function geminiKey() {
@@ -108,9 +108,92 @@ function contextBlock(context) {
   return lines.join('\n')
 }
 
+function extractDelta(payload) {
+  return (payload?.candidates?.[0]?.content?.parts || [])
+    .map((part) => String(part?.text || ''))
+    .join('')
+}
+
+async function streamGemini({ key, contents, response }) {
+  let lastError = 'Tutor is unavailable right now.'
+  for (const model of MODELS) {
+    const upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: {
+            temperature: 0.45,
+            maxOutputTokens: 768,
+            ...(model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          },
+        }),
+      },
+    )
+    if (!upstream.ok || !upstream.body) {
+      const payload = await upstream.json().catch(() => ({}))
+      lastError = payload?.error?.message || lastError
+      continue
+    }
+
+    const reader = upstream.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let wrote = false
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const frames = buffer.split('\n\n')
+      buffer = frames.pop() || ''
+      for (const frame of frames) {
+        const line = frame.split('\n').find((item) => item.startsWith('data:'))
+        if (!line) continue
+        const raw = line.slice(5).trim()
+        if (!raw || raw === '[DONE]') continue
+        try {
+          const delta = extractDelta(JSON.parse(raw))
+          if (!delta) continue
+          if (!response.headersSent) {
+            response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+            response.setHeader('Cache-Control', 'no-cache, no-transform')
+            response.setHeader('X-Accel-Buffering', 'no')
+            response.statusCode = 200
+            if (typeof response.flushHeaders === 'function') response.flushHeaders()
+          }
+          wrote = true
+          response.write(delta)
+        } catch {
+          // Ignore malformed SSE frames.
+        }
+      }
+    }
+    if (wrote) {
+      response.end()
+      return true
+    }
+    if (response.headersSent) {
+      response.end()
+      return true
+    }
+  }
+  sendJson(response, 502, { error: lastError === 'Tutor is unavailable right now.' ? lastError : 'Tutor is unavailable right now.' })
+  return false
+}
+
 export default async function handler(request, response) {
   if (request.method === 'OPTIONS') {
     response.status(204).end()
+    return
+  }
+  if (request.method === 'GET') {
+    sendJson(response, 200, { ok: true })
     return
   }
   if (request.method !== 'POST') {
@@ -152,33 +235,12 @@ export default async function handler(request, response) {
       parts: [{ text: prefix && index === 0 && item.role === 'user' ? `${prefix}\n\n${item.text}` : item.text }],
     }))
 
-    const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': key,
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
-      }),
-    })
-    const payload = await upstream.json().catch(() => ({}))
-    if (!upstream.ok) {
-      sendJson(response, 502, { error: 'Tutor is unavailable right now.' })
-      return
-    }
-    const text = (payload?.candidates?.[0]?.content?.parts || [])
-      .map((part) => String(part?.text || ''))
-      .join('')
-      .trim()
-    if (!text) {
-      sendJson(response, 502, { error: 'Laureate did not return a reply. Try again.' })
-      return
-    }
-    sendJson(response, 200, { text })
+    await streamGemini({ key, contents, response })
   } catch {
+    if (response.headersSent) {
+      response.end()
+      return
+    }
     sendJson(response, 500, { error: clientError(500) })
   }
 }

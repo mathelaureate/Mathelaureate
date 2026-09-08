@@ -7924,11 +7924,17 @@ select:focus {
   font-weight: 750;
   cursor: pointer;
   line-height: 1;
+  transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .ask-ai-btn:hover {
   background: #e7f6f4;
   color: #08615d;
+  transform: translateY(-1px);
+}
+
+.ask-ai-btn:active {
+  transform: scale(0.97);
 }
 
 .ask-ai-btn-wide {
@@ -8000,7 +8006,8 @@ select:focus {
   pointer-events: none;
 }
 
-.tutor-root > * {
+.tutor-fab,
+.tutor-panel.is-open {
   pointer-events: auto;
 }
 
@@ -8019,6 +8026,12 @@ select:focus {
   font-weight: 750;
   font-size: 1.35rem;
   line-height: 1;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tutor-fab:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 18px 32px rgba(15, 44, 77, 0.34);
 }
 
 .tutor-fab:not(.is-open) {
@@ -8028,6 +8041,10 @@ select:focus {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.tutor-fab:not(.is-open) svg {
+  animation: tutor-sparkle 2.2s ease-in-out infinite;
 }
 
 .tutor-fab svg {
@@ -8052,6 +8069,17 @@ select:focus {
   border-radius: 22px;
   box-shadow: 0 24px 48px rgba(15, 44, 77, 0.2);
   overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, 18px, 0) scale(0.96);
+  transform-origin: bottom right;
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+}
+
+.tutor-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
 }
 
 .tutor-head {
@@ -8170,6 +8198,16 @@ select:focus {
   font-size: 0.78rem;
   font-weight: 650;
   cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.tutor-chips button:hover {
+  background: #f3fbfa;
+  border-color: #b7e0dc;
+}
+
+.tutor-chips button:active {
+  transform: scale(0.97);
 }
 
 .tutor-bubble {
@@ -8179,6 +8217,7 @@ select:focus {
   font-size: 0.9rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+  animation: tutor-pop 0.28s ease;
 }
 
 .tutor-bubble.is-user {
@@ -8194,6 +8233,27 @@ select:focus {
   border: 1px solid #e2e8f0;
   color: #0f172a;
   border-bottom-left-radius: 6px;
+}
+
+.tutor-bubble.is-streaming {
+  min-height: 1.2rem;
+  white-space: pre-wrap;
+}
+
+.tutor-thinking {
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.tutor-caret {
+  display: inline-block;
+  width: 0.42rem;
+  height: 1em;
+  margin-left: 0.12rem;
+  background: #0b7a75;
+  border-radius: 1px;
+  vertical-align: text-bottom;
+  animation: tutor-caret 0.9s steps(1) infinite;
 }
 
 .tutor-bubble.is-typing {
@@ -8229,6 +8289,51 @@ select:focus {
   40% {
     opacity: 1;
     transform: translateY(-3px);
+  }
+}
+
+@keyframes tutor-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tutor-sparkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(12deg) scale(1.12);
+    opacity: 0.88;
+  }
+}
+
+@keyframes tutor-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutor-panel,
+  .tutor-fab,
+  .tutor-bubble,
+  .ask-ai-btn,
+  .tutor-chips button {
+    animation: none;
+    transition: none;
   }
 }
 
