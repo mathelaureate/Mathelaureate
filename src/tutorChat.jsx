@@ -2,12 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import katex from 'katex'
 import { auth } from './firebase'
-import { useGamify } from './gameHud'
+import { TUTOR_OPEN_EVENT } from './tutor'
 
 const COURSE_TITLES = {
   'ibdp-aa': 'IBDP Mathematics AA',
   'igcse-additional': 'IGCSE Additional Maths',
   'igcse-international': 'IGCSE International Maths',
+}
+
+export function SparkleIcon({ size = 18 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <path
+        d="M12 3.2 13.2 8.4 18 9.6 13.2 10.8 12 16 10.8 10.8 6 9.6 10.8 8.4 12 3.2Z"
+        fill="currentColor"
+      />
+      <path d="M18.2 14.2 18.8 16.6 21.2 17.2 18.8 17.8 18.2 20.2 17.6 17.8 15.2 17.2 17.6 16.6 18.2 14.2Z" fill="currentColor" />
+      <path d="M6.4 13.4 6.9 15.2 8.7 15.7 6.9 16.2 6.4 18 5.9 16.2 4.1 15.7 5.9 15.2 6.4 13.4Z" fill="currentColor" />
+    </svg>
+  )
 }
 
 function apiBase() {
@@ -52,6 +65,7 @@ function pageContext(pathname, search) {
   const slug = pathname.match(/^\/courses\/([^/]+)/)?.[1] || ''
   const params = new URLSearchParams(search)
   return {
+    kind: 'page',
     path: pathname,
     courseSlug: slug,
     courseTitle: COURSE_TITLES[slug] || '',
@@ -59,9 +73,29 @@ function pageContext(pathname, search) {
   }
 }
 
+function mergeContext(page, focus) {
+  if (!focus) return page
+  return { ...page, ...focus }
+}
+
 function starterPrompts(context) {
-  const topic = context.subunit ? `Help me with ${context.subunit}` : 'Explain this topic simply'
-  return [topic, 'Give me a hint, not the answer', 'Check my working', 'Give me a similar exam question']
+  if (context?.kind === 'question') {
+    return ['Give me a hint, not the answer', 'Check my working', 'Explain the method', 'Give me a similar question']
+  }
+  if (context?.subunit) {
+    return [`Explain ${context.subunit} simply`, 'Show a worked example', 'What mistakes should I avoid?', 'Give me a practice question']
+  }
+  return ['Explain this topic simply', 'Give me a hint, not the answer', 'Check my working', 'Give me a similar exam question']
+}
+
+function contextCaption(context) {
+  if (context?.kind === 'question') {
+    return [context.label, context.subunit].filter(Boolean).join(' · ')
+  }
+  if (context?.kind === 'topic' || context?.subunit) {
+    return [context.subunit || context.label, context.unitName].filter(Boolean).join(' · ')
+  }
+  return ''
 }
 
 async function askTutor({ messages, context, token }) {
@@ -97,24 +131,45 @@ function ChatBubble({ message }) {
 export default function TutorChat({ user }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { award } = useGamify()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [messages, setMessages] = useState([])
+  const [focus, setFocus] = useState(null)
   const scrollerRef = useRef(null)
   const hidden = /^\/(admin|editor)(\/|$)/.test(location.pathname)
-  const context = useMemo(
+  const page = useMemo(
     () => pageContext(location.pathname, location.search),
     [location.pathname, location.search],
   )
+  const context = useMemo(() => mergeContext(page, focus), [page, focus])
   const prompts = starterPrompts(context)
+  const caption = contextCaption(context)
+  const placeholder =
+    context.kind === 'question'
+      ? 'Ask about this question…'
+      : context.subunit
+        ? `Ask about ${context.subunit}…`
+        : 'Ask a maths question…'
 
   useEffect(() => {
     const node = scrollerRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [messages, busy, open])
+
+  useEffect(() => {
+    function onOpen(event) {
+      const detail = event.detail || {}
+      setFocus(detail.kind ? detail : null)
+      setMessages([])
+      setError('')
+      setInput('')
+      setOpen(true)
+    }
+    window.addEventListener(TUTOR_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(TUTOR_OPEN_EVENT, onOpen)
+  }, [])
 
   if (hidden) return null
 
@@ -134,7 +189,6 @@ export default function TutorChat({ user }) {
       const token = await auth.currentUser?.getIdToken?.()
       const reply = await askTutor({ messages: history, context, token })
       setMessages([...history, { role: 'assistant', text: reply }])
-      award({ type: 'tutor' }).catch(() => {})
     } catch (sendError) {
       setError(sendError?.message || 'Unable to reach Laureate.')
     } finally {
@@ -146,22 +200,41 @@ export default function TutorChat({ user }) {
     <div className="tutor-root">
       {open ? (
         <section className="tutor-panel" aria-label="Laureate maths tutor">
-          <header className="tutor-head">
-            <span className="tutor-avatar" aria-hidden="true">
-              L
-            </span>
-            <div>
-              <strong>Laureate</strong>
-              <p>IB maths tutor</p>
+          <header className="tutor-head-wrap">
+            <div className="tutor-head">
+              <span className="tutor-avatar" aria-hidden="true">
+                <SparkleIcon size={16} />
+              </span>
+              <div>
+                <strong>Ask AI</strong>
+                <p>{caption || 'IB maths tutor'}</p>
+              </div>
+              <button type="button" className="tutor-close" onClick={() => setOpen(false)} aria-label="Close chat">
+                ×
+              </button>
             </div>
-            <button type="button" className="tutor-close" onClick={() => setOpen(false)} aria-label="Close chat">
-              ×
-            </button>
+            {caption ? (
+              <div className="tutor-focus">
+                <span>{context.kind === 'question' ? 'Question' : 'Topic'}</span>
+                <strong>{caption}</strong>
+                {focus ? (
+                  <button type="button" onClick={() => setFocus(null)} aria-label="Clear attached question">
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </header>
           <div className="tutor-thread" ref={scrollerRef}>
             {messages.length === 0 ? (
               <div className="tutor-welcome">
-                <p>Ask for a hint, a worked method, or a similar question. I stay with you on this page.</p>
+                <p>
+                  {context.kind === 'question'
+                    ? 'I can see this question. Ask for a hint, a check of your working, or a similar one.'
+                    : context.subunit
+                      ? `I am with you on ${context.subunit}. Ask for an explanation, example, or practice.`
+                      : 'Tap the sparkle on a question or topic, or type anything you are stuck on.'}
+                </p>
                 <div className="tutor-chips">
                   {prompts.map((prompt) => (
                     <button type="button" key={prompt} onClick={() => send(prompt)}>
@@ -193,7 +266,7 @@ export default function TutorChat({ user }) {
               <input
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask Laureate…"
+                placeholder={placeholder}
                 maxLength={2000}
                 disabled={busy}
               />
@@ -215,22 +288,14 @@ export default function TutorChat({ user }) {
         type="button"
         className={`tutor-fab${open ? ' is-open' : ''}`}
         onClick={() => setOpen((value) => !value)}
-        aria-label={open ? 'Close Laureate' : 'Ask Laureate'}
+        aria-label={open ? 'Close Ask AI' : 'Ask AI'}
       >
         {open ? (
           '×'
         ) : (
           <>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H12l-4 3.2V16H7.5A2.5 2.5 0 0 1 5 13.5v-7Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path d="M8.5 9h7M8.5 12h4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            <span>Ask</span>
+            <SparkleIcon size={18} />
+            <span>Ask AI</span>
           </>
         )}
       </button>

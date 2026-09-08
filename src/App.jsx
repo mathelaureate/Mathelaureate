@@ -15,10 +15,9 @@ import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
-import { collectVisitDates, detectUserLocation, localDateKey, recordUserPresence, studyStreak } from './userPresence'
-import { applyGamifyEvent, emitXp } from './gamify'
-import { DailyQuestList, GameHud, GamifyProvider, useGamify } from './gameHud'
-import TutorChat from './tutorChat'
+import { collectVisitDates, detectUserLocation, recordUserPresence, studyStreak } from './userPresence'
+import TutorChat, { SparkleIcon } from './tutorChat'
+import { openTutor, questionTutorContext, topicTutorContext } from './tutor'
 import AdminUsersPage from './AdminUsersPage'
 import {
   SAVED_QUESTIONS_KEY,
@@ -1571,6 +1570,15 @@ function WrongMarkIcon() {
   )
 }
 
+function AskAiButton({ onClick, label = 'Ask AI about this question', compact = false }) {
+  return (
+    <button type="button" className={compact ? 'question-tool-btn is-ai' : 'ask-ai-btn'} onClick={onClick} title={label} aria-label={label}>
+      <SparkleIcon size={compact ? 16 : 15} />
+      {compact ? null : <span>Ask AI</span>}
+    </button>
+  )
+}
+
 function CourseItemCard({
   item,
   index,
@@ -1585,8 +1593,7 @@ function CourseItemCard({
   onToggleWrong,
   studyBusy = false,
   isFocused = false,
-  isMastered = false,
-  onMaster,
+  onAskAi,
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
@@ -1614,6 +1621,7 @@ function CourseItemCard({
         <div className="question-card-head">
           <h3 className="question-number-title">Question {index + 1}</h3>
           <div className="question-card-tools">
+            {onAskAi ? <AskAiButton compact onClick={() => onAskAi(item, index)} /> : null}
             <button
               type="button"
               className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
@@ -1686,16 +1694,7 @@ function CourseItemCard({
               View Solution
             </button>
           ) : null}
-          {onMaster ? (
-            <button
-              type="button"
-              className={`btn ghost text-btn${isMastered ? ' is-mastered' : ''}`}
-              onClick={() => onMaster(item)}
-              disabled={isMastered}
-            >
-              {isMastered ? 'Got it' : 'Got it · +15 XP'}
-            </button>
-          ) : null}
+          {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
         </div>
       ) : null}
       {lessonVideoUrl ? (
@@ -2087,14 +2086,9 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           </Link>
           <a href="/#contact">Contact</a>
           {user || cachedProfile ? (
-            <>
-              <Link to="/profile" className="game-hud-link" aria-label="Study progress">
-                <GameHud compact />
-              </Link>
-              <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
-                {profileLabel}
-              </Link>
-            </>
+            <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
+              {profileLabel}
+            </Link>
           ) : (
             <button type="button" className="login-btn" onClick={onLoginSignupClick}>
               Login / Signup
@@ -3681,7 +3675,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
   const [studyBusyId, setStudyBusyId] = useState('')
-  const { award, mastered } = useGamify()
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -3904,7 +3897,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
       ...item,
       questionNumber: index + 1,
     })
-    if (item?.id) award({ type: 'practice', kind: 'solution', questionId: item.id }).catch(() => {})
   }
 
   function closeSolution() {
@@ -4050,23 +4042,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
             updatedAt: courseEntry.updatedAt || timestamp,
           }))
 
-        const { gamify, gained, label } = applyGamifyEvent(
-          existingData.gamify,
-          {
-            type: 'subunit',
-            courseSlug: course.slug,
-            subunitKey,
-            unitId: selectedUnit.id,
-            unitComplete:
-              (selectedUnit.subunits || []).length > 0 &&
-              (selectedUnit.subunits || []).every((name) =>
-                updatedVisitedSubunits.includes(`${selectedUnit.id}::${name}`),
-              ),
-          },
-          localDateKey(),
-          existingData,
-        )
-
         if (!active) return
 
         await setDoc(
@@ -4080,12 +4055,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
             lastPath: `/courses/${course.slug}`,
             courses: updatedCourses,
             myCourses: updatedMyCourses,
-            gamify,
             updatedAt: timestamp,
           },
           { merge: true },
         )
-        emitXp({ gained, label, gamify })
 
         if (active) {
           setVisitedSubunitKeys(updatedVisitedSubunits)
@@ -4178,38 +4151,64 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           const subunitKey = `${unit.id}::${subtopic}`
                           const isVisited = visitedSubunitKeys.includes(subunitKey)
                           return (
-                            <button
-                              type="button"
-                              key={subtopic}
-                              className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${
-                                isVisited && !isActive ? 'done' : ''
+                            <div
+                              className={`sidebar-subunit-row${isActive ? ' is-active' : ''}${
+                                isVisited && !isActive ? ' is-done' : ''
                               }`}
-                              onClick={() => {
-                                setSelectedUnitId(unit.id)
-                                setSelectedSubunit(subtopic)
-                              }}
+                              key={subtopic}
                             >
-                              <span className="sidebar-status-dot" aria-hidden="true">
-                                {isVisited && !isActive ? (
-                                  <svg viewBox="0 0 24 24" width="12" height="12">
-                                    <path
-                                      d="M5 12.5 10 17l9-10"
-                                      fill="none"
-                                      stroke="#fff"
-                                      strokeWidth="2.6"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                  </svg>
-                                ) : isActive ? (
-                                  <svg viewBox="0 0 24 24" width="12" height="12">
-                                    <path d="M7 4h7l3 3v13H7V4Z" fill="none" stroke="#fff" strokeWidth="2.2" />
-                                  </svg>
-                                ) : null}
-                              </span>
-                              <span className="sidebar-subunit-label">{subtopic}</span>
-                              {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
-                            </button>
+                              <button
+                                type="button"
+                                className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${
+                                  isVisited && !isActive ? 'done' : ''
+                                }`}
+                                onClick={() => {
+                                  setSelectedUnitId(unit.id)
+                                  setSelectedSubunit(subtopic)
+                                }}
+                              >
+                                <span className="sidebar-status-dot" aria-hidden="true">
+                                  {isVisited && !isActive ? (
+                                    <svg viewBox="0 0 24 24" width="12" height="12">
+                                      <path
+                                        d="M5 12.5 10 17l9-10"
+                                        fill="none"
+                                        stroke="#fff"
+                                        strokeWidth="2.6"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  ) : isActive ? (
+                                    <svg viewBox="0 0 24 24" width="12" height="12">
+                                      <path d="M7 4h7l3 3v13H7V4Z" fill="none" stroke="#fff" strokeWidth="2.2" />
+                                    </svg>
+                                  ) : null}
+                                </span>
+                                <span className="sidebar-subunit-label">{subtopic}</span>
+                                {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
+                              </button>
+                              <button
+                                type="button"
+                                className="sidebar-ai-btn"
+                                title={`Ask AI about ${subtopic}`}
+                                aria-label={`Ask AI about ${subtopic}`}
+                                onClick={() => {
+                                  setSelectedUnitId(unit.id)
+                                  setSelectedSubunit(subtopic)
+                                  openTutor(
+                                    topicTutorContext({
+                                      courseTitle: course.title,
+                                      courseSlug: course.slug,
+                                      unitName: unit.name,
+                                      subunit: subtopic,
+                                    }),
+                                  )
+                                }}
+                              >
+                                <SparkleIcon size={14} />
+                              </button>
+                            </div>
                           )
                         })}
                       </div>
@@ -4240,19 +4239,36 @@ function CoursePage({ user, authReady, cachedProfile }) {
               <p className="eyebrow lesson-breadcrumb">{currentSubunit || 'Subunit'}</p>
               <div className="lesson-title-row">
                 <h1 className="lesson-page-title">{currentSubunit || selectedUnit?.name || course.title}</h1>
-                <button
-                  type="button"
-                  className="icon-share-btn"
-                  onClick={nativeShareLesson}
-                  title="Share lesson"
-                  aria-label="Share lesson"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-                    <path d="M12 16V4" />
-                    <path d="M7 9l5-5 5 5" />
-                  </svg>
-                </button>
+                <div className="lesson-title-actions">
+                  {currentSubunit || selectedUnit?.name ? (
+                    <AskAiButton
+                      label="Ask AI about this topic"
+                      onClick={() =>
+                        openTutor(
+                          topicTutorContext({
+                            courseTitle: course.title,
+                            courseSlug: course.slug,
+                            unitName: selectedUnit?.name,
+                            subunit: currentSubunit || selectedUnit?.name,
+                          }),
+                        )
+                      }
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    className="icon-share-btn"
+                    onClick={nativeShareLesson}
+                    title="Share lesson"
+                    aria-label="Share lesson"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                      <path d="M12 16V4" />
+                      <path d="M7 9l5-5 5 5" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="lesson-toolbar">
                 <div className="lesson-tabs">
@@ -4374,9 +4390,17 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                           studyBusy={studyBusyId.endsWith(`:${item.id}`)}
                           isFocused={item.id === focusQuestionId}
-                          isMastered={mastered.has(item.id)}
-                          onMaster={(question) =>
-                            award({ type: 'practice', kind: 'master', questionId: question.id }).catch(() => {})
+                          onAskAi={(question, questionIndex) =>
+                            openTutor(
+                              questionTutorContext({
+                                item: question,
+                                index: questionIndex,
+                                courseTitle: course.title,
+                                courseSlug: course.slug,
+                                unitName: selectedUnit?.name,
+                                subunit: currentSubunit,
+                              }),
+                            )
                           }
                         />
                       ))
@@ -4396,9 +4420,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
 
                 return (
                   <>
-                    <article className="rail-card game-rail-card">
-                      <DailyQuestList />
-                    </article>
                     <article className="rail-card">
                       <h3>
                         <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -4427,9 +4448,26 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         </svg>
                         Test Your Understanding
                       </h3>
-                      <p>Try questions from this topic to strengthen your skills.</p>
+                      <p>Try questions from this topic, or ask AI if you are stuck.</p>
                       <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
                         Start Practice →
+                      </button>
+                      <button
+                        type="button"
+                        className="ask-ai-btn ask-ai-btn-wide"
+                        onClick={() =>
+                          openTutor(
+                            topicTutorContext({
+                              courseTitle: course.title,
+                              courseSlug: course.slug,
+                              unitName: selectedUnit?.name,
+                              subunit: currentSubunit || selectedUnit?.name,
+                            }),
+                          )
+                        }
+                      >
+                        <SparkleIcon size={15} />
+                        <span>Ask AI about this topic</span>
                       </button>
                       <Link className="btn ghost rail-cta-btn mock-rail-link" to="/mock-generator">
                         Build a Mock Paper →
@@ -4513,8 +4551,7 @@ function MockQuestionCard({
   onToggleBookmark,
   onToggleWrong,
   studyBusy = false,
-  isMastered = false,
-  onMaster,
+  onAskAi,
 }) {
   const sourceFields = useMemo(() => collectCardTranslateFields(item), [item])
   const { lang, fields, busy, error, chooseLang } = useCardLang(`mock-${paperId}-${item.id}`, sourceFields)
@@ -4526,6 +4563,7 @@ function MockQuestionCard({
       <div className="question-card-head">
         <h3 className="question-number-title">Question {index + 1}</h3>
         <div className="question-card-tools">
+          {onAskAi ? <AskAiButton compact onClick={() => onAskAi(item, index)} /> : null}
           <button
             type="button"
             className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
@@ -4586,16 +4624,7 @@ function MockQuestionCard({
             View Solution
           </button>
         ) : null}
-        {onMaster ? (
-          <button
-            type="button"
-            className={`btn ghost text-btn${isMastered ? ' is-mastered' : ''}`}
-            onClick={() => onMaster(item)}
-            disabled={isMastered}
-          >
-            {isMastered ? 'Got it' : 'Got it · +15 XP'}
-          </button>
-        ) : null}
+        {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
       </div>
     </article>
   )
@@ -4604,7 +4633,6 @@ function MockQuestionCard({
 function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loginPending, setLoginPending] = useState(false)
   const [loginError, setLoginError] = useState('')
-  const { award, mastered } = useGamify()
   const [curriculum, setCurriculum] = useState(null)
   const [questionPool, setQuestionPool] = useState([])
   const [loading, setLoading] = useState(false)
@@ -5174,16 +5202,23 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         onOpenImage={setExpandedImageUrl}
                         onOpenSolution={(view) => {
                           setActiveSolutionItem({ ...view, questionNumber: index + 1 })
-                          if (view?.id) award({ type: 'practice', kind: 'solution', questionId: view.id }).catch(() => {})
                         }}
                         isBookmarked={savedQuestions.some((entry) => entry.questionId === item.id)}
                         isWrong={wrongQuestions.some((entry) => entry.questionId === item.id)}
                         onToggleBookmark={(question) => handleToggleStudy(SAVED_QUESTIONS_KEY, question)}
                         onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                         studyBusy={studyBusyId.endsWith(`:${item.id}`)}
-                        isMastered={mastered.has(item.id)}
-                        onMaster={(question) =>
-                          award({ type: 'practice', kind: 'master', questionId: question.id }).catch(() => {})
+                        onAskAi={(question, questionIndex) =>
+                          openTutor(
+                            questionTutorContext({
+                              item: question,
+                              index: questionIndex,
+                              courseTitle: selectedCourse?.title,
+                              courseSlug: selectedCourseSlug,
+                              unitName: question.unitName,
+                              subunit: question.subunit,
+                            }),
+                          )
                         }
                       />
                     ))}
@@ -5284,7 +5319,6 @@ function ProfileQuestionCard({
   removing = false,
   onOpenImage,
   showRemove = false,
-  awardReview = false,
 }) {
   const [showSolution, setShowSolution] = useState(false)
   const translateSource = useMemo(
@@ -5306,15 +5340,31 @@ function ProfileQuestionCard({
   const bodyText = view?.description || fields.description || entry.preview || 'Saved question'
   const hasSolution = questionHasSolution(item)
   const solutionVideo = toYouTubeEmbedUrl(item?.solutionVideoLink)
-  const { award } = useGamify()
   return (
     <article className="study-question-card">
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      <p className="study-question-kicker">
-        {[entry.courseTitle || entry.courseSlug, entry.unitName || item?.unitName, entry.subunit]
-          .filter(Boolean)
-          .join(' · ')}
-      </p>
+      <div className="study-question-head">
+        <p className="study-question-kicker">
+          {[entry.courseTitle || entry.courseSlug, entry.unitName || item?.unitName, entry.subunit]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+        <AskAiButton
+          compact
+          label="Ask AI about this question"
+          onClick={() =>
+            openTutor(
+              questionTutorContext({
+                item: item || { ...entry, description: entry.preview, id: entry.questionId },
+                courseTitle: entry.courseTitle,
+                courseSlug: entry.courseSlug,
+                unitName: entry.unitName || item?.unitName,
+                subunit: entry.subunit,
+              }),
+            )
+          }
+        />
+      </div>
       <div className="question-meta-row">
         <span className="meta-chip">{(item ? normalizeGdc(item.gdc) : entry.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
         {(item?.marks || entry.marks) ? <span className="meta-chip">{item?.marks || entry.marks} marks</span> : null}
@@ -5357,9 +5407,6 @@ function ProfileQuestionCard({
             className="btn ghost text-btn"
             onClick={() => {
               setShowSolution((open) => !open)
-              if (!showSolution && awardReview && entry.questionId) {
-                award({ type: 'practice', kind: 'review', questionId: entry.questionId }).catch(() => {})
-              }
             }}
           >
             {showSolution ? 'Hide solution' : 'View Solution'}
@@ -5370,6 +5417,19 @@ function ProfileQuestionCard({
             Remove
           </button>
         ) : null}
+        <AskAiButton
+          onClick={() =>
+            openTutor(
+              questionTutorContext({
+                item: item || { ...entry, description: entry.preview, id: entry.questionId },
+                courseTitle: entry.courseTitle,
+                courseSlug: entry.courseSlug,
+                unitName: entry.unitName || item?.unitName,
+                subunit: entry.subunit,
+              }),
+            )
+          }
+        />
       </div>
       {showSolution && hasSolution ? (
         <div className="study-question-solution">
@@ -5426,7 +5486,6 @@ function StudyQuestionList({
   embedded = false,
   questionById,
   onOpenImage,
-  awardReview = false,
 }) {
   const body =
     items.length === 0 ? (
@@ -5445,7 +5504,6 @@ function StudyQuestionList({
             removing={removingId === entry.questionId}
             onOpenImage={onOpenImage}
             showRemove
-            awardReview={awardReview}
           />
         ))}
       </div>
@@ -5536,7 +5594,6 @@ function ProfilePage({ user, cachedProfile }) {
   const [studyBusyId, setStudyBusyId] = useState('')
   const [studyTab, setStudyTab] = useState('bookmarks')
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
-  const { quests } = useGamify()
   const questionById = useMemo(() => {
     const map = new Map()
     for (const item of questionBank) {
@@ -5672,10 +5729,6 @@ function ProfilePage({ user, cachedProfile }) {
 
       <section className="ia-browse-shell ia-browse-split profile-shell">
         <aside className="ia-filter-rail">
-          <div className="ia-filter-block">
-            <h2>Today's quests</h2>
-            <DailyQuestList />
-          </div>
           {lastViewedCourse ? (
             <div className="ia-filter-block">
               <h2>Continue</h2>
@@ -5685,7 +5738,6 @@ function ProfilePage({ user, cachedProfile }) {
                   {lastViewedCourse.lastViewedSubunit
                     ? lastViewedCourse.lastViewedSubunit
                     : 'Pick up where you left off'}
-                  {quests.some((quest) => quest.id === 'topic' && !quest.done) ? ' · +20 XP' : ''}
                 </span>
               </Link>
             </div>
@@ -5808,7 +5860,6 @@ function ProfilePage({ user, cachedProfile }) {
                 removingId={studyBusyId}
                 questionById={questionById}
                 onOpenImage={setExpandedImageUrl}
-                awardReview
               />
             ) : studyTab === 'similar' ? (
               wrongQuestions.length === 0 ? (
@@ -9251,7 +9302,6 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <PresenceTracker user={user} />
-      <GamifyProvider user={user}>
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />
@@ -9283,7 +9333,6 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TutorChat user={user} />
-      </GamifyProvider>
     </BrowserRouter>
   )
 }

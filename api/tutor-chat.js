@@ -23,7 +23,8 @@ Style:
 - Prefer a hint or a next step first. If they ask for the full method or are still stuck, give a complete worked solution.
 - Use LaTeX with $inline$ and $$display$$ so it renders on the site.
 - Do not mention being an AI model or Gemini.
-- If the page context names a course or subunit, stay on that topic unless they change it.
+- If the page context names a course, topic, or attached question, stay on that unless they change it.
+- If a question is attached, tutor THAT question. Hint first. Do not dump the full answer unless they ask.
 - Never invent IB markschemes. If unsure, say so and show a standard method.`
 
 function geminiKey() {
@@ -80,10 +81,31 @@ function normalizeMessages(raw) {
 
 function contextBlock(context) {
   const course = String(context?.courseTitle || context?.courseSlug || '').trim().slice(0, 120)
+  const unit = String(context?.unitName || '').trim().slice(0, 160)
   const subunit = String(context?.subunit || '').trim().slice(0, 160)
-  const path = String(context?.path || '').trim().slice(0, 160)
-  if (!course && !subunit && !path) return ''
-  return `Student context: ${[course, subunit, path].filter(Boolean).join(' · ')}`
+  const questionText = String(context?.questionText || '').trim().slice(0, 1800)
+  const questionNumber = String(context?.questionNumber || '').trim().slice(0, 12)
+  const meta = [
+    context?.marks ? `${context.marks} marks` : '',
+    context?.difficulty || '',
+    context?.gdc || '',
+    context?.questionLevel || '',
+  ]
+    .map((item) => String(item).trim())
+    .filter(Boolean)
+    .join(', ')
+  const lines = []
+  const study = [course, unit, subunit].filter(Boolean).join(' · ')
+  if (study) lines.push(`Student is studying: ${study}`)
+  if (questionText) {
+    lines.push(`They attached this exam question${questionNumber ? ` (Question ${questionNumber})` : ''}.`)
+    if (meta) lines.push(`Question meta: ${meta}`)
+    lines.push(questionText)
+    lines.push('Help with THIS question. Give a hint first unless they ask for the full method.')
+  } else if (subunit) {
+    lines.push('Help with this topic. Hint or a short example first unless they ask for a full worked solution.')
+  }
+  return lines.join('\n')
 }
 
 export default async function handler(request, response) {
