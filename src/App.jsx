@@ -1664,8 +1664,7 @@ function CourseItemCard({
         </button>
       ) : null}
       {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
-        <div className="solution-video-wrap">
-          <h4>Video</h4>
+        <div className="solution-video-wrap lesson-video-wrap">
           <iframe
             title={`lesson-video-${item.id}`}
             src={toYouTubeEmbedUrl(item.resourceLink)}

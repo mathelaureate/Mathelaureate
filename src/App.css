@@ -709,7 +709,8 @@ nav button:hover {
 }
 
 .lesson-main-centered .lesson-card-lesson .latex-text,
-.lesson-main-centered .lesson-card-lesson .solution-box {
+.lesson-main-centered .lesson-card-lesson .solution-box,
+.lesson-main-centered .lesson-card-lesson .lesson-video-wrap {
   width: min(900px, 100%);
   margin-inline: auto;
   text-align: left;
@@ -1054,6 +1055,15 @@ nav button:hover {
   border: 1px solid #d5e0e3;
   border-radius: 10px;
   background: #fff;
+}
+
+.lesson-video-wrap {
+  justify-items: center;
+}
+
+.lesson-video-wrap iframe {
+  display: block;
+  margin-inline: auto;
 }
 
 .content-image-block {
