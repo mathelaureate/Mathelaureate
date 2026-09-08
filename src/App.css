@@ -7911,17 +7911,15 @@ select:focus {
 }
 
 .ask-ai-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
   border: 1px solid #b7e0dc;
   background: #f3fbfa;
   color: #0b7a75;
   border-radius: 999px;
-  padding: 0.38rem 0.78rem;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 750;
+  padding: 0;
   cursor: pointer;
   line-height: 1;
   transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
@@ -7937,20 +7935,10 @@ select:focus {
   transform: scale(0.97);
 }
 
-.ask-ai-btn-wide {
-  width: 100%;
-  justify-content: center;
-  margin-top: 0.45rem;
-  padding: 0.62rem 0.8rem;
-}
-
-.question-tool-btn.is-ai {
-  color: #0b7a75;
-}
-
-.question-tool-btn.is-ai:hover:not(:disabled) {
-  background: #e7f6f4;
-  color: #08615d;
+.rail-cta .ask-ai-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-top: 0.55rem;
 }
 
 .lesson-title-actions {
@@ -8032,15 +8020,6 @@ select:focus {
 .tutor-fab:hover {
   transform: translateY(-1px) scale(1.03);
   box-shadow: 0 18px 32px rgba(15, 44, 77, 0.34);
-}
-
-.tutor-fab:not(.is-open) {
-  width: auto;
-  height: 3.15rem;
-  padding: 0 1rem 0 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
 }
 
 .tutor-fab:not(.is-open) svg {

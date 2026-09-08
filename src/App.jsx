@@ -1570,11 +1570,10 @@ function WrongMarkIcon() {
   )
 }
 
-function AskAiButton({ onClick, label = 'Ask AI about this question', compact = false }) {
+function AskAiButton({ onClick, label = 'Ask about this question' }) {
   return (
-    <button type="button" className={compact ? 'question-tool-btn is-ai' : 'ask-ai-btn'} onClick={onClick} title={label} aria-label={label}>
-      <SparkleIcon size={compact ? 16 : 15} />
-      {compact ? null : <span>Ask AI</span>}
+    <button type="button" className="ask-ai-btn" onClick={onClick} title={label} aria-label={label}>
+      <SparkleIcon size={16} />
     </button>
   )
 }
@@ -1621,7 +1620,7 @@ function CourseItemCard({
         <div className="question-card-head">
           <h3 className="question-number-title">Question {index + 1}</h3>
           <div className="question-card-tools">
-            {onAskAi ? <AskAiButton compact onClick={() => onAskAi(item, index)} /> : null}
+            {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
             <button
               type="button"
               className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
@@ -1694,7 +1693,6 @@ function CourseItemCard({
               View Solution
             </button>
           ) : null}
-          {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
         </div>
       ) : null}
       {lessonVideoUrl ? (
@@ -4191,8 +4189,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               <button
                                 type="button"
                                 className="sidebar-ai-btn"
-                                title={`Ask AI about ${subtopic}`}
-                                aria-label={`Ask AI about ${subtopic}`}
+                                title={`Ask about ${subtopic}`}
+                                aria-label={`Ask about ${subtopic}`}
                                 onClick={() => {
                                   setSelectedUnitId(unit.id)
                                   setSelectedSubunit(subtopic)
@@ -4242,7 +4240,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 <div className="lesson-title-actions">
                   {currentSubunit || selectedUnit?.name ? (
                     <AskAiButton
-                      label="Ask AI about this topic"
+                      label="Ask about this topic"
                       onClick={() =>
                         openTutor(
                           topicTutorContext({
@@ -4448,13 +4446,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         </svg>
                         Test Your Understanding
                       </h3>
-                      <p>Try questions from this topic, or ask AI if you are stuck.</p>
+                      <p>Try questions from this topic, or tap the sparkle if you are stuck.</p>
                       <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
                         Start Practice →
                       </button>
-                      <button
-                        type="button"
-                        className="ask-ai-btn ask-ai-btn-wide"
+                      <AskAiButton
+                        label="Ask about this topic"
                         onClick={() =>
                           openTutor(
                             topicTutorContext({
@@ -4465,10 +4462,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                             }),
                           )
                         }
-                      >
-                        <SparkleIcon size={15} />
-                        <span>Ask AI about this topic</span>
-                      </button>
+                      />
                       <Link className="btn ghost rail-cta-btn mock-rail-link" to="/mock-generator">
                         Build a Mock Paper →
                       </Link>
@@ -4563,7 +4557,7 @@ function MockQuestionCard({
       <div className="question-card-head">
         <h3 className="question-number-title">Question {index + 1}</h3>
         <div className="question-card-tools">
-          {onAskAi ? <AskAiButton compact onClick={() => onAskAi(item, index)} /> : null}
+          {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
           <button
             type="button"
             className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
@@ -4624,7 +4618,6 @@ function MockQuestionCard({
             View Solution
           </button>
         ) : null}
-        {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
       </div>
     </article>
   )
@@ -5350,8 +5343,7 @@ function ProfileQuestionCard({
             .join(' · ')}
         </p>
         <AskAiButton
-          compact
-          label="Ask AI about this question"
+          label="Ask about this question"
           onClick={() =>
             openTutor(
               questionTutorContext({
@@ -5417,19 +5409,6 @@ function ProfileQuestionCard({
             Remove
           </button>
         ) : null}
-        <AskAiButton
-          onClick={() =>
-            openTutor(
-              questionTutorContext({
-                item: item || { ...entry, description: entry.preview, id: entry.questionId },
-                courseTitle: entry.courseTitle,
-                courseSlug: entry.courseSlug,
-                unitName: entry.unitName || item?.unitName,
-                subunit: entry.subunit,
-              }),
-            )
-          }
-        />
       </div>
       {showSolution && hasSolution ? (
         <div className="study-question-solution">

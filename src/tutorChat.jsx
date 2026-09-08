@@ -281,7 +281,7 @@ export default function TutorChat({ user }) {
               <SparkleIcon size={16} />
             </span>
             <div>
-              <strong>Ask AI</strong>
+              <strong>Laureate</strong>
               <p>{busy ? 'Replying…' : caption || 'IB maths tutor'}</p>
             </div>
             <button type="button" className="tutor-close" onClick={() => setOpen(false)} aria-label="Close chat">
@@ -356,16 +356,9 @@ export default function TutorChat({ user }) {
         type="button"
         className={`tutor-fab${open ? ' is-open' : ''}`}
         onClick={() => setOpen((value) => !value)}
-        aria-label={open ? 'Close Ask AI' : 'Ask AI'}
+        aria-label={open ? 'Close tutor' : 'Open tutor'}
       >
-        {open ? (
-          '×'
-        ) : (
-          <>
-            <SparkleIcon size={18} />
-            <span>Ask AI</span>
-          </>
-        )}
+        {open ? '×' : <SparkleIcon size={20} />}
       </button>
     </div>
   )
