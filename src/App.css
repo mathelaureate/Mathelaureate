@@ -709,8 +709,7 @@ nav button:hover {
 }
 
 .lesson-main-centered .lesson-card-lesson .latex-text,
-.lesson-main-centered .lesson-card-lesson .solution-box,
-.lesson-main-centered .lesson-card-lesson .lesson-video-wrap {
+.lesson-main-centered .lesson-card-lesson .solution-box {
   width: min(900px, 100%);
   margin-inline: auto;
   text-align: left;
@@ -1058,16 +1057,31 @@ nav button:hover {
 }
 
 .lesson-video-wrap {
-  justify-items: center;
-  margin-top: 1.85rem;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 2.4rem 0 0.15rem;
 }
 
-.lesson-video-wrap iframe {
-  display: block;
-  margin-inline: auto;
-  min-height: 480px;
+.lesson-video-frame {
+  position: relative;
+  width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b1220;
+  border: 1px solid #d5e0e3;
+}
+
+.lesson-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: #0b1220;
 }
 
 .content-image-block {
@@ -3695,6 +3709,7 @@ body {
 
 .course-page .lesson-card-lesson {
   border-left: 4px solid #1b6ea8;
+  padding: 1.2rem 1.35rem 1.45rem;
 }
 
 .course-page .lesson-card-question {
@@ -3922,6 +3937,7 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
   border-color: #dbe6ee;
   border-left: 4px solid #1b6ea8;
+  padding: 1.2rem 1.35rem 1.45rem;
 }
 
 .course-page .lesson-card-question {
@@ -5139,6 +5155,12 @@ body {
   width: 100%;
   max-width: 100%;
   margin-inline: 0;
+}
+
+.course-page .lesson-card-lesson .lesson-video-wrap {
+  width: 100%;
+  max-width: 100%;
+  margin: 2.4rem 0 0.15rem;
 }
 
 @media (max-width: 1200px) {

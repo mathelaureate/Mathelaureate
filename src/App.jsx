@@ -1201,6 +1201,14 @@ function toYouTubeEmbedUrl(input) {
   return `https://www.youtube.com/embed/${id}`
 }
 
+function stripYoutubeUrlsFromText(text) {
+  return String(text || '')
+    .replace(/https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)[a-zA-Z0-9_-]{6,}[^\s<]*/gi, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function formatMetaDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
@@ -1579,6 +1587,15 @@ function CourseItemCard({
   const { lang, fields, busy, error, chooseLang } = useCardLang(item.id, sourceFields)
   const viewSource = lang === 'en' ? item : applyTranslatedFields(item, fields)
   const view = activeTab === 'lesson' ? lessonWithoutObjectives(viewSource) : viewSource
+  const lessonVideoUrl = activeTab === 'lesson' ? toYouTubeEmbedUrl(item.resourceLink) : ''
+  const lessonDescription = lessonVideoUrl ? stripYoutubeUrlsFromText(view.description) : view.description
+  const lessonDescriptionBlocks = lessonVideoUrl
+    ? (Array.isArray(view.descriptionBlocks) ? view.descriptionBlocks : [])
+        .map((block) =>
+          block?.type === 'text' ? { ...block, text: stripYoutubeUrlsFromText(block.text) } : block,
+        )
+        .filter((block) => block?.type !== 'text' || String(block.text || '').trim())
+    : view.descriptionBlocks
 
   return (
     <article
@@ -1637,10 +1654,10 @@ function CourseItemCard({
             <LatexText value={view.description} className="latex-text" />
           ) : null}
         </div>
-      ) : contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
-        renderBlocks(view.descriptionBlocks, `desc-${item.id || index}`)
-      ) : String(view.description || '').trim() ? (
-        <LatexText value={view.description} className="latex-text" />
+      ) : contentBlocksHaveMediaOrText(lessonDescriptionBlocks) ? (
+        renderBlocks(lessonDescriptionBlocks, `desc-${item.id || index}`)
+      ) : String(lessonDescription || '').trim() ? (
+        <LatexText value={lessonDescription} className="latex-text" />
       ) : null}
       {item.imageUrl ? (
         <div className="content-image-block">
@@ -1663,15 +1680,17 @@ function CourseItemCard({
           View Solution
         </button>
       ) : null}
-      {activeTab === 'lesson' && toYouTubeEmbedUrl(item.resourceLink) ? (
-        <div className="solution-video-wrap lesson-video-wrap">
-          <iframe
-            title={`lesson-video-${item.id}`}
-            src={toYouTubeEmbedUrl(item.resourceLink)}
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
+      {lessonVideoUrl ? (
+        <div className="lesson-video-wrap">
+          <div className="lesson-video-frame">
+            <iframe
+              title={`lesson-video-${item.id}`}
+              src={lessonVideoUrl}
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
         </div>
       ) : null}
       {activeTab === 'lesson' && item.geogebraLink && !contentBlocksHaveGeoGebra(view.descriptionBlocks) ? (
