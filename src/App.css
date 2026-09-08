@@ -7947,7 +7947,7 @@ select:focus {
 .xp-toast {
   position: fixed;
   right: 1.1rem;
-  bottom: 1.1rem;
+  bottom: 5.6rem;
   z-index: 80;
   display: grid;
   gap: 0.12rem;
@@ -8090,4 +8090,241 @@ select:focus {
   .game-chip span {
     display: none;
   }
+}
+
+.tutor-root {
+  position: fixed;
+  right: 1.15rem;
+  bottom: 1.15rem;
+  z-index: 70;
+}
+
+.tutor-fab {
+  width: 3.7rem;
+  height: 3.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0f2c4d 0%, #1b6ea8 100%);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(15, 44, 77, 0.28);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-weight: 750;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.tutor-fab:not(.is-open) {
+  width: auto;
+  height: 3.15rem;
+  padding: 0 1rem 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tutor-fab svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.tutor-fab span {
+  font-size: 0.92rem;
+}
+
+.tutor-panel {
+  position: absolute;
+  right: 0;
+  bottom: 4.1rem;
+  width: min(392px, calc(100vw - 1.6rem));
+  height: min(560px, calc(100vh - 7.2rem));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: #fff;
+  border: 1px solid #d5e0e8;
+  border-radius: 22px;
+  box-shadow: 0 24px 48px rgba(15, 44, 77, 0.2);
+  overflow: hidden;
+}
+
+.tutor-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.85rem 0.9rem;
+  background: linear-gradient(135deg, #0f2c4d 0%, #1b6ea8 100%);
+  color: #fff;
+}
+
+.tutor-head strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.tutor-head p {
+  margin: 0.1rem 0 0;
+  color: #c5d9ea;
+  font-size: 0.78rem;
+}
+
+.tutor-avatar {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #0b7a75;
+  font-weight: 800;
+}
+
+.tutor-close {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tutor-thread {
+  overflow: auto;
+  padding: 0.95rem 0.9rem;
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  background: #f4f7fa;
+}
+
+.tutor-welcome {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 0.9rem;
+}
+
+.tutor-welcome p {
+  margin: 0 0 0.75rem;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.tutor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tutor-chips button {
+  border: 1px solid #d5e0e8;
+  background: #fff;
+  color: #0f2c4d;
+  border-radius: 999px;
+  padding: 0.38rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tutor-bubble {
+  max-width: 92%;
+  padding: 0.7rem 0.8rem;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.tutor-bubble.is-user {
+  justify-self: end;
+  background: #0f2c4d;
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.tutor-bubble.is-bot {
+  justify-self: start;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  border-bottom-left-radius: 6px;
+}
+
+.tutor-bubble.is-typing {
+  display: inline-flex;
+  gap: 0.28rem;
+  align-items: center;
+  min-height: 1.2rem;
+}
+
+.tutor-bubble.is-typing span {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: #94a3b8;
+  animation: tutor-dot 1s infinite ease-in-out;
+}
+
+.tutor-bubble.is-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.tutor-bubble.is-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes tutor-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.tutor-error {
+  margin: 0;
+  color: #9f1b1b;
+  font-size: 0.82rem;
+}
+
+.tutor-composer,
+.tutor-signin {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.tutor-composer input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.tutor-composer .btn,
+.tutor-signin .btn {
+  padding: 0.62rem 0.9rem;
+  font-size: 0.88rem;
+}
+
+.tutor-signin p {
+  margin: 0 auto 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.tutor-bubble .katex-display {
+  margin: 0.45rem 0;
+  overflow-x: auto;
 }

@@ -18,6 +18,7 @@ import { CardLangToggle, useCardLang } from './cardLang'
 import { collectVisitDates, detectUserLocation, localDateKey, recordUserPresence, studyStreak } from './userPresence'
 import { applyGamifyEvent, emitXp } from './gamify'
 import { DailyQuestList, GameHud, GamifyProvider, useGamify } from './gameHud'
+import TutorChat from './tutorChat'
 import AdminUsersPage from './AdminUsersPage'
 import {
   SAVED_QUESTIONS_KEY,
@@ -9280,6 +9281,7 @@ function App() {
         <Route path="/editor" element={<ProtectedEditor />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <TutorChat user={user} />
       </GamifyProvider>
     </BrowserRouter>
   )

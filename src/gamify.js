@@ -9,6 +9,7 @@ export const XP = {
   SOLUTION: 8,
   MASTER: 15,
   REVIEW: 10,
+  TUTOR: 5,
 }
 
 export const DAILY_GOAL_XP = 50
@@ -137,6 +138,10 @@ export function applyGamifyEvent(raw, event, today = localDateKey(), progressDoc
     if (kind === 'master' && !gamify.mastered.includes(event.questionId)) {
       gamify.mastered = [...gamify.mastered, event.questionId].slice(-MASTERED_MAX)
     }
+  }
+
+  if (event?.type === 'tutor') {
+    award(`tutor:${today}`, XP.TUTOR, 'Asked Laureate')
   }
 
   return { gamify, gained, label }

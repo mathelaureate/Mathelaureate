@@ -20,6 +20,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const auth = getAuth(app)
+export const firebaseWebApiKey = firebaseConfig.apiKey
 
 function createDb() {
   try {
