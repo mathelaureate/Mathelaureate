@@ -51,46 +51,57 @@ export function Reveal({
 export function CountUp({ value, className = '' }) {
   const ref = useRef(null)
   const [display, setDisplay] = useState(value)
-  const started = useRef(false)
+  const visible = useRef(false)
+  const frame = useRef(0)
 
   useEffect(() => {
-    const node = ref.current
-    if (!node) return undefined
-
     const parsed = String(value).match(/^([0-9,]+)(.*)$/)
     const target = parsed ? Number(parsed[1].replaceAll(',', '')) : NaN
     const suffix = parsed?.[2] || ''
-    if (!Number.isFinite(target)) return undefined
+    if (!Number.isFinite(target)) {
+      setDisplay(value)
+      return undefined
+    }
 
     const run = () => {
-      if (started.current) return
-      started.current = true
       if (prefersReducedMotion()) {
         setDisplay(value)
         return
       }
-      const duration = 1100
+      cancelAnimationFrame(frame.current)
+      const duration = 900
       const start = performance.now()
       const tick = (now) => {
         const t = Math.min(1, (now - start) / duration)
         const eased = 1 - (1 - t) ** 3
         const current = Math.round(target * eased)
         setDisplay(`${current.toLocaleString('en-US')}${suffix}`)
-        if (t < 1) requestAnimationFrame(tick)
+        if (t < 1) frame.current = requestAnimationFrame(tick)
       }
-      requestAnimationFrame(tick)
+      frame.current = requestAnimationFrame(tick)
     }
 
+    if (visible.current) {
+      run()
+      return () => cancelAnimationFrame(frame.current)
+    }
+
+    const node = ref.current
+    if (!node) return undefined
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return
+        visible.current = true
         run()
         observer.disconnect()
       },
-      { threshold: 0.4 },
+      { threshold: 0.2 },
     )
     observer.observe(node)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame.current)
+    }
   }, [value])
 
   return (

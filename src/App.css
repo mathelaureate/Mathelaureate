@@ -4661,6 +4661,25 @@ body {
   font-weight: 750;
 }
 
+.profile-streak {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.profile-streak strong {
+  color: #0f2c4d;
+  font-size: 1.85rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.profile-streak span {
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
 .profile-continue-link {
   display: grid;
   gap: 0.2rem;
@@ -7517,6 +7536,24 @@ select:focus {
   border-radius: 14px;
   padding: 1rem 1.05rem 1.05rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+.users-stat.is-active,
+.users-country-btn.is-active,
+.users-stat.is-active:hover,
+.users-country-btn.is-active:hover {
+  border-color: #0b7a75;
+  box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.12);
+}
+
+.users-stat:hover,
+.users-country-btn:hover {
+  border-color: #cbd5e1;
 }
 
 .users-stat p {
@@ -7559,6 +7596,33 @@ select:focus {
   font-family: var(--font-sans);
 }
 
+.users-chart-axis.is-active {
+  fill: #0b7a75;
+  font-weight: 700;
+}
+
+.users-chart-count {
+  fill: #0f2c4d;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+}
+
+.users-chart-hit {
+  cursor: pointer;
+}
+
+.users-chart-tip {
+  margin: 0.45rem 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.users-chart-tip.is-selected {
+  color: #0b7a75;
+  font-weight: 650;
+}
+
 .users-country-list {
   list-style: none;
   margin: 0.85rem 0 0;
@@ -7568,13 +7632,26 @@ select:focus {
 }
 
 .users-country-list li {
+  display: block;
+}
+
+.users-country-btn {
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.7rem;
   align-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0.15rem 0.2rem;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
-.users-country-list li > div {
+.users-country-btn > div {
   display: grid;
   gap: 0.28rem;
 }

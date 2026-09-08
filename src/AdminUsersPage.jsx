@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { collection, getDocs } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from './firebase'
+import { collectVisitDates, localDateKey } from './userPresence'
 import { normalizeStudyList } from './studentStudy'
 import { CountUp } from './motion'
 
@@ -25,20 +26,22 @@ function dateKey(value) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
   const parsed = new Date(raw)
   if (Number.isNaN(parsed.getTime())) return ''
-  const year = parsed.getFullYear()
-  const month = String(parsed.getMonth() + 1).padStart(2, '0')
-  const day = String(parsed.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return localDateKey(parsed)
 }
 
 function todayKey() {
-  return dateKey(new Date().toISOString())
+  return localDateKey()
 }
 
 function daysAgoKey(days) {
   const date = new Date()
   date.setDate(date.getDate() - days)
-  return dateKey(date.toISOString())
+  return localDateKey(date)
+}
+
+function visitedOn(row, day) {
+  if (!day) return false
+  return row.visitDates.includes(day) || dateKey(row.lastSeenAt) === day
 }
 
 function formatWhen(value) {
@@ -166,11 +169,7 @@ function buildUserRow(progress, payments) {
   const bookmarks = normalizeStudyList(progress?.savedQuestions)
   const mistakes = normalizeStudyList(progress?.wrongQuestions)
   const lastSeenAt = progress?.lastSeenAt || progress?.updatedAt || ''
-  const visitDates = Array.isArray(progress?.recentVisitDates)
-    ? progress.recentVisitDates.map((item) => String(item || '')).filter(Boolean)
-    : lastSeenAt
-      ? [dateKey(lastSeenAt)].filter(Boolean)
-      : []
+  const visitDates = collectVisitDates({ ...progress, lastSeenAt })
   return {
     uid: progress?.uid || progress?.id || '',
     email: String(progress?.email || payments?.email || '').trim(),
@@ -194,10 +193,11 @@ function buildUserRow(progress, payments) {
   }
 }
 
-function DailyUsersChart({ daily, maxDaily }) {
+function DailyUsersChart({ daily, maxDaily, selectedDay, onSelectDay }) {
+  const [hoverDay, setHoverDay] = useState('')
   const width = 640
-  const height = 220
-  const pad = { top: 18, right: 12, bottom: 36, left: 28 }
+  const height = 228
+  const pad = { top: 28, right: 12, bottom: 36, left: 28 }
   const innerW = width - pad.left - pad.right
   const innerH = height - pad.top - pad.bottom
   const points = daily.map(([day, count], index) => {
@@ -209,10 +209,12 @@ function DailyUsersChart({ daily, maxDaily }) {
   const area = points.length
     ? `${line} L${points[points.length - 1].x.toFixed(1)},${(pad.top + innerH).toFixed(1)} L${points[0].x.toFixed(1)},${(pad.top + innerH).toFixed(1)} Z`
     : ''
+  const activeDay = hoverDay || selectedDay
+  const activePoint = points.find((point) => point.day === activeDay)
 
   return (
     <div className="users-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily unique users for the last 14 days">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily unique users for the last 14 days. Click a day to see who visited.">
         <defs>
           <linearGradient id="usersDailyFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#0b7a75" stopOpacity="0.28" />
@@ -232,16 +234,56 @@ function DailyUsersChart({ daily, maxDaily }) {
         })}
         {area ? <path d={area} fill="url(#usersDailyFill)" /> : null}
         {line ? <path d={line} fill="none" stroke="#0b7a75" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /> : null}
-        {points.map((point) => (
-          <g key={point.day}>
-            <circle cx={point.x} cy={point.y} r="3.4" fill="#fff" stroke="#0b7a75" strokeWidth="2" />
-            <text x={point.x} y={height - 10} textAnchor="middle" className="users-chart-axis">
-              {formatDayLabel(point.day).replace(' ', '\u00a0')}
-            </text>
-            <title>{`${formatDayLabel(point.day)}: ${point.count}`}</title>
-          </g>
-        ))}
+        {points.map((point) => {
+          const selected = selectedDay === point.day
+          const hovered = hoverDay === point.day
+          return (
+            <g key={point.day}>
+              {point.count > 0 ? (
+                <text x={point.x} y={point.y - 12} textAnchor="middle" className="users-chart-count">
+                  {point.count}
+                </text>
+              ) : null}
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r={selected || hovered ? 6 : 3.6}
+                fill={selected ? '#0b7a75' : '#fff'}
+                stroke="#0b7a75"
+                strokeWidth="2"
+              />
+              <text x={point.x} y={height - 10} textAnchor="middle" className={`users-chart-axis${selected ? ' is-active' : ''}`}>
+                {formatDayLabel(point.day).replace(' ', '\u00a0')}
+              </text>
+              <rect
+                x={point.x - 18}
+                y={pad.top - 8}
+                width="36"
+                height={innerH + 28}
+                fill="transparent"
+                className="users-chart-hit"
+                role="button"
+                tabIndex="0"
+                aria-label={`${formatDayLabel(point.day)}: ${point.count} students`}
+                onClick={() => onSelectDay(selected ? '' : point.day)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onSelectDay(selected ? '' : point.day)
+                  }
+                }}
+                onMouseEnter={() => setHoverDay(point.day)}
+                onMouseLeave={() => setHoverDay('')}
+              />
+            </g>
+          )
+        })}
       </svg>
+      <p className={`users-chart-tip${selectedDay ? ' is-selected' : ''}`}>
+        {activePoint
+          ? `${formatDayLabel(activePoint.day)} · ${activePoint.count} student${activePoint.count === 1 ? '' : 's'}${selectedDay ? ' · click the day again to clear' : ''}`
+          : 'Click a day to see who visited.'}
+      </p>
     </div>
   )
 }
@@ -256,6 +298,7 @@ export default function AdminUsersPage({ adminEmail }) {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState('')
+  const [insight, setInsight] = useState({ kind: 'all' })
 
   useEffect(() => {
     let active = true
@@ -301,12 +344,20 @@ export default function AdminUsersPage({ adminEmail }) {
   const weekStart = daysAgoKey(6)
 
   const emails = useMemo(() => uniqueEmails(rows), [rows])
+  const selectedDay = insight.kind === 'day' ? insight.day : ''
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    if (!needle) return rows
-    return rows.filter((row) =>
-      [
+    return rows.filter((row) => {
+      if (insight.kind === 'today' && !visitedOn(row, today)) return false
+      if (insight.kind === 'week' && !(row.visitDates.some((day) => day >= weekStart) || dateKey(row.lastSeenAt) >= weekStart)) {
+        return false
+      }
+      if (insight.kind === 'paid' && !row.paidLabels.length) return false
+      if (insight.kind === 'country' && row.countryName !== insight.country) return false
+      if (insight.kind === 'day' && !visitedOn(row, insight.day)) return false
+      if (!needle) return true
+      return [
         row.displayName,
         row.email,
         row.countryName,
@@ -318,9 +369,9 @@ export default function AdminUsersPage({ adminEmail }) {
       ]
         .join(' ')
         .toLowerCase()
-        .includes(needle),
-    )
-  }, [query, rows])
+        .includes(needle)
+    })
+  }, [insight, query, rows, today, weekStart])
 
   const stats = useMemo(() => {
     const countryCounts = new Map()
@@ -334,7 +385,7 @@ export default function AdminUsersPage({ adminEmail }) {
     for (const row of rows) {
       countryCounts.set(row.countryName, (countryCounts.get(row.countryName) || 0) + 1)
       if (row.paidLabels.length) paidCount += 1
-      const seenToday = row.visitDates.includes(today) || dateKey(row.lastSeenAt) === today
+      const seenToday = visitedOn(row, today)
       const seenWeek = row.visitDates.some((day) => day >= weekStart) || dateKey(row.lastSeenAt) >= weekStart
       if (seenToday) todayCount += 1
       if (seenWeek) weekCount += 1
@@ -390,17 +441,20 @@ export default function AdminUsersPage({ adminEmail }) {
 
         <section className="users-stats">
           {[
-            ['Total users', rows.length],
-            ['Active today', stats.todayCount],
-            ['Last 7 days', stats.weekCount],
-            ['Paid users', stats.paidCount],
-          ].map(([label, value]) => (
-            <article className="users-stat" key={label}>
+            ['all', 'Total users', rows.length],
+            ['today', 'Active today', stats.todayCount],
+            ['week', 'Last 7 days', stats.weekCount],
+            ['paid', 'Paid users', stats.paidCount],
+          ].map(([kind, label, value]) => (
+            <button
+              type="button"
+              className={`users-stat${insight.kind === kind ? ' is-active' : ''}`}
+              key={kind}
+              onClick={() => setInsight(insight.kind === kind ? { kind: 'all' } : { kind })}
+            >
               <p>{label}</p>
-              <strong>
-                <CountUp value={String(value)} />
-              </strong>
-            </article>
+              <CountUp value={String(value)} />
+            </button>
           ))}
         </section>
 
@@ -408,14 +462,23 @@ export default function AdminUsersPage({ adminEmail }) {
           <article className="profile-panel">
             <div className="profile-section-head">
               <h2>Daily users</h2>
-              <p>Unique students seen across the last 14 days.</p>
+              <p>Unique students seen across the last 14 days. Click a day to open that list.</p>
             </div>
-            {loading ? <p className="ia-status">Loading chart...</p> : <DailyUsersChart daily={stats.daily} maxDaily={stats.maxDaily} />}
+            {loading ? (
+              <p className="ia-status">Loading chart...</p>
+            ) : (
+              <DailyUsersChart
+                daily={stats.daily}
+                maxDaily={stats.maxDaily}
+                selectedDay={selectedDay}
+                onSelectDay={(day) => setInsight(day ? { kind: 'day', day } : { kind: 'all' })}
+              />
+            )}
           </article>
           <article className="profile-panel">
             <div className="profile-section-head">
               <h2>Location</h2>
-              <p>Country from the last detected visit.</p>
+              <p>Country from the last detected visit. Click to filter.</p>
             </div>
             {loading ? (
               <p className="ia-status">Loading locations...</p>
@@ -428,13 +491,21 @@ export default function AdminUsersPage({ adminEmail }) {
               <ul className="users-country-list">
                 {stats.countries.map(([name, count]) => (
                   <li key={name}>
-                    <div>
-                      <span>{name}</span>
-                      <div className="users-loc-track" aria-hidden="true">
-                        <div className="users-loc-fill" style={{ width: `${Math.max(8, (count / stats.maxCountry) * 100)}%` }} />
+                    <button
+                      type="button"
+                      className={`users-country-btn${insight.kind === 'country' && insight.country === name ? ' is-active' : ''}`}
+                      onClick={() =>
+                        setInsight(insight.kind === 'country' && insight.country === name ? { kind: 'all' } : { kind: 'country', country: name })
+                      }
+                    >
+                      <div>
+                        <span>{name}</span>
+                        <div className="users-loc-track" aria-hidden="true">
+                          <div className="users-loc-fill" style={{ width: `${Math.max(8, (count / stats.maxCountry) * 100)}%` }} />
+                        </div>
                       </div>
-                    </div>
-                    <strong>{count}</strong>
+                      <strong>{count}</strong>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -445,8 +516,24 @@ export default function AdminUsersPage({ adminEmail }) {
         <section className="profile-panel">
           <div className="users-table-head">
             <div className="profile-section-head">
-              <h2>All users</h2>
-              <p>Subunits opened, purchases, bookmarks, and mistakes.</p>
+              <h2>
+                {insight.kind === 'day'
+                  ? `Users on ${formatDayLabel(insight.day)}`
+                  : insight.kind === 'today'
+                    ? 'Active today'
+                    : insight.kind === 'week'
+                      ? 'Last 7 days'
+                      : insight.kind === 'paid'
+                        ? 'Paid users'
+                        : insight.kind === 'country'
+                          ? insight.country
+                          : 'All users'}
+              </h2>
+              <p>
+                {insight.kind === 'all'
+                  ? 'Subunits opened, purchases, bookmarks, and mistakes.'
+                  : `${filtered.length} matching student${filtered.length === 1 ? '' : 's'}. Click the chart, stat, or country again to clear.`}
+              </p>
             </div>
             <div className="users-table-actions">
               <button
@@ -473,7 +560,7 @@ export default function AdminUsersPage({ adminEmail }) {
           ) : filtered.length === 0 ? (
             <div className="ia-empty">
               <h2>No matching users</h2>
-              <p>Try another name, email, or course.</p>
+              <p>{insight.kind === 'all' ? 'Try another name, email, or course.' : 'No students match this filter. Click the chart or stat again to clear.'}</p>
             </div>
           ) : (
             <div className="users-people">

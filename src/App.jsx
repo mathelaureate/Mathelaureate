@@ -15,7 +15,7 @@ import { auth, db } from './firebase'
 import { supabaseConfigured, uploadImageToSupabase, uploadPdfToSupabase } from './supabase'
 import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
-import { detectUserLocation, recordUserPresence } from './userPresence'
+import { collectVisitDates, detectUserLocation, recordUserPresence, studyStreak } from './userPresence'
 import AdminUsersPage from './AdminUsersPage'
 import {
   SAVED_QUESTIONS_KEY,
@@ -2071,6 +2071,22 @@ function ScrollToTop() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     window.scrollTo({ top: 0, left: 0, behavior: reduce ? 'auto' : 'smooth' })
   }, [pathname])
+  return null
+}
+
+function PresenceTracker({ user }) {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    if (!user) return undefined
+    recordUserPresence(user).catch(() => {})
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') recordUserPresence(user).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [user, pathname])
+
   return null
 }
 
@@ -5389,6 +5405,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
   const [suggestionGroups, setSuggestionGroups] = useState([])
+  const [visitDates, setVisitDates] = useState([])
   const [questionBank, setQuestionBank] = useState([])
   const [curricula, setCurricula] = useState([])
   const [isLoadingCourses, setIsLoadingCourses] = useState(true)
@@ -5436,6 +5453,7 @@ function ProfilePage({ user, cachedProfile }) {
         setLastViewedCourse(resolveLastViewedCourse(data))
         setSavedQuestions(normalizeStudyList(data.savedQuestions))
         setWrongQuestions(nextWrong)
+        setVisitDates(collectVisitDates(data))
         setSuggestionGroups(
           suggestSimilarQuestionsByTopic({
             wrongQuestions: nextWrong,
@@ -5450,6 +5468,7 @@ function ProfilePage({ user, cachedProfile }) {
           setLastViewedCourse(null)
           setSavedQuestions([])
           setWrongQuestions([])
+          setVisitDates([])
           setSuggestionGroups([])
         }
       } finally {
@@ -5490,6 +5509,7 @@ function ProfilePage({ user, cachedProfile }) {
     user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || cachedProfile?.email?.[0]?.toUpperCase() || 'S'
   const profileName = user.displayName || cachedProfile?.displayName || user.email?.split('@')[0] || 'Student'
   const continueHref = lastViewedCourse ? courseContinuePath(lastViewedCourse) : '/#programs'
+  const streak = studyStreak(visitDates)
 
   return (
     <main className="site site-full ia-page profile-page">
@@ -5505,7 +5525,10 @@ function ProfilePage({ user, cachedProfile }) {
           <div className="profile-hero-row">
             <div>
               <h1>Study home</h1>
-              <p className="ia-hero-sub">Welcome back, {profileName}.</p>
+              <p className="ia-hero-sub">
+                Welcome back, {profileName}
+                {streak > 0 ? ` · ${streak}-day streak` : ''}.
+              </p>
             </div>
             <div className="profile-account">
               <span className="profile-avatar" aria-hidden="true">
@@ -5524,6 +5547,13 @@ function ProfilePage({ user, cachedProfile }) {
 
       <section className="ia-browse-shell ia-browse-split profile-shell">
         <aside className="ia-filter-rail">
+          <div className="ia-filter-block">
+            <h2>Streak</h2>
+            <p className="profile-streak">
+              <strong>{streak}</strong>
+              <span>{streak === 1 ? 'day in a row' : streak > 0 ? 'days in a row' : 'Study today to start a streak'}</span>
+            </p>
+          </div>
           {lastViewedCourse ? (
             <div className="ia-filter-block">
               <h2>Continue</h2>
@@ -9096,6 +9126,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <PresenceTracker user={user} />
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/programs" element={<ProgramsPage user={user} cachedProfile={cachedProfile} />} />

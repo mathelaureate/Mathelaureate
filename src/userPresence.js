@@ -2,26 +2,81 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
 
 const RECENT_VISIT_MAX = 60
+const PRESENCE_THROTTLE_MS = 5 * 60 * 1000
 let locationCache = null
 let presenceInFlight = null
 
-function todayKey(date = new Date()) {
+export function localDateKey(date = new Date()) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
-function normalizeVisitDates(raw, today) {
+export function shiftDateKey(key, days) {
+  const [year, month, day] = String(key || '').split('-').map(Number)
+  if (!year || !month || !day) return ''
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + days)
+  return localDateKey(date)
+}
+
+export function normalizeVisitDate(value) {
+  const raw = String(value || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return localDateKey(parsed)
+}
+
+export function collectVisitDates(progress) {
   const dates = new Set()
-  if (Array.isArray(raw)) {
-    for (const value of raw) {
-      const key = String(value || '').trim()
-      if (/^\d{4}-\d{2}-\d{2}$/.test(key)) dates.add(key)
-    }
+  const raw = Array.isArray(progress?.recentVisitDates) ? progress.recentVisitDates : []
+  for (const value of raw) {
+    const key = normalizeVisitDate(value)
+    if (key) dates.add(key)
   }
+  const lastSeenDate = normalizeVisitDate(progress?.lastSeenDate || progress?.lastSeenAt || progress?.updatedAt)
+  if (lastSeenDate) dates.add(lastSeenDate)
+  return [...dates].sort()
+}
+
+function normalizeVisitDates(raw, today) {
+  const dates = new Set(collectVisitDates({ recentVisitDates: raw }))
   dates.add(today)
   return [...dates].sort().slice(-RECENT_VISIT_MAX)
+}
+
+export function studyStreak(dates, today = localDateKey()) {
+  const set = new Set((dates || []).map(normalizeVisitDate).filter(Boolean))
+  let cursor = set.has(today) ? today : shiftDateKey(today, -1)
+  if (!set.has(cursor)) return 0
+  let streak = 0
+  while (cursor && set.has(cursor)) {
+    streak += 1
+    cursor = shiftDateKey(cursor, -1)
+  }
+  return streak
+}
+
+function presenceCacheKey(uid) {
+  return `ml-presence-${uid}`
+}
+
+function readPresenceCache(uid) {
+  try {
+    return JSON.parse(localStorage.getItem(presenceCacheKey(uid)) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function writePresenceCache(uid, payload) {
+  try {
+    localStorage.setItem(presenceCacheKey(uid), JSON.stringify(payload))
+  } catch {
+    // Ignore private-mode quota errors.
+  }
 }
 
 export async function detectUserLocation() {
@@ -51,10 +106,16 @@ export async function recordUserPresence(user) {
   if (!user?.uid) return
   if (presenceInFlight) return presenceInFlight
 
+  const today = localDateKey()
+  const now = Date.now()
+  const cached = readPresenceCache(user.uid)
+  if (cached.day === today && now - Number(cached.at || 0) < PRESENCE_THROTTLE_MS) {
+    return
+  }
+
   presenceInFlight = (async () => {
     const location = await detectUserLocation()
     const timestamp = new Date().toISOString()
-    const today = todayKey()
     const ref = doc(db, 'userCourseProgress', user.uid)
     const snap = await getDoc(ref)
     const existing = snap.exists() ? snap.data() || {} : {}
@@ -75,6 +136,7 @@ export async function recordUserPresence(user) {
       },
       { merge: true },
     )
+    writePresenceCache(user.uid, { day: today, at: Date.now() })
   })()
 
   try {
