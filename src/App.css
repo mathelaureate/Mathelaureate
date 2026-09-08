@@ -4072,6 +4072,34 @@ body {
   background: #e8f0f7;
 }
 
+.rail-cta-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.rail-cta-row .rail-cta-btn {
+  flex: 1;
+  width: auto;
+}
+
+.rail-cta .ask-ai-btn {
+  width: 2.85rem;
+  height: auto;
+  min-height: 2.85rem;
+  margin: 0;
+  flex-shrink: 0;
+  background: #fff;
+  border-color: transparent;
+  color: #0b7a75;
+}
+
+.rail-cta .ask-ai-btn:hover {
+  background: #e8f0f7;
+  color: #08615d;
+  transform: none;
+}
+
 .course-loading-line {
   padding: 0.5rem 0.2rem;
 }
@@ -7933,12 +7961,6 @@ select:focus {
 
 .ask-ai-btn:active {
   transform: scale(0.97);
-}
-
-.rail-cta .ask-ai-btn {
-  width: 2.4rem;
-  height: 2.4rem;
-  margin-top: 0.55rem;
 }
 
 .lesson-title-actions {

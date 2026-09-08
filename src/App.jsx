@@ -4447,23 +4447,25 @@ function CoursePage({ user, authReady, cachedProfile }) {
                         </svg>
                         Test Your Understanding
                       </h3>
-                      <p>Try questions from this topic, or tap the sparkle if you are stuck.</p>
-                      <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
-                        Start Practice →
-                      </button>
-                      <AskAiButton
-                        label="Ask about this topic"
-                        onClick={() =>
-                          openTutor(
-                            topicTutorContext({
-                              courseTitle: course.title,
-                              courseSlug: course.slug,
-                              unitName: selectedUnit?.name,
-                              subunit: currentSubunit || selectedUnit?.name,
-                            }),
-                          )
-                        }
-                      />
+                      <p>Try questions from this topic, or tap the sparkle for a hint.</p>
+                      <div className="rail-cta-row">
+                        <button type="button" className="btn rail-cta-btn" onClick={() => setActiveTab('question')}>
+                          Start Practice →
+                        </button>
+                        <AskAiButton
+                          label="Ask about this topic"
+                          onClick={() =>
+                            openTutor(
+                              topicTutorContext({
+                                courseTitle: course.title,
+                                courseSlug: course.slug,
+                                unitName: selectedUnit?.name,
+                                subunit: currentSubunit || selectedUnit?.name,
+                              }),
+                            )
+                          }
+                        />
+                      </div>
                       <Link className="btn ghost rail-cta-btn mock-rail-link" to="/mock-generator">
                         Build a Mock Paper →
                       </Link>
