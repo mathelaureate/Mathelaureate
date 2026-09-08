@@ -185,7 +185,7 @@ export default function TutorChat({ user }) {
   const scrollerRef = useRef(null)
   const inputRef = useRef(null)
   const abortRef = useRef(null)
-  const hidden = /^\/(admin|editor)(\/|$)/.test(location.pathname)
+  const hidden = location.pathname === '/' || /^\/(admin|editor)(\/|$)/.test(location.pathname)
   const page = useMemo(
     () => pageContext(location.pathname, location.search),
     [location.pathname, location.search],
@@ -212,11 +212,11 @@ export default function TutorChat({ user }) {
   }, [open, caption])
 
   useEffect(() => {
-    if (!user) return undefined
+    if (!user || hidden) return undefined
     getTutorToken().catch(() => {})
     fetch(`${apiBase()}/tutor-chat`, { method: 'GET' }).catch(() => {})
     return undefined
-  }, [user])
+  }, [user, hidden])
 
   useEffect(() => {
     function onOpen(event) {

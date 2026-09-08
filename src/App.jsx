@@ -17,6 +17,7 @@ import { CountUp, Marquee, Reveal } from './motion'
 import { CardLangToggle, useCardLang } from './cardLang'
 import { collectVisitDates, detectUserLocation, recordUserPresence, studyStreak } from './userPresence'
 import TutorChat, { SparkleIcon } from './tutorChat'
+import HelpChat from './helpChat'
 import { openTutor, questionTutorContext, topicTutorContext } from './tutor'
 import AdminUsersPage from './AdminUsersPage'
 import {
@@ -9312,6 +9313,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TutorChat user={user} />
+      <HelpChat />
     </BrowserRouter>
   )
 }

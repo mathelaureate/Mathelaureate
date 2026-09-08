@@ -8354,3 +8354,27 @@ select:focus {
   margin: 0.45rem 0;
   overflow-x: auto;
 }
+
+.tutor-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.tutor-links a {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid #b7e0dc;
+  background: #f3fbfa;
+  color: #0b7a75;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tutor-links a:hover {
+  background: #e7f6f4;
+}
