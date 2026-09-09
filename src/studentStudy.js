@@ -262,3 +262,23 @@ export async function toggleStudyQuestion({ user, listKey, entry, currentlySaved
   )
   return next
 }
+
+export async function recordViewedQuestion(user, questionId) {
+  const id = String(questionId || '').trim()
+  if (!user?.uid || !id) return
+  const ref = doc(db, 'userCourseProgress', user.uid)
+  const snap = await getDoc(ref)
+  const data = snap.exists() ? snap.data() : {}
+  const list = Array.isArray(data.viewedQuestions) ? data.viewedQuestions.map(String) : []
+  if (list.includes(id)) return
+  await setDoc(
+    ref,
+    {
+      uid: user.uid,
+      email: user.email || '',
+      viewedQuestions: [...list, id].slice(-400),
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true },
+  )
+}

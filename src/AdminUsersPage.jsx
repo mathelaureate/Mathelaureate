@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
+import { AllotModal, AssignedWorkList } from './allotWork'
+import { assignmentStatus, normalizeAssignmentDoc, saveStudentAssignments } from './assignments'
 import { signOut } from 'firebase/auth'
 import { auth, db } from './firebase'
 import { collectVisitDates, localDateKey } from './userPresence'
@@ -144,6 +146,19 @@ function paidLabels(payments) {
   })
 }
 
+function progressFromRow(row) {
+  const courses = {}
+  for (const course of row.courses || []) {
+    if (course?.slug) courses[course.slug] = course
+  }
+  return {
+    courses,
+    viewedQuestions: row.viewedQuestions || [],
+    savedQuestions: row.bookmarks || [],
+    wrongQuestions: row.mistakes || [],
+  }
+}
+
 function uniqueEmails(rows) {
   return [...new Set(rows.map((row) => String(row.email || '').trim()).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b),
@@ -186,6 +201,7 @@ function buildUserRow(progress, payments) {
     courses,
     bookmarks,
     mistakes,
+    viewedQuestions: Array.isArray(progress?.viewedQuestions) ? progress.viewedQuestions.map(String) : [],
     payments,
     purchases: purchaseItems(payments),
     paidLabels: paidLabels(payments),
@@ -299,6 +315,10 @@ export default function AdminUsersPage({ adminEmail }) {
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState('')
   const [insight, setInsight] = useState({ kind: 'all' })
+  const [curricula, setCurricula] = useState([])
+  const [questions, setQuestions] = useState([])
+  const [assignmentsByUid, setAssignmentsByUid] = useState({})
+  const [allotRow, setAllotRow] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -307,9 +327,12 @@ export default function AdminUsersPage({ adminEmail }) {
       setLoading(true)
       setError('')
       try {
-        const [progressSnap, paymentSnap] = await Promise.all([
+        const [progressSnap, paymentSnap, curriculaSnap, contentSnap, assignSnap] = await Promise.all([
           getDocs(collection(db, 'userCourseProgress')),
           getDocs(collection(db, 'userPayments')),
+          getDoc(doc(db, 'appData', 'curricula')),
+          getDocs(collection(db, 'courseContentItems')),
+          getDocs(collection(db, 'userAssignments')),
         ])
         const paymentsByUid = new Map()
         paymentSnap.forEach((item) => {
@@ -326,7 +349,21 @@ export default function AdminUsersPage({ adminEmail }) {
           )
         })
         next.sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
-        if (active) setRows(next)
+        const assignMap = {}
+        assignSnap.forEach((item) => {
+          assignMap[item.id] = normalizeAssignmentDoc(item.data() || {})
+        })
+        const questionItems = []
+        contentSnap.forEach((item) => {
+          const data = { id: item.id, ...(item.data() || {}) }
+          if (data.itemType === 'question') questionItems.push(data)
+        })
+        if (active) {
+          setRows(next)
+          setCurricula(Array.isArray(curriculaSnap.data()?.courses) ? curriculaSnap.data().courses : [])
+          setQuestions(questionItems)
+          setAssignmentsByUid(assignMap)
+        }
       } catch (loadError) {
         if (active) setError(loadError?.message || 'Unable to load user activity.')
       } finally {
@@ -414,7 +451,7 @@ export default function AdminUsersPage({ adminEmail }) {
           <div className="profile-hero-row">
             <div>
               <h1>User activity</h1>
-              <p className="ia-hero-sub">Monitor sign-ins, course use, location, and purchases.</p>
+              <p className="ia-hero-sub">Monitor sign-ins, allotted work, course use, and purchases.</p>
             </div>
             <div className="profile-account">
               <span className="profile-avatar" aria-hidden="true">
@@ -566,6 +603,10 @@ export default function AdminUsersPage({ adminEmail }) {
             <div className="users-people">
               {filtered.map((row) => {
                 const open = openId === row.uid
+                const assigned = assignmentsByUid[row.uid] || { items: [], notices: [] }
+                const progress = progressFromRow(row)
+                const pending = assigned.items.filter((item) => assignmentStatus(item, progress, today) !== 'done').length
+                const overdue = assigned.items.filter((item) => assignmentStatus(item, progress, today) === 'overdue').length
                 return (
                   <article className={`users-person${open ? ' is-open' : ''}`} key={row.uid}>
                     <button type="button" className="users-person-btn" onClick={() => setOpenId(open ? '' : row.uid)}>
@@ -588,6 +629,15 @@ export default function AdminUsersPage({ adminEmail }) {
                           subunits
                         </span>
                         <span className="meta-chip">{row.paidLabels.length ? 'Paid' : 'Free'}</span>
+                        {assigned.items.length ? (
+                          <span className={`meta-chip${overdue ? ' is-overdue' : pending ? ' is-pending' : ''}`}>
+                            {overdue
+                              ? `${overdue} overdue`
+                              : pending
+                                ? `${pending} not done`
+                                : `${assigned.items.length} allotted · done`}
+                          </span>
+                        ) : null}
                         <small>{formatWhen(row.lastSeenAt)}</small>
                       </span>
                     </button>
@@ -603,6 +653,29 @@ export default function AdminUsersPage({ adminEmail }) {
                         {row.visitDates.length ? (
                           <p className="users-visit-dates">{row.visitDates.map(formatDayLabel).join(' · ')}</p>
                         ) : null}
+                        <div className="users-allot-block">
+                          <div className="users-allot-head">
+                            <h4>Allotted work</h4>
+                            <button type="button" className="btn ghost" onClick={() => setAllotRow(row)}>
+                              Allot topics / questions
+                            </button>
+                          </div>
+                          <AssignedWorkList
+                            items={assigned.items}
+                            progress={progress}
+                            onRemove={async (id) => {
+                              const nextItems = assigned.items.filter((item) => item.id !== id)
+                              const nextDoc = { items: nextItems, notices: assigned.notices }
+                              await saveStudentAssignments({
+                                uid: row.uid,
+                                email: row.email,
+                                displayName: row.displayName,
+                                ...nextDoc,
+                              })
+                              setAssignmentsByUid((current) => ({ ...current, [row.uid]: nextDoc }))
+                            }}
+                          />
+                        </div>
                         <div className="users-detail-stack">
                           <div>
                             <h4>Subunits accessed</h4>
@@ -692,6 +765,16 @@ export default function AdminUsersPage({ adminEmail }) {
           )}
         </section>
       </section>
+      {allotRow ? (
+        <AllotModal
+          row={allotRow}
+          curricula={curricula}
+          questions={questions}
+          existing={assignmentsByUid[allotRow.uid] || { items: [], notices: [] }}
+          onClose={() => setAllotRow(null)}
+          onSaved={(uid, nextDoc) => setAssignmentsByUid((current) => ({ ...current, [uid]: nextDoc }))}
+        />
+      ) : null}
     </main>
   )
 }

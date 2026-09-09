@@ -43,6 +43,12 @@ service cloud.firestore {
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
+    // Work sir allots to a student. Students can read their own; only admin can write.
+    match /userAssignments/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+
     // Default deny for all other documents.
     match /{document=**} {
       allow read, write: if false;

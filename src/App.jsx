@@ -8,7 +8,7 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth'
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, setDoc } from 'firebase/firestore'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { auth, db } from './firebase'
@@ -31,7 +31,10 @@ import {
   suggestSimilarQuestionsByTopic,
   countSimilarSuggestions,
   toggleStudyQuestion,
+  recordViewedQuestion,
 } from './studentStudy'
+import { AssignmentInbox, AssignedWorkList } from './allotWork'
+import { normalizeAssignmentDoc } from './assignments'
 import {
   collectBankImageNames,
   decodeBankHtmlEntities,
@@ -558,12 +561,12 @@ function normalizeIaItems(raw) {
       const unlockPriceRaw = Number(item?.unlockPriceInr)
       return {
         id: item?.id || `ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: String(item?.title || '').trim(),
+      title: String(item?.title || '').trim(),
         course: String(item?.course || '').trim(),
         topic: String(item?.topic || '').trim(),
         summary: String(item?.summary || '').trim(),
-        description: String(item?.description || '').trim(),
-        link: String(item?.link || '').trim(),
+      description: String(item?.description || '').trim(),
+      link: String(item?.link || '').trim(),
         imageUrl: String(item?.imageUrl || '').trim(),
         imagePath: String(item?.imagePath || '').trim(),
         pdfUrl: String(item?.pdfUrl || '').trim(),
@@ -1330,7 +1333,7 @@ function createTextContentBlock(text = '') {
 }
 
 function createImageContentBlock() {
-  return {
+      return {
     id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     type: 'image',
     imageUrl: '',
@@ -2069,11 +2072,11 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
         <Link to="/" className="brand" aria-label="Mathelaureate home">
           <img src="/menu-logo.png" alt="Mathelaureate" className="brand-logo-image" />
         </Link>
-        <nav>
+      <nav>
           <a href="/#home" className={isHome ? 'nav-active' : undefined}>
             Home
           </a>
-          <a href="/#programs">Programs</a>
+        <a href="/#programs">Programs</a>
           <Link to="/ia" className={isIa ? 'nav-active' : undefined}>
             IA
           </Link>
@@ -2083,17 +2086,20 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           <Link to="/teachers-resources" className={isTeachers ? 'nav-active' : undefined}>
             Teachers &amp; Resources
           </Link>
-          <a href="/#contact">Contact</a>
-          {user || cachedProfile ? (
+        <a href="/#contact">Contact</a>
+        {user || cachedProfile ? (
+          <>
+            {user ? <AssignmentInbox user={user} /> : null}
             <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
               {profileLabel}
             </Link>
-          ) : (
-            <button type="button" className="login-btn" onClick={onLoginSignupClick}>
+          </>
+        ) : (
+          <button type="button" className="login-btn" onClick={onLoginSignupClick}>
               Login / Signup
-            </button>
-          )}
-        </nav>
+          </button>
+        )}
+      </nav>
       </div>
     </header>
   )
@@ -2211,7 +2217,7 @@ function HomePage({ user, cachedProfile }) {
                 <>
                   <Link to="/profile" className="btn primary">
                     Continue studying →
-                  </Link>
+          </Link>
                   <a href="#programs" className="btn ghost">
                     Explore Courses
                   </a>
@@ -2288,7 +2294,7 @@ function HomePage({ user, cachedProfile }) {
             <div className="section-head left">
               <p className="eyebrow">Featured Pathways</p>
               <h2>Build mastery topic by topic</h2>
-            </div>
+        </div>
             <div className="pathway-grid">
               <article className="pathway-card">
                 <span className="pathway-num">01</span>
@@ -2310,7 +2316,7 @@ function HomePage({ user, cachedProfile }) {
                 <h3>Statistics &amp; Probability</h3>
                 <p>Data analysis, distributions, and inference basics.</p>
               </article>
-            </div>
+          </div>
           </Reveal>
           <Reveal delay={80}>
             <div className="section-head left">
@@ -2366,8 +2372,8 @@ function HomePage({ user, cachedProfile }) {
 
       <section id="testimonials" className="panel-section testimonials-shell">
         <Reveal className="section-head">
-          <p className="eyebrow testimonials-eyebrow">Student Voices</p>
-          <h2 className="testimonials-title">What Our Students Say</h2>
+        <p className="eyebrow testimonials-eyebrow">Student Voices</p>
+        <h2 className="testimonials-title">What Our Students Say</h2>
         </Reveal>
         <div className="testimonial-grid modern-testimonial-grid">
           <Reveal as="article" className="testimonial-card" delay={0}>
@@ -2422,7 +2428,7 @@ function HomePage({ user, cachedProfile }) {
           <p>Have questions about our programs? Send us a message and we&apos;ll get back to you within 24 hours.</p>
         </Reveal>
         <Reveal delay={80}>
-          <form className="contact-form contact-form-card" onSubmit={onContactSubmit}>
+        <form className="contact-form contact-form-card" onSubmit={onContactSubmit}>
           <div className="contact-grid-two">
             <input
               type="text"
@@ -2481,7 +2487,7 @@ function HomePage({ user, cachedProfile }) {
               Excellence in International Mathematics Education — empowering IB and IGCSE students to achieve their full
               mathematical potential.
             </p>
-          </div>
+        </div>
           <div className="home-footer-column">
             <h4>About</h4>
             <a href="/#home">Our Mission</a>
@@ -2520,10 +2526,10 @@ function ProgramCards({ withLinks = false }) {
         const card = (
           <article className={`program-card icon-${course.icon || 'aa'}`}>
             <span className="program-icon" aria-hidden="true" />
-            <h3>{course.title}</h3>
-            <p>{course.description}</p>
+              <h3>{course.title}</h3>
+              <p>{course.description}</p>
             {withLinks ? <span className="program-link">View Course →</span> : null}
-          </article>
+            </article>
         )
 
         return (
@@ -2658,7 +2664,7 @@ function IaPage({ user, cachedProfile }) {
       setIaError('')
       try {
         const data = await getCachedAppDoc('ia', iaDocRef, (fresh) => {
-          if (!active) return
+        if (!active) return
           setIaItems(filterAaIaItems(normalizeIaItems(fresh?.items)))
           setLoadingIa(false)
         })
@@ -3077,7 +3083,7 @@ function IaDetailPage({ user, cachedProfile }) {
                         Open related resource
                       </a>
                     </div>
-                  ) : null}
+              ) : null}
                 </div>
               )}
             </div>
@@ -3096,7 +3102,7 @@ function IaDetailPage({ user, cachedProfile }) {
                 <p className="muted-text">No PDF uploaded for this IA yet.</p>
               )}
             </div>
-          </article>
+            </article>
         ) : null}
       </section>
     </main>
@@ -3832,8 +3838,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const filteredQuestions = [...(selectedDifficulties.length === 0
     ? questions
     : questions.filter((item) => selectedDifficulties.includes(String(item.difficulty || '').toLowerCase())))].sort((a, b) => {
-    const aRank = difficultyRank[String(a?.difficulty || 'medium').toLowerCase()] || 99
-    const bRank = difficultyRank[String(b?.difficulty || 'medium').toLowerCase()] || 99
+      const aRank = difficultyRank[String(a?.difficulty || 'medium').toLowerCase()] || 99
+      const bRank = difficultyRank[String(b?.difficulty || 'medium').toLowerCase()] || 99
     if (aRank !== bRank) return aRank - bRank
     return sortByStoredOrder(a, b)
   })
@@ -3882,6 +3888,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
         unitName: selectedUnit?.name,
       })
       const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved })
+      recordViewedQuestion(user, item.id).catch(() => {})
       if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
       else setWrongQuestions(next)
     } catch {
@@ -3896,6 +3903,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
       ...item,
       questionNumber: index + 1,
     })
+    if (item?.id) recordViewedQuestion(user, item.id).catch(() => {})
   }
 
   function closeSolution() {
@@ -3927,8 +3935,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
       } catch {
         // User cancel is non-fatal.
       }
-      return
-    }
+        return
+      }
     try {
       await navigator.clipboard.writeText(lessonShareUrl)
       setShareFeedback('Lesson link copied.')
@@ -3946,9 +3954,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
     await startProductPurchase({
       user,
       productType: 'course',
-      courseId: course.curriculumId,
-      courseSlug: course.slug,
-      courseTitle: course.title,
+                courseId: course.curriculumId,
+                courseSlug: course.slug,
+                courseTitle: course.title,
       description: `${course.title} course access`,
       onPaymentsUpdated: (nextPayments) => {
         setUserPayments(nextPayments)
@@ -4080,8 +4088,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
       const el = document.getElementById(`question-${focusQuestionId}`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 80)
+    recordViewedQuestion(user, focusQuestionId).catch(() => {})
     return () => window.clearTimeout(timer)
-  }, [activeTab, focusQuestionId, courseLoading, visibleQuestions.length])
+  }, [activeTab, focusQuestionId, courseLoading, visibleQuestions.length, user])
 
   if (!authReady) {
     return (
@@ -4130,21 +4139,21 @@ function CoursePage({ user, authReady, cachedProfile }) {
               <p className="sidebar-course-label">{course.shortTitle || course.title} · Course</p>
               <h2 className="sidebar-topic-title">{selectedUnit?.name || course.title}</h2>
               <div className="sidebar-nav-list">
-                {units.map((unit) => (
-                  <div className="sidebar-unit" key={unit.id}>
-                    <button
-                      type="button"
-                      className={`sidebar-unit-btn ${selectedUnit?.id === unit.id ? 'active' : ''}`}
-                      onClick={() => {
-                        setSelectedUnitId(unit.id)
-                        setSelectedSubunit(unit.subunits?.[0] || '')
-                      }}
-                    >
-                      <span>{unit.name}</span>
-                      {isUnitLocked(unit.id) ? <small className="lock-badge">Locked</small> : null}
-                    </button>
-                    {selectedUnit?.id === unit.id ? (
-                      <div className="sidebar-subunits">
+              {units.map((unit) => (
+                <div className="sidebar-unit" key={unit.id}>
+                  <button
+                    type="button"
+                    className={`sidebar-unit-btn ${selectedUnit?.id === unit.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedUnitId(unit.id)
+                      setSelectedSubunit(unit.subunits?.[0] || '')
+                    }}
+                  >
+                    <span>{unit.name}</span>
+                    {isUnitLocked(unit.id) ? <small className="lock-badge">Locked</small> : null}
+                  </button>
+                  {selectedUnit?.id === unit.id ? (
+                    <div className="sidebar-subunits">
                         {(unit.subunits || []).map((subtopic) => {
                           const isActive = selectedUnit?.id === unit.id && currentSubunit === subtopic
                           const subunitKey = `${unit.id}::${subtopic}`
@@ -4156,16 +4165,16 @@ function CoursePage({ user, authReady, cachedProfile }) {
                               }`}
                               key={subtopic}
                             >
-                              <button
-                                type="button"
+                        <button
+                          type="button"
                                 className={`sidebar-subunit-btn ${isActive ? 'active' : ''} ${
                                   isVisited && !isActive ? 'done' : ''
-                                }`}
-                                onClick={() => {
-                                  setSelectedUnitId(unit.id)
-                                  setSelectedSubunit(subtopic)
-                                }}
-                              >
+                          }`}
+                          onClick={() => {
+                            setSelectedUnitId(unit.id)
+                            setSelectedSubunit(subtopic)
+                          }}
+                        >
                                 <span className="sidebar-status-dot" aria-hidden="true">
                                   {isVisited && !isActive ? (
                                     <svg viewBox="0 0 24 24" width="12" height="12">
@@ -4185,8 +4194,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                   ) : null}
                                 </span>
                                 <span className="sidebar-subunit-label">{subtopic}</span>
-                                {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
-                              </button>
+                          {isSubunitLocked(unit.id, subtopic) ? <small className="lock-badge">Locked</small> : null}
+                        </button>
                               <button
                                 type="button"
                                 className="sidebar-ai-btn"
@@ -4210,10 +4219,10 @@ function CoursePage({ user, authReady, cachedProfile }) {
                             </div>
                           )
                         })}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
               </div>
               <button
                 type="button"
@@ -4270,30 +4279,30 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 </div>
               </div>
               <div className="lesson-toolbar">
-                <div className="lesson-tabs">
-                  <button
-                    type="button"
-                    className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('lesson')}
-                  >
+              <div className="lesson-tabs">
+                <button
+                  type="button"
+                  className={`lesson-tab ${activeTab === 'lesson' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('lesson')}
+                >
                     <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 5h16M4 12h16M4 19h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
-                    Lesson
-                  </button>
-                  <button
-                    type="button"
-                    className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('question')}
-                  >
+                  Lesson
+                </button>
+                <button
+                  type="button"
+                  className={`lesson-tab ${activeTab === 'question' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('question')}
+                >
                     <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
                       <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
                       <path d="M9.6 9.4a2.5 2.5 0 0 1 4.7.9c0 1.5-2.35 2-2.35 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                       <circle cx="12" cy="17.1" r="1" fill="currentColor" />
                     </svg>
-                    Question Bank
-                  </button>
-                </div>
+                  Question Bank
+                </button>
+              </div>
                 <div className="lesson-toolbar-actions">
                   <div className="lesson-nav-buttons">
                     <button
@@ -4331,9 +4340,9 @@ function CoursePage({ user, authReady, cachedProfile }) {
                   </p>
                   {paymentError ? <p className="error-text">{paymentError}</p> : null}
                   <div className="ia-pay-actions">
-                    <button type="button" className="btn primary" onClick={startCoursePurchase} disabled={paymentBusy || coursePrice <= 0}>
+                  <button type="button" className="btn primary" onClick={startCoursePurchase} disabled={paymentBusy || coursePrice <= 0}>
                       {paymentBusy ? 'Opening checkout...' : 'Unlock this course'}
-                    </button>
+                  </button>
                     <button type="button" className="btn ghost" onClick={startFullSubscriptionPurchase} disabled={paymentBusy}>
                       Full access · ₹{subscriptionPrice}
                     </button>
@@ -4389,7 +4398,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
                           onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                           studyBusy={studyBusyId.endsWith(`:${item.id}`)}
                           isFocused={item.id === focusQuestionId}
-                          onAskAi={(question, questionIndex) =>
+                          onAskAi={(question, questionIndex) => {
+                            recordViewedQuestion(user, question.id).catch(() => {})
                             openTutor(
                               questionTutorContext({
                                 item: question,
@@ -4400,7 +4410,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                                 subunit: currentSubunit,
                               }),
                             )
-                          }
+                          }}
                         />
                       ))
                     )}
@@ -4505,8 +4515,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 >
                   <img src={activeSolutionItem.solutionImageUrl} alt="Solution visual" />
                 </button>
-              </div>
-            ) : null}
+                            </div>
+                          ) : null}
             {activeSolutionItem.solutionVideoLink && toYouTubeEmbedUrl(activeSolutionItem.solutionVideoLink) ? (
               <div className="solution-video-wrap">
                 <h4>Video Solution</h4>
@@ -4558,7 +4568,7 @@ function MockQuestionCard({
     <article className="lesson-card lesson-card-question">
       <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
       <div className="question-card-head">
-        <h3 className="question-number-title">Question {index + 1}</h3>
+                            <h3 className="question-number-title">Question {index + 1}</h3>
         <div className="question-card-tools">
           {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
           <button
@@ -4583,16 +4593,16 @@ function MockQuestionCard({
           </button>
         </div>
       </div>
-      <div className="question-meta-row">
+                            <div className="question-meta-row">
         <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-        <span className="meta-chip">{item.marks || 0} marks</span>
+                              <span className="meta-chip">{item.marks || 0} marks</span>
         {String(item.questionLevel || '').trim() ? (
           <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
         ) : null}
-        <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-          {String(item.difficulty || 'medium')}
-        </span>
-      </div>
+                              <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+                                {String(item.difficulty || 'medium')}
+                              </span>
+                            </div>
       <div className="question-stem">
         {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
           renderBlocks(view.descriptionBlocks, `mock-${item.id}`)
@@ -4600,8 +4610,8 @@ function MockQuestionCard({
           <LatexText value={view.description} className="latex-text" />
         )}
       </div>
-      {item.imageUrl ? (
-        <div className="content-image-block">
+                          {item.imageUrl ? (
+                            <div className="content-image-block">
           <button
             type="button"
             className="image-open-btn"
@@ -4610,17 +4620,17 @@ function MockQuestionCard({
           >
             <img src={item.imageUrl} alt="Question visual" style={getRecordImageStyle(item)} />
           </button>
-        </div>
-      ) : null}
+                            </div>
+                          ) : null}
       <div className="question-study-row">
         {item.solution ||
         item.solutionVideoLink ||
         item.solutionImageUrl ||
         contentBlocksHaveMediaOrText(item.solutionBlocks) ? (
           <button type="button" className="btn ghost text-btn" onClick={() => onOpenSolution?.(view)}>
-            View Solution
-          </button>
-        ) : null}
+                              View Solution
+                            </button>
+                          ) : null}
       </div>
     </article>
   )
@@ -4888,6 +4898,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         unitName: unit?.name,
       })
       const next = await toggleStudyQuestion({ user, listKey, entry, currentlySaved })
+      recordViewedQuestion(user, item.id).catch(() => {})
       if (listKey === SAVED_QUESTIONS_KEY) setSavedQuestions(next)
       else setWrongQuestions(next)
     } catch {
@@ -4951,7 +4962,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
             >
               ← Edit setup
             </button>
-          ) : null}
+                          ) : null}
         </div>
 
         {loading ? <p>Loading question bank...</p> : null}
@@ -5001,8 +5012,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                       </button>
                     ))}
                   </div>
-                </div>
-              ) : null}
+                            </div>
+                          ) : null}
 
               <div className="mock-unit-list">
                 {units.length === 0 ? (
@@ -5030,8 +5041,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                       </label>
                     )
                   })
-                )}
-              </div>
+                    )}
+                  </div>
               <div className="mock-unit-actions">
                 <button
                   type="button"
@@ -5198,13 +5209,15 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         onOpenImage={setExpandedImageUrl}
                         onOpenSolution={(view) => {
                           setActiveSolutionItem({ ...view, questionNumber: index + 1 })
+                          if (view?.id) recordViewedQuestion(user, view.id).catch(() => {})
                         }}
                         isBookmarked={savedQuestions.some((entry) => entry.questionId === item.id)}
                         isWrong={wrongQuestions.some((entry) => entry.questionId === item.id)}
                         onToggleBookmark={(question) => handleToggleStudy(SAVED_QUESTIONS_KEY, question)}
                         onToggleWrong={(question) => handleToggleStudy(WRONG_QUESTIONS_KEY, question)}
                         studyBusy={studyBusyId.endsWith(`:${item.id}`)}
-                        onAskAi={(question, questionIndex) =>
+                        onAskAi={(question, questionIndex) => {
+                          recordViewedQuestion(user, question.id).catch(() => {})
                           openTutor(
                             questionTutorContext({
                               item: question,
@@ -5215,12 +5228,12 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                               subunit: question.subunit,
                             }),
                           )
-                        }
+                        }}
                       />
                     ))}
-                  </>
-                )}
-              </section>
+                </>
+              )}
+            </section>
             ) : null}
           </div>
         ) : null}
@@ -5237,9 +5250,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
             </div>
             <h4 className="question-number-title">Question {activeSolutionItem.questionNumber || ''}</h4>
             {activeSolutionItem.solution && !contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks) ? (
-              <div className="solution-box">
-                <LatexText value={activeSolutionItem.solution} className="latex-text" />
-              </div>
+            <div className="solution-box">
+              <LatexText value={activeSolutionItem.solution} className="latex-text" />
+            </div>
             ) : null}
             {contentBlocksHaveMediaOrText(activeSolutionItem.solutionBlocks)
               ? renderMockContentBlocks(activeSolutionItem.solutionBlocks, `mock-sol-${activeSolutionItem.id}`)
@@ -5564,6 +5577,7 @@ function SimilarPracticeSection({ groups, empty = false, embedded = false, quest
 }
 
 function ProfilePage({ user, cachedProfile }) {
+  const location = useLocation()
   const [myCourses, setMyCourses] = useState([])
   const [lastViewedCourse, setLastViewedCourse] = useState(null)
   const [savedQuestions, setSavedQuestions] = useState([])
@@ -5576,6 +5590,8 @@ function ProfilePage({ user, cachedProfile }) {
   const [studyBusyId, setStudyBusyId] = useState('')
   const [studyTab, setStudyTab] = useState('bookmarks')
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const [allotted, setAllotted] = useState({ items: [], notices: [] })
+  const [allotProgress, setAllotProgress] = useState({})
   const questionById = useMemo(() => {
     const map = new Map()
     for (const item of questionBank) {
@@ -5647,6 +5663,28 @@ function ProfilePage({ user, cachedProfile }) {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!user?.uid) return undefined
+    const unsubAssign = onSnapshot(doc(db, 'userAssignments', user.uid), (snap) => {
+      setAllotted(normalizeAssignmentDoc(snap.exists() ? snap.data() : {}))
+    })
+    const unsubProgress = onSnapshot(doc(db, 'userCourseProgress', user.uid), (snap) => {
+      setAllotProgress(snap.exists() ? snap.data() || {} : {})
+    })
+    return () => {
+      unsubAssign()
+      unsubProgress()
+    }
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (location.hash !== '#allotted') return undefined
+    const timer = window.setTimeout(() => {
+      document.getElementById('allotted')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [location.hash, allotted.items.length, isLoadingCourses])
+
   async function removeStudyQuestion(listKey, entry) {
     if (!user || !entry?.questionId) return
     setStudyBusyId(entry.questionId)
@@ -5687,13 +5725,13 @@ function ProfilePage({ user, cachedProfile }) {
             <span>Study home</span>
           </p>
           <div className="profile-hero-row">
-            <div>
+          <div>
               <h1>Study home</h1>
               <p className="ia-hero-sub">
                 Welcome back, {profileName}
                 {streak > 0 ? ` · ${streak}-day streak` : ''}.
               </p>
-            </div>
+          </div>
             <div className="profile-account">
               <span className="profile-avatar" aria-hidden="true">
                 {profileInitial}
@@ -5702,7 +5740,7 @@ function ProfilePage({ user, cachedProfile }) {
                 <p className="profile-email">{user.email}</p>
                 <button type="button" className="ia-clear-inline" onClick={() => signOut(auth)}>
                   Log out
-                </button>
+        </button>
               </div>
             </div>
           </div>
@@ -5730,6 +5768,10 @@ function ProfilePage({ user, cachedProfile }) {
               <Link className="ia-pill" to="/#programs">
                 Programs
               </Link>
+              <a className="ia-pill" href="#allotted">
+                Allotted work
+                {allotted.items.length ? <span>{allotted.items.length}</span> : null}
+              </a>
               <Link className="ia-pill" to="/mock-generator">
                 Mock Generator
               </Link>
@@ -5749,9 +5791,9 @@ function ProfilePage({ user, cachedProfile }) {
               <h2>My courses</h2>
               <p>Pick up where you left off across your active pathways.</p>
             </div>
-            {isLoadingCourses ? (
+        {isLoadingCourses ? (
               <p className="ia-status">Loading your courses...</p>
-            ) : myCourses.length === 0 ? (
+        ) : myCourses.length === 0 ? (
               <div className="ia-empty">
                 <h2>No courses yet</h2>
                 <p>Browse the catalog and start a pathway to see it here.</p>
@@ -5761,7 +5803,7 @@ function ProfilePage({ user, cachedProfile }) {
               </div>
             ) : (
               <div className="profile-course-grid">
-                {myCourses.map((courseEntry) => (
+            {myCourses.map((courseEntry) => (
                   <Link
                     className="profile-course-card"
                     key={`${courseEntry.slug}-${courseEntry.updatedAt || ''}`}
@@ -5770,19 +5812,27 @@ function ProfilePage({ user, cachedProfile }) {
                     <span className="profile-course-kicker">
                       {courseEntry.visitedSubunitsCount || 0} subunits covered
                     </span>
-                    <h3>{courseEntry.title || courseEntry.slug}</h3>
+                <h3>{courseEntry.title || courseEntry.slug}</h3>
                     <span className="profile-course-go">Continue</span>
-                  </Link>
-                ))}
-              </div>
-            )}
+                </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+          <section className="profile-panel" id="allotted">
+            <div className="profile-section-head">
+              <h2>Allotted work</h2>
+              <p>Topics and questions sir has given you. Open a topic or question so it counts as done.</p>
+            </div>
+            <AssignedWorkList items={allotted.items} progress={allotProgress} />
           </section>
 
           <section className="profile-panel">
             <div className="profile-section-head">
               <h2>Saved questions</h2>
               <p>Bookmarks, mistakes, and similar practice from the question bank.</p>
-            </div>
+        </div>
             <div className="profile-tabs" role="tablist" aria-label="Saved questions">
               <button
                 type="button"
@@ -5859,7 +5909,7 @@ function ProfilePage({ user, cachedProfile }) {
                 />
               )
             ) : null}
-          </section>
+      </section>
         </div>
       </section>
       {expandedImageUrl ? (
@@ -8040,9 +8090,9 @@ function AdminPage({ mode = 'admin' }) {
               User activity
             </Link>
           )}
-          <Link className="btn ghost" to="/">
-            Back to Website
-          </Link>
+        <Link className="btn ghost" to="/">
+          Back to Website
+        </Link>
         </div>
       </header>
       {isDataLoading && <p>Loading course data...</p>}
@@ -8180,7 +8230,7 @@ function AdminPage({ mode = 'admin' }) {
             </li>
               ))}
           </ul>
-          </div>
+        </div>
           </>
           ) : (
             null
@@ -8389,7 +8439,7 @@ function AdminPage({ mode = 'admin' }) {
               <div className="paywall-actions">
                 <button className="btn primary" type="submit" disabled={isIaSaving}>
                   {isIaSaving ? 'Saving IA...' : editingIaId ? 'Save IA Changes' : 'Add IA'}
-                </button>
+              </button>
                 {editingIaId ? (
                   <button className="btn ghost" type="button" onClick={cancelEditIaItem} disabled={isIaSaving}>
                     Cancel Edit
@@ -8410,8 +8460,8 @@ function AdminPage({ mode = 'admin' }) {
                           Edit
                         </button>
                         <button type="button" onClick={() => removeIaItem(item.id)}>
-                          Delete
-                        </button>
+                        Delete
+                      </button>
                       </div>
                     </div>
                     <h3>{item.title}</h3>
@@ -8812,7 +8862,7 @@ function AdminPage({ mode = 'admin' }) {
               </button>
             </div>
             {bulkQuestionSource === 'file' ? (
-              <label>
+            <label>
                 Question bank file
                 <input
                   ref={bulkQuestionFileInputRef}
@@ -8824,14 +8874,14 @@ function AdminPage({ mode = 'admin' }) {
             ) : (
               <label>
                 Paste question bank
-                <textarea
+              <textarea
                   className="bulk-paste-box"
-                  rows={12}
+                rows={12}
                   value={bulkQuestionPaste}
                   onChange={onBulkQuestionPasteChange}
                   placeholder="Paste the ChatGPT question bank here. Same format as the PDF: Question 1, Course, Level, Difficulty, GDC, Maximum Mark, then the question and Solution. Put <img>filename.png</img> where a picture should appear. Put <geogebra>https://www.geogebra.org/m/abc123</geogebra> or geogebra[iframe]abc123 for an applet."
-                />
-              </label>
+              />
+            </label>
             )}
             {bulkQuestionSource === 'file' && bulkQuestionFile ? <small>{bulkQuestionFile.name}</small> : null}
             <BulkImageAttach
@@ -9002,10 +9052,10 @@ function AdminPage({ mode = 'admin' }) {
                           <button type="button" onClick={() => beginEditRecord(record)}>
                             Edit
                           </button>
-                          <button type="button" onClick={() => removeRecord(record.id)}>
-                            Delete
-                          </button>
-                        </div>
+                        <button type="button" onClick={() => removeRecord(record.id)}>
+                          Delete
+                        </button>
+                      </div>
                         ) : null}
                       </div>
                       {record.itemType === 'question' ? (
