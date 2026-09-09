@@ -1,19 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
-import { questionPreviewText } from './studentStudy'
 import {
   COURSE_OPTIONS,
   assignmentHref,
   assignmentLabel,
   assignmentStatus,
-  buildQuestionAssignment,
   buildTopicAssignment,
   existingAssignmentKeys,
   markNoticesRead,
   normalizeAssignmentDoc,
-  questionAssignmentKey,
   saveStudentAssignments,
   topicAssignmentKey,
   unreadNotices,
@@ -34,28 +31,25 @@ function formatDue(dueAt) {
 function statusCopy(status) {
   if (status === 'done') return 'Done'
   if (status === 'overdue') return 'Overdue'
-  return 'To do'
+  return 'Due'
 }
 
 function itemMeta(item) {
-  return [item.courseTitle || item.courseSlug, item.dueAt ? `due ${formatDue(item.dueAt)}` : '']
+  return [item.courseTitle || item.courseSlug, item.dueAt ? `Due ${formatDue(item.dueAt)}` : '']
     .filter(Boolean)
     .join(' · ')
 }
 
-export function AllotModal({ row, curricula, questions, existing, onClose, onSaved }) {
+export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
   const [courseSlug, setCourseSlug] = useState(COURSE_OPTIONS[0].slug)
-  const [tab, setTab] = useState('topics')
   const [selected, setSelected] = useState(() => new Set())
   const [dueAt, setDueAt] = useState('')
-  const [query, setQuery] = useState('')
   const [openUnit, setOpenUnit] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setSelected(new Set())
-    setQuery('')
     setOpenUnit('')
   }, [courseSlug])
 
@@ -63,26 +57,6 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
   const curriculum = curricula.find((item) => item.id === course.curriculumId) || null
   const units = curriculum?.units || []
   const existingKeys = existingAssignmentKeys(existing?.items)
-  const courseQuestions = useMemo(
-    () => questions.filter((item) => item.itemType === 'question' && item.curriculumId === course.curriculumId),
-    [questions, course.curriculumId],
-  )
-  const filteredQuestions = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return courseQuestions.filter((item) => {
-      if (!needle) return true
-      return [item.subunit, item.unitId, questionPreviewText(item), item.id].join(' ').toLowerCase().includes(needle)
-    })
-  }, [courseQuestions, query])
-  const questionGroups = useMemo(() => {
-    const groups = new Map()
-    for (const item of filteredQuestions.slice(0, 80)) {
-      const key = item.subunit || 'Other'
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key).push(item)
-    }
-    return [...groups.entries()]
-  }, [filteredQuestions])
 
   function toggle(key) {
     setSelected((current) => {
@@ -116,7 +90,7 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
 
   async function save() {
     if (!selected.size) {
-      setError('Pick at least one topic or question.')
+      setError('Pick at least one topic.')
       return
     }
     setBusy(true)
@@ -130,29 +104,16 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
           added.push(buildTopicAssignment({ course, unit, subunit, dueAt }))
         }
       }
-      for (const item of courseQuestions) {
-        const key = questionAssignmentKey(item.id)
-        if (!selected.has(key) || existingKeys.has(key)) continue
-        added.push(buildQuestionAssignment({ course, item, dueAt }))
-      }
       if (!added.length) {
-        setError('Those items are already allotted.')
+        setError('Those topics are already assigned.')
         setBusy(false)
         return
       }
-      const topics = added.filter((item) => item.type === 'topic').length
-      const qs = added.filter((item) => item.type === 'question').length
-      const summary = [
-        topics ? `${topics} topic${topics === 1 ? '' : 's'}` : '',
-        qs ? `${qs} question${qs === 1 ? '' : 's'}` : '',
-      ]
-        .filter(Boolean)
-        .join(' and ')
       const notice = {
         id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notice-${Date.now()}`,
-        title: 'New work from sir',
-        body: `${summary} in ${course.title}${dueAt ? ` · due ${formatDue(dueAt)}` : ''}`,
-        href: added.length === 1 ? assignmentHref(added[0]) : '/profile#allotted',
+        title: 'New homework',
+        body: `${added.length} topic${added.length === 1 ? '' : 's'} in ${course.title}${dueAt ? ` · due ${formatDue(dueAt)}` : ''} · 10-question test`,
+        href: added.length === 1 ? assignmentHref(added[0]) : '/profile#homework',
         createdAt: new Date().toISOString(),
       }
       const nextDoc = {
@@ -168,7 +129,7 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
       onSaved?.(row.uid, nextDoc)
       onClose()
     } catch (saveError) {
-      setError(saveError?.message || 'Unable to allot work.')
+      setError(saveError?.message || 'Unable to assign homework.')
     } finally {
       setBusy(false)
     }
@@ -179,13 +140,14 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
       <article className="allot-modal" onClick={(event) => event.stopPropagation()}>
         <header className="allot-modal-head">
           <div>
-            <p className="eyebrow">Allot work</p>
+            <p className="eyebrow">Assign homework</p>
             <h3>{row.displayName || row.email || 'Student'}</h3>
           </div>
           <button type="button" className="icon-back-btn" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>
+        <p className="allot-lead">Each topic opens as a 10-question test: 2 easy, 4 medium, 4 hard.</p>
         <div className="allot-toolbar">
           <label>
             Course
@@ -202,95 +164,51 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
             <input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
           </label>
         </div>
-        <div className="allot-tabs" role="tablist">
-          <button type="button" className={`allot-tab${tab === 'topics' ? ' is-active' : ''}`} onClick={() => setTab('topics')}>
-            Topics
-          </button>
-          <button
-            type="button"
-            className={`allot-tab${tab === 'questions' ? ' is-active' : ''}`}
-            onClick={() => setTab('questions')}
-          >
-            Questions
-          </button>
-        </div>
-        {tab === 'topics' ? (
-          <div className="allot-list">
-            {units.length === 0 ? (
-              <p className="allot-empty">No topics loaded for this course.</p>
-            ) : (
-              units.map((unit) => {
-                const counts = unitCounts(unit)
-                const expanded = openUnit === unit.id
-                return (
-                  <div className={`allot-unit${expanded ? ' is-open' : ''}`} key={unit.id}>
-                    <div className="allot-unit-row">
-                      <button type="button" className="allot-unit-btn" onClick={() => setOpenUnit(expanded ? '' : unit.id)}>
-                        <span>{expanded ? '▾' : '▸'}</span>
-                        <strong>{unit.name}</strong>
-                        <small>
-                          {counts.picked ? `${counts.picked} selected · ` : ''}
-                          {counts.already ? `${counts.already} allotted · ` : ''}
-                          {counts.total} topics
-                        </small>
-                      </button>
-                      <button type="button" className="allot-unit-all" onClick={() => toggleUnit(unit)}>
-                        {counts.picked + counts.already === counts.total ? 'Clear' : 'All'}
-                      </button>
-                    </div>
-                    {expanded
-                      ? (unit.subunits || []).map((subunit) => {
-                          const key = topicAssignmentKey(course.slug, unit.id, subunit)
-                          const already = existingKeys.has(key)
-                          return (
-                            <label key={key} className={`allot-check${already ? ' is-done' : ''}`}>
-                              <input
-                                type="checkbox"
-                                checked={already || selected.has(key)}
-                                disabled={already}
-                                onChange={() => toggle(key)}
-                              />
-                              <span>{subunit}</span>
-                            </label>
-                          )
-                        })
-                      : null}
-                  </div>
-                )
-              })
-            )}
-          </div>
-        ) : (
-          <div className="allot-list">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search questions" />
-            {questionGroups.length === 0 ? (
-              <p className="allot-empty">No questions match.</p>
-            ) : (
-              questionGroups.map(([subunit, items]) => (
-                <div className="allot-unit is-open" key={subunit}>
+        <div className="allot-list">
+          {units.length === 0 ? (
+            <p className="allot-empty">No topics loaded for this course.</p>
+          ) : (
+            units.map((unit) => {
+              const counts = unitCounts(unit)
+              const expanded = openUnit === unit.id
+              return (
+                <div className={`allot-unit${expanded ? ' is-open' : ''}`} key={unit.id}>
                   <div className="allot-unit-row">
-                    <p className="allot-group-label">{subunit}</p>
+                    <button type="button" className="allot-unit-btn" onClick={() => setOpenUnit(expanded ? '' : unit.id)}>
+                      <span>{expanded ? '▾' : '▸'}</span>
+                      <strong>{unit.name}</strong>
+                      <small>
+                        {counts.picked ? `${counts.picked} selected · ` : ''}
+                        {counts.already ? `${counts.already} assigned · ` : ''}
+                        {counts.total} topics
+                      </small>
+                    </button>
+                    <button type="button" className="allot-unit-all" onClick={() => toggleUnit(unit)}>
+                      {counts.picked + counts.already === counts.total ? 'Clear' : 'All'}
+                    </button>
                   </div>
-                  {items.map((item) => {
-                    const key = questionAssignmentKey(item.id)
-                    const already = existingKeys.has(key)
-                    return (
-                      <label key={item.id} className={`allot-check${already ? ' is-done' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={already || selected.has(key)}
-                          disabled={already}
-                          onChange={() => toggle(key)}
-                        />
-                        <span>{questionPreviewText(item)}</span>
-                      </label>
-                    )
-                  })}
+                  {expanded
+                    ? (unit.subunits || []).map((subunit) => {
+                        const key = topicAssignmentKey(course.slug, unit.id, subunit)
+                        const already = existingKeys.has(key)
+                        return (
+                          <label key={key} className={`allot-check${already ? ' is-done' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={already || selected.has(key)}
+                              disabled={already}
+                              onChange={() => toggle(key)}
+                            />
+                            <span>{subunit}</span>
+                          </label>
+                        )
+                      })
+                    : null}
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              )
+            })
+          )}
+        </div>
         {error ? <p className="error-text">{error}</p> : null}
         <div className="allot-actions">
           <span>{selected.size ? `${selected.size} selected` : 'Nothing selected'}</span>
@@ -298,7 +216,7 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
             Cancel
           </button>
           <button type="button" className="btn primary" onClick={save} disabled={busy || selected.size === 0}>
-            {busy ? 'Allotting…' : 'Allot'}
+            {busy ? 'Assigning…' : 'Assign'}
           </button>
         </div>
       </article>
@@ -306,14 +224,23 @@ export function AllotModal({ row, curricula, questions, existing, onClose, onSav
   )
 }
 
-function AssignmentRow({ item, status, onRemove }) {
+function AssignmentRow({ item, status, onRemove, linked }) {
+  const body = (
+    <>
+      <span className="allot-task-kind">Homework</span>
+      <strong>{assignmentLabel(item)}</strong>
+      <small>{itemMeta(item)}</small>
+    </>
+  )
   return (
     <li className={`allot-task is-${status}`}>
-      <Link className="allot-task-link" to={assignmentHref(item)}>
-        <span className="allot-task-kind">{item.type === 'question' ? 'Question' : 'Topic'}</span>
-        <strong>{assignmentLabel(item)}</strong>
-        <small>{itemMeta(item)}</small>
-      </Link>
+      {linked ? (
+        <Link className="allot-task-link" to={assignmentHref(item)}>
+          {body}
+        </Link>
+      ) : (
+        <div className="allot-task-link">{body}</div>
+      )}
       <div className="allot-task-side">
         <span className={`allot-pill is-${status}`}>{statusCopy(status)}</span>
         {onRemove ? (
@@ -326,9 +253,9 @@ function AssignmentRow({ item, status, onRemove }) {
   )
 }
 
-export function AssignedWorkList({ items, progress, onRemove }) {
+export function AssignedWorkList({ items, progress, onRemove, linked = true }) {
   const today = todayKey()
-  if (!items?.length) return <p className="allot-empty">Nothing allotted yet.</p>
+  if (!items?.length) return <p className="allot-empty">No homework assigned.</p>
   const ranked = items.map((item) => ({ item, status: assignmentStatus(item, progress, today) }))
   const pending = ranked.filter((entry) => entry.status !== 'done')
   const done = ranked.filter((entry) => entry.status === 'done')
@@ -337,7 +264,7 @@ export function AssignedWorkList({ items, progress, onRemove }) {
       {pending.length ? (
         <ul className="allot-status-list">
           {pending.map(({ item, status }) => (
-            <AssignmentRow key={item.id} item={item} status={status} onRemove={onRemove} />
+            <AssignmentRow key={item.id} item={item} status={status} onRemove={onRemove} linked={linked} />
           ))}
         </ul>
       ) : (
@@ -345,10 +272,10 @@ export function AssignedWorkList({ items, progress, onRemove }) {
       )}
       {done.length ? (
         <details className="allot-done-fold">
-          <summary>Done · {done.length}</summary>
+          <summary>Completed · {done.length}</summary>
           <ul className="allot-status-list">
             {done.map(({ item, status }) => (
-              <AssignmentRow key={item.id} item={item} status={status} onRemove={onRemove} />
+              <AssignmentRow key={item.id} item={item} status={status} onRemove={onRemove} linked={linked} />
             ))}
           </ul>
         </details>
@@ -409,7 +336,7 @@ export function AssignmentInbox({ user }) {
       unread.map((notice) => notice.id),
     ).catch(() => {})
     setOpen(false)
-    navigate('/profile#allotted')
+    navigate('/profile#homework')
   }
 
   return (
@@ -418,7 +345,7 @@ export function AssignmentInbox({ user }) {
         type="button"
         className={`notice-bell${unread.length ? ' has-unread' : ''}`}
         onClick={() => setOpen((value) => !value)}
-        aria-label={unread.length ? `${unread.length} new assignments` : 'Assignments'}
+        aria-label={unread.length ? `${unread.length} homework items due` : 'Homework'}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path
@@ -434,9 +361,9 @@ export function AssignmentInbox({ user }) {
       </button>
       {open ? (
         <div className="notice-panel">
-          <p>{pending.length ? `${pending.length} to do` : 'From sir'}</p>
+          <p>{pending.length ? `${pending.length} due` : 'Homework'}</p>
           {preview.length === 0 ? (
-            <small>No allotted work waiting.</small>
+            <small>Nothing due.</small>
           ) : (
             preview.map((item) => (
               <button type="button" className="notice-item" key={item.id} onClick={() => openItem(item)}>
@@ -446,7 +373,7 @@ export function AssignmentInbox({ user }) {
             ))
           )}
           <button type="button" className="notice-all" onClick={viewAll}>
-            Open allotted work
+            Open homework
           </button>
         </div>
       ) : null}

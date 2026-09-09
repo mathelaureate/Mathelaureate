@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { questionPreviewText, questionStudyPath } from './studentStudy'
+import { questionPreviewText } from './studentStudy'
 
 export const COURSE_OPTIONS = [
   { slug: 'ibdp-aa', title: 'IBDP Mathematics AA', curriculumId: 'ibdp-aa-hl' },
@@ -20,23 +20,98 @@ export function questionAssignmentKey(questionId) {
   return `question:${questionId}`
 }
 
+export const HOMEWORK_MIX = { easy: 2, medium: 4, hard: 4 }
+
 export function assignmentHref(item) {
-  if (item?.type === 'question') {
-    return (
-      questionStudyPath({
-        courseSlug: item.courseSlug,
-        unitId: item.unitId,
-        subunit: item.subunit,
-        questionId: item.questionId,
-      }) || `/courses/${item.courseSlug || 'ibdp-aa'}`
-    )
+  if (item?.id) return `/homework/${item.id}`
+  return '/profile#homework'
+}
+
+function shuffleList(items) {
+  const arr = [...(items || [])]
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
   }
-  if (!item?.courseSlug) return '/#programs'
-  const params = new URLSearchParams()
-  if (item.unitId) params.set('unit', item.unitId)
-  if (item.subunit) params.set('subunit', item.subunit)
-  params.set('tab', 'lesson')
-  return `/courses/${item.courseSlug}?${params.toString()}`
+  return arr
+}
+
+export function normalizeHomeworkDifficulty(value) {
+  const difficulty = String(value || 'medium').trim().toLowerCase()
+  if (difficulty === 'easy' || difficulty === 'hard') return difficulty
+  return 'medium'
+}
+
+export function questionsForTopic(bank, assignment) {
+  const curriculumId = String(assignment?.curriculumId || '').trim()
+  const unitId = String(assignment?.unitId || '').trim()
+  const subunit = String(assignment?.subunit || '').trim()
+  return (bank || []).filter((item) => {
+    if (item?.itemType !== 'question' || !item?.id) return false
+    if (curriculumId && String(item.curriculumId || '').trim() !== curriculumId) return false
+    if (unitId && String(item.unitId || '').trim() && String(item.unitId || '').trim() !== unitId) return false
+    if (subunit && String(item.subunit || '').trim() !== subunit) return false
+    return true
+  })
+}
+
+export function pickHomeworkQuestions(pool) {
+  const byDifficulty = { easy: [], medium: [], hard: [] }
+  for (const item of pool || []) {
+    byDifficulty[normalizeHomeworkDifficulty(item.difficulty)].push(item)
+  }
+  const take = (list, count) => shuffleList(list).slice(0, count)
+  let picked = [
+    ...take(byDifficulty.easy, HOMEWORK_MIX.easy),
+    ...take(byDifficulty.medium, HOMEWORK_MIX.medium),
+    ...take(byDifficulty.hard, HOMEWORK_MIX.hard),
+  ]
+  const used = new Set(picked.map((item) => item.id))
+  const need = HOMEWORK_MIX.easy + HOMEWORK_MIX.medium + HOMEWORK_MIX.hard - picked.length
+  if (need > 0) {
+    picked = [...picked, ...shuffleList((pool || []).filter((item) => !used.has(item.id))).slice(0, need)]
+  }
+  const order = { easy: 0, medium: 1, hard: 2 }
+  return picked.sort(
+    (a, b) => order[normalizeHomeworkDifficulty(a.difficulty)] - order[normalizeHomeworkDifficulty(b.difficulty)],
+  )
+}
+
+export function normalizeHomeworkSession(raw) {
+  const questionIds = Array.isArray(raw?.questionIds) ? raw.questionIds.map(String).filter(Boolean) : []
+  const solvedCount = Math.min(questionIds.length, Math.max(0, Number(raw?.solvedCount) || 0))
+  return {
+    questionIds,
+    solvedCount,
+    completedAt: String(raw?.completedAt || '').trim(),
+  }
+}
+
+export function homeworkSessionsMap(progress) {
+  const raw = progress?.homeworkSessions && typeof progress.homeworkSessions === 'object' ? progress.homeworkSessions : {}
+  const next = {}
+  for (const [id, session] of Object.entries(raw)) {
+    if (id) next[id] = normalizeHomeworkSession(session)
+  }
+  return next
+}
+
+export async function saveHomeworkSession(user, assignmentId, session) {
+  if (!user?.uid || !assignmentId) return
+  const ref = doc(db, 'userCourseProgress', user.uid)
+  const snap = await getDoc(ref)
+  const data = snap.exists() ? snap.data() : {}
+  const current = homeworkSessionsMap(data)
+  await setDoc(
+    ref,
+    {
+      uid: user.uid,
+      email: user.email || '',
+      homeworkSessions: { ...current, [assignmentId]: normalizeHomeworkSession(session) },
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true },
+  )
 }
 
 export function assignmentLabel(item) {
@@ -71,9 +146,9 @@ export function normalizeAssignment(raw) {
 export function normalizeNotice(raw) {
   return {
     id: String(raw?.id || '').trim(),
-    title: String(raw?.title || 'New work from sir').trim(),
+    title: String(raw?.title || 'New homework').trim(),
     body: String(raw?.body || '').trim(),
-    href: String(raw?.href || '/profile#allotted').trim(),
+    href: String(raw?.href || '/profile#homework').trim(),
     createdAt: String(raw?.createdAt || '').trim(),
   }
 }
@@ -110,9 +185,10 @@ export function viewedQuestionSet(progress) {
 }
 
 export function isAssignmentDone(item, progress) {
-  if (item?.type === 'question') return viewedQuestionSet(progress).has(item.questionId)
-  const keys = visitedSubunitSet(progress)
-  return keys.has(`${item.unitId}::${item.subunit}`) || keys.has(`${item.courseSlug}:${item.unitId}::${item.subunit}`)
+  const session = homeworkSessionsMap(progress)[item?.id]
+  if (!session) return false
+  if (session.completedAt) return true
+  return Boolean(session.questionIds.length && session.solvedCount >= session.questionIds.length)
 }
 
 export function assignmentStatus(item, progress, today) {

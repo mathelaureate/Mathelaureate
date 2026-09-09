@@ -185,7 +185,7 @@ export default function TutorChat({ user }) {
   const scrollerRef = useRef(null)
   const inputRef = useRef(null)
   const abortRef = useRef(null)
-  const hidden = location.pathname === '/' || /^\/(admin|editor)(\/|$)/.test(location.pathname)
+  const hidden = location.pathname === '/' || /^\/(admin|editor|homework)(\/|$)/.test(location.pathname)
   const page = useMemo(
     () => pageContext(location.pathname, location.search),
     [location.pathname, location.search],

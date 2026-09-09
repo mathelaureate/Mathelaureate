@@ -156,6 +156,7 @@ function progressFromRow(row) {
     viewedQuestions: row.viewedQuestions || [],
     savedQuestions: row.bookmarks || [],
     wrongQuestions: row.mistakes || [],
+    homeworkSessions: row.homeworkSessions || {},
   }
 }
 
@@ -202,6 +203,7 @@ function buildUserRow(progress, payments) {
     bookmarks,
     mistakes,
     viewedQuestions: Array.isArray(progress?.viewedQuestions) ? progress.viewedQuestions.map(String) : [],
+    homeworkSessions: progress?.homeworkSessions && typeof progress.homeworkSessions === 'object' ? progress.homeworkSessions : {},
     payments,
     purchases: purchaseItems(payments),
     paidLabels: paidLabels(payments),
@@ -316,7 +318,6 @@ export default function AdminUsersPage({ adminEmail }) {
   const [openId, setOpenId] = useState('')
   const [insight, setInsight] = useState({ kind: 'all' })
   const [curricula, setCurricula] = useState([])
-  const [questions, setQuestions] = useState([])
   const [assignmentsByUid, setAssignmentsByUid] = useState({})
   const [allotRow, setAllotRow] = useState(null)
   const [detailTab, setDetailTab] = useState('work')
@@ -328,11 +329,10 @@ export default function AdminUsersPage({ adminEmail }) {
       setLoading(true)
       setError('')
       try {
-        const [progressSnap, paymentSnap, curriculaSnap, contentSnap, assignSnap] = await Promise.all([
+        const [progressSnap, paymentSnap, curriculaSnap, assignSnap] = await Promise.all([
           getDocs(collection(db, 'userCourseProgress')),
           getDocs(collection(db, 'userPayments')),
           getDoc(doc(db, 'appData', 'curricula')),
-          getDocs(collection(db, 'courseContentItems')),
           getDocs(collection(db, 'userAssignments')),
         ])
         const paymentsByUid = new Map()
@@ -354,15 +354,9 @@ export default function AdminUsersPage({ adminEmail }) {
         assignSnap.forEach((item) => {
           assignMap[item.id] = normalizeAssignmentDoc(item.data() || {})
         })
-        const questionItems = []
-        contentSnap.forEach((item) => {
-          const data = { id: item.id, ...(item.data() || {}) }
-          if (data.itemType === 'question') questionItems.push(data)
-        })
         if (active) {
           setRows(next)
           setCurricula(Array.isArray(curriculaSnap.data()?.courses) ? curriculaSnap.data().courses : [])
-          setQuestions(questionItems)
           setAssignmentsByUid(assignMap)
         }
       } catch (loadError) {
@@ -452,7 +446,7 @@ export default function AdminUsersPage({ adminEmail }) {
           <div className="profile-hero-row">
             <div>
               <h1>User activity</h1>
-              <p className="ia-hero-sub">Monitor sign-ins, allotted work, course use, and purchases.</p>
+              <p className="ia-hero-sub">Sign-ins, homework, course use, and purchases.</p>
             </div>
             <div className="profile-account">
               <span className="profile-avatar" aria-hidden="true">
@@ -569,7 +563,7 @@ export default function AdminUsersPage({ adminEmail }) {
               </h2>
               <p>
                 {insight.kind === 'all'
-                  ? 'Click a student to allot work, or open Activity for visits and purchases.'
+                  ? 'Click a student to assign homework, or open Activity for visits and purchases.'
                   : `${filtered.length} matching student${filtered.length === 1 ? '' : 's'}. Click the chart, stat, or country again to clear.`}
               </p>
             </div>
@@ -635,7 +629,7 @@ export default function AdminUsersPage({ adminEmail }) {
                       <span className="users-person-aside">
                         {assigned.items.length ? (
                           <span className={`allot-pill${overdue ? ' is-overdue' : pending ? ' is-pending' : ' is-done'}`}>
-                            {overdue ? `${overdue} overdue` : pending ? `${pending} to do` : 'Done'}
+                            {overdue ? `${overdue} overdue` : pending ? `${pending} due` : 'Done'}
                           </span>
                         ) : null}
                         <small>{formatWhen(row.lastSeenAt)}</small>
@@ -649,7 +643,7 @@ export default function AdminUsersPage({ adminEmail }) {
                             className={`allot-tab${detailTab === 'work' ? ' is-active' : ''}`}
                             onClick={() => setDetailTab('work')}
                           >
-                            Work
+                            Homework
                           </button>
                           <button
                             type="button"
@@ -667,9 +661,9 @@ export default function AdminUsersPage({ adminEmail }) {
                                   ? overdue
                                     ? `${overdue} overdue`
                                     : pending
-                                      ? `${pending} still to do`
+                                      ? `${pending} due`
                                       : 'All done'
-                                  : 'No work allotted'}
+                                  : 'No homework assigned'}
                               </p>
                               <button
                                 type="button"
@@ -679,12 +673,13 @@ export default function AdminUsersPage({ adminEmail }) {
                                   setAllotRow(row)
                                 }}
                               >
-                                Allot
+                                Assign
                               </button>
                             </div>
                             <AssignedWorkList
                               items={assigned.items}
                               progress={progress}
+                              linked={false}
                               onRemove={async (id) => {
                                 const nextItems = assigned.items.filter((item) => item.id !== id)
                                 const nextDoc = { items: nextItems, notices: assigned.notices }
@@ -785,7 +780,6 @@ export default function AdminUsersPage({ adminEmail }) {
         <AllotModal
           row={allotRow}
           curricula={curricula}
-          questions={questions}
           existing={assignmentsByUid[allotRow.uid] || { items: [], notices: [] }}
           onClose={() => setAllotRow(null)}
           onSaved={(uid, nextDoc) => setAssignmentsByUid((current) => ({ ...current, [uid]: nextDoc }))}

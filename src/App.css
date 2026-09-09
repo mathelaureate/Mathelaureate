@@ -7971,6 +7971,13 @@ select:focus {
   font-size: 1.12rem;
 }
 
+.allot-lead {
+  margin: 0;
+  padding: 0.15rem 1.15rem 0.35rem;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
 .allot-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(140px, 0.7fr);
@@ -8913,4 +8920,73 @@ select:focus {
 
 .tutor-links a:hover {
   background: #e7f6f4;
+}
+
+.homework-page .ia-browse-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.homework-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+}
+
+.homework-progress strong {
+  margin-right: auto;
+  color: #0f172a;
+}
+
+.homework-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.homework-track span {
+  display: block;
+  height: 100%;
+  background: #1b6ea8;
+}
+
+.homework-solution {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.homework-solution h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+}
+
+.homework-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.homework-hint {
+  margin: 0.75rem 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.homework-complete {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: start;
+}
+
+.homework-complete h2,
+.homework-complete p {
+  margin: 0;
 }

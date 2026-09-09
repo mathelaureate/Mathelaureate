@@ -34,7 +34,7 @@ import {
   recordViewedQuestion,
 } from './studentStudy'
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
-import { assignmentStatus, normalizeAssignmentDoc } from './assignments'
+import { assignmentLabel, assignmentStatus, homeworkSessionsMap, normalizeAssignmentDoc, pickHomeworkQuestions, questionsForTopic, saveHomeworkSession } from './assignments'
 import {
   collectBankImageNames,
   decodeBankHtmlEntities,
@@ -5576,6 +5576,321 @@ function SimilarPracticeSection({ groups, empty = false, embedded = false, quest
   )
 }
 
+function HomeworkTestPage({ user, authReady, cachedProfile }) {
+  const { assignmentId } = useParams()
+  const [loginPending, setLoginPending] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [assignment, setAssignment] = useState(null)
+  const [questions, setQuestions] = useState([])
+  const [solvedCount, setSolvedCount] = useState(0)
+  const [checked, setChecked] = useState(false)
+  const [gotRight, setGotRight] = useState(false)
+  const [completed, setCompleted] = useState(false)
+  const [expandedImageUrl, setExpandedImageUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      if (!user?.uid || !assignmentId) return
+      setLoading(true)
+      setError('')
+      try {
+        const [assignSnap, bankItems, progressSnap] = await Promise.all([
+          getDoc(doc(db, 'userAssignments', user.uid)),
+          getCachedContentItems(),
+          getDoc(doc(db, 'userCourseProgress', user.uid)),
+        ])
+        const pack = normalizeAssignmentDoc(assignSnap.exists() ? assignSnap.data() : {})
+        const item = pack.items.find((entry) => entry.id === assignmentId) || null
+        if (!item) {
+          if (active) {
+            setAssignment(null)
+            setError('This homework is no longer assigned.')
+          }
+          return
+        }
+        const pool = questionsForTopic(bankItems, item)
+        const sessions = homeworkSessionsMap(progressSnap.exists() ? progressSnap.data() : {})
+        const existing = sessions[item.id]
+        let picked = []
+        if (existing?.questionIds?.length) {
+          const byId = new Map(pool.map((question) => [question.id, question]))
+          picked = existing.questionIds.map((id) => byId.get(id)).filter(Boolean)
+          if (picked.length < existing.questionIds.length) {
+            const used = new Set(picked.map((question) => question.id))
+            picked = [...picked, ...pool.filter((question) => !used.has(question.id))].slice(0, existing.questionIds.length)
+          }
+        } else {
+          picked = pickHomeworkQuestions(pool)
+          if (picked.length) {
+            await saveHomeworkSession(user, item.id, {
+              questionIds: picked.map((question) => question.id),
+              solvedCount: 0,
+              completedAt: '',
+            })
+          }
+        }
+        if (!active) return
+        setAssignment(item)
+        setQuestions(picked)
+        const done = Boolean(existing?.completedAt) || (existing?.questionIds?.length && existing.solvedCount >= existing.questionIds.length)
+        setSolvedCount(done ? picked.length : Math.min(existing?.solvedCount || 0, picked.length))
+        setCompleted(Boolean(done && picked.length))
+        setChecked(false)
+        setGotRight(false)
+        if (!picked.length) setError('No questions are available for this topic yet.')
+      } catch {
+        if (active) setError('Unable to load this homework test.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [user?.uid, assignmentId])
+
+  async function startGoogleLogin() {
+    setLoginPending(true)
+    setLoginError('')
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      await signInWithPopup(auth, provider)
+    } catch (loginErr) {
+      setLoginError(loginErr?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.')
+    } finally {
+      setLoginPending(false)
+    }
+  }
+
+  function renderBlocks(blocks, keyPrefix) {
+    const normalizedBlocks = normalizeContentBlocks(blocks)
+    if (normalizedBlocks.length === 0) return null
+    return (
+      <div className="content-blocks-render">
+        {normalizedBlocks.map((block, index) =>
+          renderNormalizedContentBlock(block, keyPrefix, index, setExpandedImageUrl),
+        )}
+      </div>
+    )
+  }
+
+  async function persist(session) {
+    setBusy(true)
+    try {
+      await saveHomeworkSession(user, assignmentId, session)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function goNext() {
+    if (!gotRight || !questions.length) return
+    const nextCount = solvedCount + 1
+    const done = nextCount >= questions.length
+    await persist({
+      questionIds: questions.map((question) => question.id),
+      solvedCount: nextCount,
+      completedAt: done ? new Date().toISOString() : '',
+    })
+    setSolvedCount(nextCount)
+    setChecked(false)
+    setGotRight(false)
+    setCompleted(done)
+  }
+
+  if (!authReady) {
+    return (
+      <main className="site site-full">
+        <section className="panel-section auth-card">
+          <h2>Checking authentication...</h2>
+        </section>
+      </main>
+    )
+  }
+
+  if (!user) {
+    return (
+      <main className="site site-full">
+        <section className="panel-section auth-card auth-status-card">
+          <h2>Sign in required</h2>
+          <p>Use your Google account to open this homework test.</p>
+          {loginError ? <p>{loginError}</p> : null}
+          <button type="button" className="btn primary google-btn" onClick={startGoogleLogin} disabled={loginPending}>
+            {loginPending ? 'Signing in...' : 'Continue with Google'}
+          </button>
+        </section>
+      </main>
+    )
+  }
+
+  const current = questions[solvedCount] || null
+  const total = questions.length
+  const last = Boolean(current && solvedCount === total - 1)
+
+  return (
+    <main className="site site-full ia-page homework-page">
+      <SiteHeader user={user} cachedProfile={cachedProfile} />
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="ia-breadcrumb">
+            <Link to="/profile#homework">Homework</Link>
+            <span aria-hidden="true"> / </span>
+            <span>{assignment ? assignmentLabel(assignment) : 'Test'}</span>
+          </p>
+          <h1>Homework test</h1>
+          <p className="ia-hero-sub">
+            {assignment?.subunit || assignment?.unitName || 'Topic'}
+            {total ? ` · ${total} questions · 2 easy, 4 medium, 4 hard` : ''}
+          </p>
+        </div>
+      </section>
+      <section className="ia-browse-shell">
+        {loading ? <p className="ia-status">Loading test...</p> : null}
+        {error ? <p className="error-text">{error}</p> : null}
+        {!loading && completed ? (
+          <section className="profile-panel homework-complete">
+            <h2>Homework complete</h2>
+            <p>You answered every question in this test correctly, in order.</p>
+            <Link className="btn primary" to="/profile#homework">
+              Back to homework
+            </Link>
+          </section>
+        ) : null}
+        {!loading && !completed && current ? (
+          <section className="profile-panel homework-test">
+            <div className="homework-progress">
+              <strong>
+                Question {solvedCount + 1} of {total}
+              </strong>
+              <span className={`meta-chip difficulty-${String(current.difficulty || 'medium').toLowerCase()}`}>
+                {String(current.difficulty || 'medium')}
+              </span>
+              <span className="meta-chip">{current.marks || 0} marks</span>
+            </div>
+            <div className="homework-track" aria-hidden="true">
+              <span style={{ width: `${Math.round((solvedCount / Math.max(1, total)) * 100)}%` }} />
+            </div>
+            <article className="lesson-card lesson-card-question">
+              <h3 className="question-number-title">Question {solvedCount + 1}</h3>
+              <div className="question-stem">
+                {contentBlocksHaveMediaOrText(current.descriptionBlocks)
+                  ? renderBlocks(current.descriptionBlocks, `hw-${current.id}`)
+                  : String(current.description || '').trim()
+                    ? <LatexText value={current.description} className="latex-text" />
+                    : null}
+              </div>
+              {current.imageUrl ? (
+                <div className="content-image-block">
+                  <button
+                    type="button"
+                    className="image-open-btn"
+                    onClick={() => setExpandedImageUrl(current.imageUrl)}
+                    aria-label="Open image in full view"
+                  >
+                    <img src={current.imageUrl} alt="Question visual" style={getRecordImageStyle(current)} />
+                  </button>
+                </div>
+              ) : null}
+            </article>
+            {checked ? (
+              <article className="homework-solution">
+                <h3>Solution</h3>
+                {current.solution && !contentBlocksHaveMediaOrText(current.solutionBlocks) ? (
+                  <div className="solution-box">
+                    <LatexText value={current.solution} className="latex-text" />
+                  </div>
+                ) : null}
+                {contentBlocksHaveMediaOrText(current.solutionBlocks)
+                  ? renderBlocks(current.solutionBlocks, `hw-sol-${current.id}`)
+                  : null}
+                {current.solutionImageUrl ? (
+                  <div className="content-image-block">
+                    <button
+                      type="button"
+                      className="image-open-btn"
+                      onClick={() => setExpandedImageUrl(current.solutionImageUrl)}
+                      aria-label="Open solution image"
+                    >
+                      <img src={current.solutionImageUrl} alt="Solution visual" />
+                    </button>
+                  </div>
+                ) : null}
+                {current.solutionVideoLink && toYouTubeEmbedUrl(current.solutionVideoLink) ? (
+                  <div className="solution-video-wrap">
+                    <iframe
+                      title={`homework-solution-${current.id}`}
+                      src={toYouTubeEmbedUrl(current.solutionVideoLink)}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : null}
+              </article>
+            ) : null}
+            <div className="homework-actions">
+              {!checked ? (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => {
+                    setChecked(true)
+                    recordViewedQuestion(user, current.id).catch(() => {})
+                  }}
+                >
+                  Check
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => {
+                      setChecked(false)
+                      setGotRight(false)
+                    }}
+                  >
+                    Try again
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn${gotRight ? ' ghost' : ' primary'}`}
+                    onClick={() => setGotRight(true)}
+                    disabled={gotRight}
+                  >
+                    {gotRight ? 'Marked correct' : 'I got it right'}
+                  </button>
+                  <button type="button" className="btn primary" onClick={goNext} disabled={!gotRight || busy}>
+                    {last ? 'Finish' : 'Next'}
+                  </button>
+                </>
+              )}
+            </div>
+            <p className="homework-hint">Testing mode: Next stays locked until this question is marked correct.</p>
+          </section>
+        ) : null}
+      </section>
+      {expandedImageUrl ? (
+        <section className="image-zoom-overlay" role="dialog" aria-modal="true" onClick={() => setExpandedImageUrl('')}>
+          <article className="image-zoom-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="icon-back-btn image-zoom-close" onClick={() => setExpandedImageUrl('')} aria-label="Close image view">
+              ×
+            </button>
+            <img src={expandedImageUrl} alt="Expanded content" />
+          </article>
+        </section>
+      ) : null}
+    </main>
+  )
+}
+
 function ProfilePage({ user, cachedProfile }) {
   const location = useLocation()
   const [myCourses, setMyCourses] = useState([])
@@ -5678,9 +5993,9 @@ function ProfilePage({ user, cachedProfile }) {
   }, [user?.uid])
 
   useEffect(() => {
-    if (location.hash !== '#allotted') return undefined
+    if (location.hash !== '#homework') return undefined
     const timer = window.setTimeout(() => {
-      document.getElementById('allotted')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('homework')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 200)
     return () => window.clearTimeout(timer)
   }, [location.hash, allotted.items.length, isLoadingCourses])
@@ -5786,15 +6101,15 @@ function ProfilePage({ user, cachedProfile }) {
 
         <div className="ia-browse-main">
           {allotted.items.length ? (
-            <section className="profile-panel allot-home" id="allotted">
+            <section className="profile-panel allot-home" id="homework">
               <div className="profile-section-head">
-                <h2>From sir</h2>
-                <p>{allottedPending ? `${allottedPending} to do` : 'All caught up'}</p>
+                <h2>Homework</h2>
+                <p>{allottedPending ? `${allottedPending} due` : 'All caught up'}</p>
               </div>
               <AssignedWorkList items={allotted.items} progress={allotProgress} />
             </section>
           ) : (
-            <div id="allotted" hidden />
+            <div id="homework" hidden />
           )}
 
           <section className="profile-panel">
@@ -9362,6 +9677,10 @@ function App() {
           }
         />
         <Route path="/profile" element={<ProfilePage user={user} cachedProfile={cachedProfile} />} />
+        <Route
+          path="/homework/:assignmentId"
+          element={<HomeworkTestPage user={user} authReady={authReady} cachedProfile={cachedProfile} />}
+        />
         <Route path="/admin" element={<ProtectedAdmin />} />
         <Route path="/admin/users" element={<ProtectedAdminUsers />} />
         <Route path="/editor" element={<ProtectedEditor />} />
