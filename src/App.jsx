@@ -1574,6 +1574,31 @@ function WrongMarkIcon() {
   )
 }
 
+function NextIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path d="M5 12h12M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path d="M5 12.5 9.6 17 19 7" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path d="M2.8 12s3.4-6.2 9.2-6.2S21.2 12 21.2 12s-3.4 6.2-9.2 6.2S2.8 12 2.8 12Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
 function AskAiButton({ onClick, label = 'Ask about this question' }) {
   return (
     <button type="button" className="ask-ai-btn" onClick={onClick} title={label} aria-label={label}>
@@ -5586,7 +5611,6 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
   const [questions, setQuestions] = useState([])
   const [solvedCount, setSolvedCount] = useState(0)
   const [checked, setChecked] = useState(false)
-  const [gotRight, setGotRight] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
   const [busy, setBusy] = useState(false)
@@ -5640,7 +5664,6 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
         setSolvedCount(done ? picked.length : Math.min(existing?.solvedCount || 0, picked.length))
         setCompleted(Boolean(done && picked.length))
         setChecked(false)
-        setGotRight(false)
         if (!picked.length) setError('No questions are available for this topic yet.')
       } catch {
         if (active) setError('Unable to load this homework test.')
@@ -5682,27 +5705,39 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
   }
 
   async function persist(session) {
-    setBusy(true)
-    try {
-      await saveHomeworkSession(user, assignmentId, session)
-    } finally {
-      setBusy(false)
-    }
+    await saveHomeworkSession(user, assignmentId, session)
   }
 
-  async function goNext() {
-    if (!gotRight || !questions.length) return
+  async function goNext(result = '') {
+    if (!questions.length || busy) return
+    setBusy(true)
+    const currentItem = questions[solvedCount]
+    if (result === 'wrong' && currentItem && assignment) {
+      const course = courseCatalog.find((item) => item.slug === assignment.courseSlug)
+      const entry = buildStudyQuestionEntry({
+        item: currentItem,
+        course,
+        unitId: assignment.unitId || currentItem.unitId,
+        subunit: assignment.subunit || currentItem.subunit,
+        unitName: assignment.unitName,
+      })
+      toggleStudyQuestion({ user, listKey: WRONG_QUESTIONS_KEY, entry, currentlySaved: false }).catch(() => {})
+    }
     const nextCount = solvedCount + 1
     const done = nextCount >= questions.length
-    await persist({
-      questionIds: questions.map((question) => question.id),
-      solvedCount: nextCount,
-      completedAt: done ? new Date().toISOString() : '',
-    })
+    try {
+      await persist({
+        questionIds: questions.map((question) => question.id),
+        solvedCount: nextCount,
+        completedAt: done ? new Date().toISOString() : '',
+      })
+    } catch {
+      // Still move on so Next never gets stuck.
+    }
     setSolvedCount(nextCount)
     setChecked(false)
-    setGotRight(false)
     setCompleted(done)
+    setBusy(false)
   }
 
   if (!authReady) {
@@ -5735,50 +5770,48 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
   const last = Boolean(current && solvedCount === total - 1)
 
   return (
-    <main className="site site-full ia-page homework-page">
-      <SiteHeader user={user} cachedProfile={cachedProfile} />
-      <section className="ia-hero">
-        <div className="ia-hero-inner">
-          <p className="ia-breadcrumb">
-            <Link to="/profile#homework">Homework</Link>
-            <span aria-hidden="true"> / </span>
-            <span>{assignment ? assignmentLabel(assignment) : 'Test'}</span>
-          </p>
-          <h1>Homework test</h1>
-          <p className="ia-hero-sub">
-            {assignment?.subunit || assignment?.unitName || 'Topic'}
-            {total ? ` · ${total} questions · 2 easy, 4 medium, 4 hard` : ''}
-          </p>
-        </div>
-      </section>
-      <section className="ia-browse-shell">
-        {loading ? <p className="ia-status">Loading test...</p> : null}
+    <main className="site site-full homework-page">
+      <SiteHeader user={user} cachedProfile={cachedProfile} bare />
+      <section className="homework-shell">
+        <header className="homework-bar">
+          <Link className="homework-back" to="/profile#homework" aria-label="Back to homework">
+            ←
+          </Link>
+          <div>
+            <p>{assignment?.courseTitle || 'Homework'}</p>
+            <h1>{assignment ? assignmentLabel(assignment) : 'Test'}</h1>
+          </div>
+          {total ? (
+            <strong>
+              {Math.min(solvedCount + (completed ? 0 : 1), total)}/{total}
+            </strong>
+          ) : null}
+        </header>
+        {loading ? <p className="ia-status">Loading…</p> : null}
         {error ? <p className="error-text">{error}</p> : null}
         {!loading && completed ? (
-          <section className="profile-panel homework-complete">
-            <h2>Homework complete</h2>
-            <p>You answered every question in this test correctly, in order.</p>
+          <section className="homework-complete">
+            <span className="homework-done-mark" aria-hidden="true">
+              <CheckIcon />
+            </span>
+            <h2>Done</h2>
             <Link className="btn primary" to="/profile#homework">
-              Back to homework
+              Homework
             </Link>
           </section>
         ) : null}
         {!loading && !completed && current ? (
-          <section className="profile-panel homework-test">
-            <div className="homework-progress">
-              <strong>
-                Question {solvedCount + 1} of {total}
-              </strong>
-              <span className={`meta-chip difficulty-${String(current.difficulty || 'medium').toLowerCase()}`}>
-                {String(current.difficulty || 'medium')}
-              </span>
-              <span className="meta-chip">{current.marks || 0} marks</span>
-            </div>
+          <section className="homework-test">
             <div className="homework-track" aria-hidden="true">
-              <span style={{ width: `${Math.round((solvedCount / Math.max(1, total)) * 100)}%` }} />
+              <span style={{ width: `${Math.round(((solvedCount + (checked ? 0.35 : 0)) / Math.max(1, total)) * 100)}%` }} />
             </div>
-            <article className="lesson-card lesson-card-question">
-              <h3 className="question-number-title">Question {solvedCount + 1}</h3>
+            <article key={current.id} className="lesson-card lesson-card-question homework-card">
+              <div className="question-meta-row">
+                <span className={`meta-chip difficulty-${String(current.difficulty || 'medium').toLowerCase()}`}>
+                  {String(current.difficulty || 'medium')}
+                </span>
+                <span className="meta-chip">{current.marks || 0}m</span>
+              </div>
               <div className="question-stem">
                 {contentBlocksHaveMediaOrText(current.descriptionBlocks)
                   ? renderBlocks(current.descriptionBlocks, `hw-${current.id}`)
@@ -5792,16 +5825,15 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
                     type="button"
                     className="image-open-btn"
                     onClick={() => setExpandedImageUrl(current.imageUrl)}
-                    aria-label="Open image in full view"
+                    aria-label="Open image"
                   >
-                    <img src={current.imageUrl} alt="Question visual" style={getRecordImageStyle(current)} />
+                    <img src={current.imageUrl} alt="" style={getRecordImageStyle(current)} />
                   </button>
                 </div>
               ) : null}
             </article>
             {checked ? (
-              <article className="homework-solution">
-                <h3>Solution</h3>
+              <article className="homework-solution" key={`sol-${current.id}`}>
                 {current.solution && !contentBlocksHaveMediaOrText(current.solutionBlocks) ? (
                   <div className="solution-box">
                     <LatexText value={current.solution} className="latex-text" />
@@ -5818,7 +5850,7 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
                       onClick={() => setExpandedImageUrl(current.solutionImageUrl)}
                       aria-label="Open solution image"
                     >
-                      <img src={current.solutionImageUrl} alt="Solution visual" />
+                      <img src={current.solutionImageUrl} alt="" />
                     </button>
                   </div>
                 ) : null}
@@ -5839,41 +5871,51 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
               {!checked ? (
                 <button
                   type="button"
-                  className="btn primary"
+                  className="homework-icon-btn is-primary"
                   onClick={() => {
                     setChecked(true)
                     recordViewedQuestion(user, current.id).catch(() => {})
                   }}
+                  aria-label="Show solution"
+                  title="Show solution"
                 >
-                  Check
+                  <EyeIcon />
                 </button>
               ) : (
                 <>
                   <button
                     type="button"
-                    className="btn ghost"
-                    onClick={() => {
-                      setChecked(false)
-                      setGotRight(false)
-                    }}
+                    className="homework-icon-btn is-wrong"
+                    onClick={() => goNext('wrong')}
+                    disabled={busy}
+                    aria-label="Wrong"
+                    title="Wrong"
                   >
-                    Try again
+                    <WrongMarkIcon />
                   </button>
                   <button
                     type="button"
-                    className={`btn${gotRight ? ' ghost' : ' primary'}`}
-                    onClick={() => setGotRight(true)}
-                    disabled={gotRight}
+                    className="homework-icon-btn is-right"
+                    onClick={() => goNext('right')}
+                    disabled={busy}
+                    aria-label="Right"
+                    title="Right"
                   >
-                    {gotRight ? 'Marked correct' : 'I got it right'}
+                    <CheckIcon />
                   </button>
-                  <button type="button" className="btn primary" onClick={goNext} disabled={!gotRight || busy}>
-                    {last ? 'Finish' : 'Next'}
+                  <button
+                    type="button"
+                    className="homework-icon-btn is-primary"
+                    onClick={() => goNext('')}
+                    disabled={busy}
+                    aria-label={last ? 'Finish' : 'Next'}
+                    title={last ? 'Finish' : 'Next'}
+                  >
+                    <NextIcon />
                   </button>
                 </>
               )}
             </div>
-            <p className="homework-hint">Testing mode: Next stays locked until this question is marked correct.</p>
           </section>
         ) : null}
       </section>

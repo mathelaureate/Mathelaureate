@@ -112,7 +112,7 @@ export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
       const notice = {
         id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notice-${Date.now()}`,
         title: 'New homework',
-        body: `${added.length} topic${added.length === 1 ? '' : 's'} in ${course.title}${dueAt ? ` · due ${formatDue(dueAt)}` : ''} · 10-question test`,
+        body: `${added.length} topic${added.length === 1 ? '' : 's'} in ${course.title}${dueAt ? ` · due ${formatDue(dueAt)}` : ''}`,
         href: added.length === 1 ? assignmentHref(added[0]) : '/profile#homework',
         createdAt: new Date().toISOString(),
       }
@@ -147,7 +147,7 @@ export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
             ×
           </button>
         </header>
-        <p className="allot-lead">Each topic opens as a 10-question test: 2 easy, 4 medium, 4 hard.</p>
+        <p className="allot-lead">10-question test per topic.</p>
         <div className="allot-toolbar">
           <label>
             Course
@@ -321,20 +321,22 @@ export function AssignmentInbox({ user }) {
   const pending = pack.items.filter((item) => assignmentStatus(item, progress, todayKey()) !== 'done')
   const preview = pending.slice(0, 4)
 
+  async function toggleOpen() {
+    const next = !open
+    setOpen(next)
+    if (next && unread.length) {
+      const ids = unread.map((item) => item.id)
+      setReadIds((current) => [...new Set([...current, ...ids])])
+      markNoticesRead(user, ids).catch(() => {})
+    }
+  }
+
   async function openItem(item) {
     setOpen(false)
-    await markNoticesRead(
-      user,
-      unread.map((notice) => notice.id),
-    ).catch(() => {})
     navigate(assignmentHref(item))
   }
 
-  async function viewAll() {
-    await markNoticesRead(
-      user,
-      unread.map((notice) => notice.id),
-    ).catch(() => {})
+  function viewAll() {
     setOpen(false)
     navigate('/profile#homework')
   }
@@ -343,9 +345,13 @@ export function AssignmentInbox({ user }) {
     <div className="notice-wrap">
       <button
         type="button"
-        className={`notice-bell${unread.length ? ' has-unread' : ''}`}
-        onClick={() => setOpen((value) => !value)}
-        aria-label={unread.length ? `${unread.length} homework items due` : 'Homework'}
+        className={`notice-bell${unread.length ? ' has-unread' : ''}${pending.length && !unread.length ? ' has-due' : ''}`}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          toggleOpen()
+        }}
+        aria-label={unread.length ? `${unread.length} new homework` : pending.length ? `${pending.length} homework due` : 'Homework'}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path
@@ -357,7 +363,7 @@ export function AssignmentInbox({ user }) {
           />
           <path d="M10 18.2a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
-        {unread.length ? <span>{unread.length}</span> : pending.length ? <i /> : null}
+        {unread.length ? <span className="notice-count">{unread.length}</span> : pending.length ? <i /> : null}
       </button>
       {open ? (
         <div className="notice-panel">
@@ -373,7 +379,7 @@ export function AssignmentInbox({ user }) {
             ))
           )}
           <button type="button" className="notice-all" onClick={viewAll}>
-            Open homework
+            View all
           </button>
         </div>
       ) : null}
