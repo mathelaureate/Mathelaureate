@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
@@ -7,11 +7,10 @@ import {
   assignmentHref,
   assignmentLabel,
   assignmentStatus,
-  buildTopicAssignment,
+  assignHomeworkToTargets,
   existingAssignmentKeys,
   markNoticesRead,
   normalizeAssignmentDoc,
-  saveStudentAssignments,
   topicAssignmentKey,
   unreadNotices,
 } from './assignments'
@@ -40,13 +39,17 @@ function itemMeta(item) {
     .join(' · ')
 }
 
-export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
+export function AllotModal({ title, targets, curricula, existingByUid, onClose, onSaved }) {
   const [courseSlug, setCourseSlug] = useState(COURSE_OPTIONS[0].slug)
   const [selected, setSelected] = useState(() => new Set())
   const [dueAt, setDueAt] = useState('')
   const [openUnit, setOpenUnit] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const people = useMemo(
+    () => (Array.isArray(targets) ? targets.filter((item) => item?.uid) : []),
+    [targets],
+  )
 
   useEffect(() => {
     setSelected(new Set())
@@ -56,7 +59,15 @@ export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
   const course = COURSE_OPTIONS.find((item) => item.slug === courseSlug) || COURSE_OPTIONS[0]
   const curriculum = curricula.find((item) => item.id === course.curriculumId) || null
   const units = curriculum?.units || []
-  const existingKeys = existingAssignmentKeys(existing?.items)
+  const existingKeys = useMemo(() => {
+    if (!people.length) return new Set()
+    let shared = null
+    for (const person of people) {
+      const keys = existingAssignmentKeys(existingByUid?.[person.uid]?.items)
+      shared = shared ? new Set([...shared].filter((key) => keys.has(key))) : new Set(keys)
+    }
+    return shared || new Set()
+  }, [people, existingByUid])
 
   function toggle(key) {
     setSelected((current) => {
@@ -93,40 +104,27 @@ export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
       setError('Pick at least one topic.')
       return
     }
+    if (!people.length) {
+      setError('Add students to this class first.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
-      const added = []
-      for (const unit of units) {
-        for (const subunit of unit.subunits || []) {
-          const key = topicAssignmentKey(course.slug, unit.id, subunit)
-          if (!selected.has(key) || existingKeys.has(key)) continue
-          added.push(buildTopicAssignment({ course, unit, subunit, dueAt }))
-        }
-      }
-      if (!added.length) {
-        setError('Those topics are already assigned.')
+      const { updates, reached } = await assignHomeworkToTargets({
+        targets: people,
+        existingByUid,
+        course,
+        units,
+        selectedKeys: selected,
+        dueAt,
+      })
+      if (!reached) {
+        setError(people.length > 1 ? 'Everyone in this class already has those topics.' : 'Those topics are already assigned.')
         setBusy(false)
         return
       }
-      const notice = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notice-${Date.now()}`,
-        title: 'New homework',
-        body: `${added.length} topic${added.length === 1 ? '' : 's'} in ${course.title}${dueAt ? ` · due ${formatDue(dueAt)}` : ''}`,
-        href: added.length === 1 ? assignmentHref(added[0]) : '/profile#homework',
-        createdAt: new Date().toISOString(),
-      }
-      const nextDoc = {
-        items: [...(existing?.items || []), ...added],
-        notices: [...(existing?.notices || []), notice],
-      }
-      await saveStudentAssignments({
-        uid: row.uid,
-        email: row.email,
-        displayName: row.displayName,
-        ...nextDoc,
-      })
-      onSaved?.(row.uid, nextDoc)
+      onSaved?.(updates)
       onClose()
     } catch (saveError) {
       setError(saveError?.message || 'Unable to assign homework.')
@@ -141,13 +139,17 @@ export function AllotModal({ row, curricula, existing, onClose, onSaved }) {
         <header className="allot-modal-head">
           <div>
             <p className="eyebrow">Assign homework</p>
-            <h3>{row.displayName || row.email || 'Student'}</h3>
+            <h3>{title || (people.length > 1 ? `${people.length} students` : people[0]?.displayName || people[0]?.email || 'Student')}</h3>
           </div>
           <button type="button" className="icon-back-btn" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>
-        <p className="allot-lead">10-question test per topic.</p>
+        <p className="allot-lead">
+          {people.length > 1
+            ? `${people.length} students · 10-question test per topic. Anyone who already has a topic is skipped.`
+            : '10-question test per topic.'}
+        </p>
         <div className="allot-toolbar">
           <label>
             Course

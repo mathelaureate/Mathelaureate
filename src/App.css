@@ -7929,6 +7929,154 @@ select:focus {
   font-size: 0.88rem;
 }
 
+.users-allot-actions,
+.class-create,
+.class-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.class-join select {
+  appearance: none;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.38rem 0.85rem;
+}
+
+.class-panel {
+  margin-top: 0.15rem;
+}
+
+.class-create {
+  margin: 0 0 1rem;
+}
+
+.class-create .ia-search-simple {
+  flex: 1;
+  min-width: min(16rem, 100%);
+}
+
+.class-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.class-card {
+  border: 1px solid var(--ia-line, #e2e8f0);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.class-card.is-open {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.class-card-row {
+  padding: 0.35rem 0.55rem 0.35rem 0.2rem;
+}
+
+.class-card-btn {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 0.1rem;
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.class-card-btn strong {
+  color: #0f172a;
+  font-size: 0.98rem;
+}
+
+.class-card-btn small,
+.class-members small,
+.class-add-hits small,
+.class-add-hint {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.class-body {
+  padding: 0 0.95rem 0.95rem;
+  border-top: 1px solid var(--ia-line, #e2e8f0);
+}
+
+.class-members,
+.class-add-hits {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.class-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.class-members li span,
+.class-add-hits button {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.class-add-search {
+  margin-top: 0.85rem;
+}
+
+.class-add-hint {
+  margin: 0.45rem 0 0;
+}
+
+.class-add-hits button {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.class-add-hits button:hover {
+  border-color: #0b7a75;
+}
+
+.class-delete {
+  margin-top: 0.85rem;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.class-delete:hover {
+  color: #b42318;
+}
+
 .users-detail-tabs {
   display: flex;
   gap: 0.2rem;
@@ -8513,6 +8661,18 @@ select:focus {
 
   .allot-actions .btn {
     flex: 1;
+  }
+
+  .class-card-row,
+  .users-allot-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .class-card-row .btn,
+  .users-allot-actions .btn,
+  .class-join select {
+    width: 100%;
   }
 }
 

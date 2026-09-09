@@ -256,6 +256,77 @@ export async function saveStudentAssignments({ uid, email, displayName, items, n
   )
 }
 
+export function normalizeClassGroup(raw, id = '') {
+  const memberUids = [...new Set((Array.isArray(raw?.memberUids) ? raw.memberUids : []).map(String).filter(Boolean))]
+  return {
+    id: String(raw?.id || id || '').trim(),
+    name: String(raw?.name || '').trim() || 'Untitled class',
+    memberUids,
+    createdAt: String(raw?.createdAt || '').trim(),
+    updatedAt: String(raw?.updatedAt || '').trim(),
+  }
+}
+
+export async function saveClassGroup(klass) {
+  const id = String(klass?.id || '').trim()
+  if (!id) throw new Error('Missing class.')
+  const next = normalizeClassGroup({ ...klass, updatedAt: new Date().toISOString() }, id)
+  await setDoc(
+    doc(db, 'classGroups', id),
+    {
+      name: next.name,
+      memberUids: next.memberUids,
+      createdAt: next.createdAt || new Date().toISOString(),
+      updatedAt: next.updatedAt,
+    },
+    { merge: true },
+  )
+  return next
+}
+
+export async function assignHomeworkToTargets({ targets, existingByUid, course, units, selectedKeys, dueAt }) {
+  const selected = selectedKeys instanceof Set ? selectedKeys : new Set(selectedKeys || [])
+  const updates = {}
+  let reached = 0
+  for (const target of targets || []) {
+    if (!target?.uid) continue
+    const existing = existingByUid?.[target.uid] || { items: [], notices: [] }
+    const keys = existingAssignmentKeys(existing.items)
+    const added = []
+    for (const unit of units || []) {
+      for (const subunit of unit.subunits || []) {
+        const key = topicAssignmentKey(course.slug, unit.id, subunit)
+        if (!selected.has(key) || keys.has(key)) continue
+        added.push(buildTopicAssignment({ course, unit, subunit, dueAt }))
+      }
+    }
+    if (!added.length) {
+      updates[target.uid] = existing
+      continue
+    }
+    reached += 1
+    const notice = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notice-${Date.now()}-${target.uid}`,
+      title: 'New homework',
+      body: `${added.length} topic${added.length === 1 ? '' : 's'} in ${course.title}${dueAt ? ` · due ${dueAt}` : ''}`,
+      href: added.length === 1 ? assignmentHref(added[0]) : '/profile#homework',
+      createdAt: new Date().toISOString(),
+    }
+    const nextDoc = {
+      items: [...(existing.items || []), ...added],
+      notices: [...(existing.notices || []), notice],
+    }
+    await saveStudentAssignments({
+      uid: target.uid,
+      email: target.email,
+      displayName: target.displayName,
+      ...nextDoc,
+    })
+    updates[target.uid] = nextDoc
+  }
+  return { updates, reached }
+}
+
 export async function markNoticesRead(user, noticeIds) {
   if (!user?.uid || !noticeIds?.length) return
   const ref = doc(db, 'userCourseProgress', user.uid)

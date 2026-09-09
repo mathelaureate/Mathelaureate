@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs } from 'firebase/firestore'
 import { AllotModal, AssignedWorkList } from './allotWork'
-import { assignmentStatus, normalizeAssignmentDoc, saveStudentAssignments } from './assignments'
+import { assignmentStatus, normalizeAssignmentDoc, normalizeClassGroup, saveClassGroup, saveStudentAssignments } from './assignments'
 import { signOut } from 'firebase/auth'
 import { auth, db } from './firebase'
 import { collectVisitDates, localDateKey } from './userPresence'
@@ -166,6 +166,14 @@ function uniqueEmails(rows) {
   )
 }
 
+function classNamesForUid(classes, uid) {
+  return (classes || []).filter((klass) => klass.memberUids.includes(uid)).map((klass) => klass.name)
+}
+
+function studentLabel(row) {
+  return row?.displayName || row?.email || 'Unnamed student'
+}
+
 function downloadEmails(rows) {
   const emails = uniqueEmails(rows)
   const csv = ['email', ...emails].join('\n')
@@ -310,6 +318,162 @@ function userInitial(row) {
   return (row.displayName || row.email || 'S').trim().charAt(0).toUpperCase() || 'S'
 }
 
+function ClassGroupsPanel({
+  classes,
+  rows,
+  openClassId,
+  setOpenClassId,
+  newClassName,
+  setNewClassName,
+  memberQuery,
+  setMemberQuery,
+  busy,
+  loading,
+  onCreate,
+  onAddMember,
+  onRemoveMember,
+  onRemoveClass,
+  onAssign,
+}) {
+  const byUid = useMemo(() => {
+    const map = new Map()
+    for (const row of rows) map.set(row.uid, row)
+    return map
+  }, [rows])
+
+  return (
+    <section className="profile-panel class-panel">
+      <div className="profile-section-head">
+        <h2>Classes</h2>
+        <p>Group students, then assign the same homework to everyone in the class.</p>
+      </div>
+      <form
+        className="class-create"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onCreate()
+        }}
+      >
+        <label className="ia-search-simple">
+          <span className="sr-only">New class name</span>
+          <input
+            value={newClassName}
+            onChange={(event) => setNewClassName(event.target.value)}
+            placeholder="Class name, e.g. HL Year 1"
+          />
+        </label>
+        <button type="submit" className="btn primary" disabled={busy || !newClassName.trim()}>
+          Create class
+        </button>
+      </form>
+      {loading ? (
+        <p className="ia-status">Loading classes...</p>
+      ) : classes.length === 0 ? (
+        <div className="ia-empty">
+          <h2>No classes yet</h2>
+          <p>Create a class, add students, then assign topics to the whole group.</p>
+        </div>
+      ) : (
+        <div className="class-list">
+          {classes.map((klass) => {
+            const open = openClassId === klass.id
+            const count = klass.memberUids.length
+            const needle = memberQuery.trim().toLowerCase()
+            const candidates = rows.filter((row) => {
+              if (klass.memberUids.includes(row.uid)) return false
+              if (!needle) return false
+              return [row.displayName, row.email, row.uid].join(' ').toLowerCase().includes(needle)
+            })
+            return (
+              <article className={`class-card${open ? ' is-open' : ''}`} key={klass.id}>
+                <div className="class-card-row">
+                  <button
+                    type="button"
+                    className="class-card-btn"
+                    onClick={() => {
+                      setOpenClassId(open ? '' : klass.id)
+                      setMemberQuery('')
+                    }}
+                  >
+                    <strong>{klass.name}</strong>
+                    <small>
+                      {count} student{count === 1 ? '' : 's'}
+                    </small>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    disabled={!count}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onAssign(klass)
+                    }}
+                  >
+                    Assign
+                  </button>
+                </div>
+                {open ? (
+                  <div className="class-body">
+                    {count === 0 ? (
+                      <p className="allot-empty">No students in this class yet.</p>
+                    ) : (
+                      <ul className="class-members">
+                        {klass.memberUids.map((uid) => {
+                          const row = byUid.get(uid)
+                          return (
+                            <li key={uid}>
+                              <span>
+                                <strong>{studentLabel(row || { uid })}</strong>
+                                <small>{row?.email || uid}</small>
+                              </span>
+                              <button type="button" className="allot-task-remove" onClick={() => onRemoveMember(klass, uid)}>
+                                Remove
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                    <label className="ia-search-simple class-add-search">
+                      <span className="sr-only">Add a student</span>
+                      <input
+                        value={memberQuery}
+                        onChange={(event) => setMemberQuery(event.target.value)}
+                        placeholder="Search a student to add"
+                      />
+                    </label>
+                    {needle ? (
+                      candidates.length ? (
+                        <ul className="class-add-hits">
+                          {candidates.slice(0, 8).map((row) => (
+                            <li key={row.uid}>
+                              <button type="button" onClick={() => onAddMember(klass, row.uid)} disabled={busy}>
+                                <strong>{studentLabel(row)}</strong>
+                                <small>{row.email || row.uid}</small>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="allot-empty">No matching students to add.</p>
+                      )
+                    ) : (
+                      <p className="class-add-hint">Type a name or email to add students.</p>
+                    )}
+                    <button type="button" className="class-delete" onClick={() => onRemoveClass(klass)} disabled={busy}>
+                      Delete class
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function AdminUsersPage({ adminEmail }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -319,8 +483,13 @@ export default function AdminUsersPage({ adminEmail }) {
   const [insight, setInsight] = useState({ kind: 'all' })
   const [curricula, setCurricula] = useState([])
   const [assignmentsByUid, setAssignmentsByUid] = useState({})
-  const [allotRow, setAllotRow] = useState(null)
+  const [allotJob, setAllotJob] = useState(null)
   const [detailTab, setDetailTab] = useState('work')
+  const [classes, setClasses] = useState([])
+  const [openClassId, setOpenClassId] = useState('')
+  const [newClassName, setNewClassName] = useState('')
+  const [classBusy, setClassBusy] = useState(false)
+  const [memberQuery, setMemberQuery] = useState('')
 
   useEffect(() => {
     let active = true
@@ -329,11 +498,12 @@ export default function AdminUsersPage({ adminEmail }) {
       setLoading(true)
       setError('')
       try {
-        const [progressSnap, paymentSnap, curriculaSnap, assignSnap] = await Promise.all([
+        const [progressSnap, paymentSnap, curriculaSnap, assignSnap, classSnap] = await Promise.all([
           getDocs(collection(db, 'userCourseProgress')),
           getDocs(collection(db, 'userPayments')),
           getDoc(doc(db, 'appData', 'curricula')),
           getDocs(collection(db, 'userAssignments')),
+          getDocs(collection(db, 'classGroups')),
         ])
         const paymentsByUid = new Map()
         paymentSnap.forEach((item) => {
@@ -354,10 +524,16 @@ export default function AdminUsersPage({ adminEmail }) {
         assignSnap.forEach((item) => {
           assignMap[item.id] = normalizeAssignmentDoc(item.data() || {})
         })
+        const classList = []
+        classSnap.forEach((item) => {
+          classList.push(normalizeClassGroup(item.data() || {}, item.id))
+        })
+        classList.sort((a, b) => a.name.localeCompare(b.name))
         if (active) {
           setRows(next)
           setCurricula(Array.isArray(curriculaSnap.data()?.courses) ? curriculaSnap.data().courses : [])
           setAssignmentsByUid(assignMap)
+          setClasses(classList)
         }
       } catch (loadError) {
         if (active) setError(loadError?.message || 'Unable to load user activity.')
@@ -434,6 +610,79 @@ export default function AdminUsersPage({ adminEmail }) {
     return { todayCount, weekCount, paidCount, countries, daily, maxDaily, maxCountry }
   }, [rows, today, weekStart])
 
+  async function persistClass(next) {
+    const saved = await saveClassGroup(next)
+    setClasses((current) => {
+      const list = current.some((item) => item.id === saved.id)
+        ? current.map((item) => (item.id === saved.id ? saved : item))
+        : [...current, saved]
+      return [...list].sort((a, b) => a.name.localeCompare(b.name))
+    })
+    return saved
+  }
+
+  async function createClass() {
+    const name = newClassName.trim()
+    if (!name) return
+    setClassBusy(true)
+    setError('')
+    try {
+      const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `class-${Date.now()}`
+      await persistClass({ id, name, memberUids: [], createdAt: new Date().toISOString() })
+      setNewClassName('')
+      setOpenClassId(id)
+    } catch (saveError) {
+      setError(saveError?.message || 'Unable to create class.')
+    } finally {
+      setClassBusy(false)
+    }
+  }
+
+  async function addMember(klass, uid) {
+    if (!uid || klass.memberUids.includes(uid)) return
+    setClassBusy(true)
+    setError('')
+    try {
+      await persistClass({ ...klass, memberUids: [...klass.memberUids, uid] })
+      setMemberQuery('')
+    } catch (saveError) {
+      setError(saveError?.message || 'Unable to add student.')
+    } finally {
+      setClassBusy(false)
+    }
+  }
+
+  async function removeMember(klass, uid) {
+    setClassBusy(true)
+    setError('')
+    try {
+      await persistClass({ ...klass, memberUids: klass.memberUids.filter((id) => id !== uid) })
+    } catch (saveError) {
+      setError(saveError?.message || 'Unable to remove student.')
+    } finally {
+      setClassBusy(false)
+    }
+  }
+
+  async function removeClass(klass) {
+    setClassBusy(true)
+    setError('')
+    try {
+      await deleteDoc(doc(db, 'classGroups', klass.id))
+      setClasses((current) => current.filter((item) => item.id !== klass.id))
+      if (openClassId === klass.id) setOpenClassId('')
+    } catch (saveError) {
+      setError(saveError?.message || 'Unable to remove class.')
+    } finally {
+      setClassBusy(false)
+    }
+  }
+
+  function openClassAssign(klass) {
+    const targets = klass.memberUids.map((uid) => rows.find((row) => row.uid === uid) || { uid })
+    setAllotJob({ title: klass.name, targets })
+  }
+
   return (
     <main className="site site-full ia-page users-page">
       <section className="ia-hero">
@@ -446,7 +695,7 @@ export default function AdminUsersPage({ adminEmail }) {
           <div className="profile-hero-row">
             <div>
               <h1>User activity</h1>
-              <p className="ia-hero-sub">Sign-ins, homework, course use, and purchases.</p>
+              <p className="ia-hero-sub">Sign-ins, classes, homework, and purchases.</p>
             </div>
             <div className="profile-account">
               <span className="profile-avatar" aria-hidden="true">
@@ -545,6 +794,24 @@ export default function AdminUsersPage({ adminEmail }) {
           </article>
         </section>
 
+        <ClassGroupsPanel
+          classes={classes}
+          rows={rows}
+          openClassId={openClassId}
+          setOpenClassId={setOpenClassId}
+          newClassName={newClassName}
+          setNewClassName={setNewClassName}
+          memberQuery={memberQuery}
+          setMemberQuery={setMemberQuery}
+          busy={classBusy}
+          loading={loading}
+          onCreate={createClass}
+          onAddMember={addMember}
+          onRemoveMember={removeMember}
+          onRemoveClass={removeClass}
+          onAssign={openClassAssign}
+        />
+
         <section className="profile-panel">
           <div className="users-table-head">
             <div className="profile-section-head">
@@ -563,7 +830,7 @@ export default function AdminUsersPage({ adminEmail }) {
               </h2>
               <p>
                 {insight.kind === 'all'
-                  ? 'Click a student to assign homework, or open Activity for visits and purchases.'
+                  ? 'Click a student to assign homework, or use Classes above to assign a whole group.'
                   : `${filtered.length} matching student${filtered.length === 1 ? '' : 's'}. Click the chart, stat, or country again to clear.`}
               </p>
             </div>
@@ -602,6 +869,8 @@ export default function AdminUsersPage({ adminEmail }) {
                 const progress = progressFromRow(row)
                 const pending = assigned.items.filter((item) => assignmentStatus(item, progress, today) !== 'done').length
                 const overdue = assigned.items.filter((item) => assignmentStatus(item, progress, today) === 'overdue').length
+                const classNames = classNamesForUid(classes, row.uid)
+                const otherClasses = classes.filter((klass) => !klass.memberUids.includes(row.uid))
                 return (
                   <article className={`users-person${open ? ' is-open' : ''}`} key={row.uid}>
                     <button
@@ -622,8 +891,9 @@ export default function AdminUsersPage({ adminEmail }) {
                       <span className="users-person-copy">
                         <strong>{row.displayName || 'Unnamed student'}</strong>
                         <small>
-                          {row.email || row.uid}
-                          {row.paidLabels.length ? ' · Paid' : ''}
+                          {[row.email || row.uid, classNames.join(', '), row.paidLabels.length ? 'Paid' : '']
+                            .filter(Boolean)
+                            .join(' · ')}
                         </small>
                       </span>
                       <span className="users-person-aside">
@@ -665,16 +935,37 @@ export default function AdminUsersPage({ adminEmail }) {
                                       : 'All done'
                                   : 'No homework assigned'}
                               </p>
-                              <button
-                                type="button"
-                                className="btn primary"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  setAllotRow(row)
-                                }}
-                              >
-                                Assign
-                              </button>
+                              <div className="users-allot-actions">
+                                {otherClasses.length ? (
+                                  <label className="class-join">
+                                    <span className="sr-only">Add to class</span>
+                                    <select
+                                      value=""
+                                      onChange={(event) => {
+                                        const klass = classes.find((item) => item.id === event.target.value)
+                                        if (klass) addMember(klass, row.uid)
+                                      }}
+                                    >
+                                      <option value="">Add to class</option>
+                                      {otherClasses.map((klass) => (
+                                        <option key={klass.id} value={klass.id}>
+                                          {klass.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="btn primary"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setAllotJob({ title: studentLabel(row), targets: [row] })
+                                  }}
+                                >
+                                  Assign
+                                </button>
+                              </div>
                             </div>
                             <AssignedWorkList
                               items={assigned.items}
@@ -776,13 +1067,14 @@ export default function AdminUsersPage({ adminEmail }) {
           )}
         </section>
       </section>
-      {allotRow ? (
+      {allotJob ? (
         <AllotModal
-          row={allotRow}
+          title={allotJob.title}
+          targets={allotJob.targets}
           curricula={curricula}
-          existing={assignmentsByUid[allotRow.uid] || { items: [], notices: [] }}
-          onClose={() => setAllotRow(null)}
-          onSaved={(uid, nextDoc) => setAssignmentsByUid((current) => ({ ...current, [uid]: nextDoc }))}
+          existingByUid={assignmentsByUid}
+          onClose={() => setAllotJob(null)}
+          onSaved={(updates) => setAssignmentsByUid((current) => ({ ...current, ...updates }))}
         />
       ) : null}
     </main>

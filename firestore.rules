@@ -49,6 +49,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Classes sir builds to assign homework to a group.
+    match /classGroups/{classId} {
+      allow read, write: if isAdmin();
+    }
+
     // Default deny for all other documents.
     match /{document=**} {
       allow read, write: if false;
