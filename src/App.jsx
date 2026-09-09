@@ -34,7 +34,7 @@ import {
   recordViewedQuestion,
 } from './studentStudy'
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
-import { normalizeAssignmentDoc } from './assignments'
+import { assignmentStatus, normalizeAssignmentDoc } from './assignments'
 import {
   collectBankImageNames,
   decodeBankHtmlEntities,
@@ -5712,6 +5712,9 @@ function ProfilePage({ user, cachedProfile }) {
   const profileName = user.displayName || cachedProfile?.displayName || user.email?.split('@')[0] || 'Student'
   const continueHref = lastViewedCourse ? courseContinuePath(lastViewedCourse) : '/#programs'
   const streak = studyStreak(visitDates)
+  const allottedPending = allotted.items.filter(
+    (item) => assignmentStatus(item, allotProgress, new Date().toLocaleDateString('en-CA')) !== 'done',
+  ).length
 
   return (
     <main className="site site-full ia-page profile-page">
@@ -5768,10 +5771,6 @@ function ProfilePage({ user, cachedProfile }) {
               <Link className="ia-pill" to="/#programs">
                 Programs
               </Link>
-              <a className="ia-pill" href="#allotted">
-                Allotted work
-                {allotted.items.length ? <span>{allotted.items.length}</span> : null}
-              </a>
               <Link className="ia-pill" to="/mock-generator">
                 Mock Generator
               </Link>
@@ -5786,6 +5785,18 @@ function ProfilePage({ user, cachedProfile }) {
         </aside>
 
         <div className="ia-browse-main">
+          {allotted.items.length ? (
+            <section className="profile-panel allot-home" id="allotted">
+              <div className="profile-section-head">
+                <h2>From sir</h2>
+                <p>{allottedPending ? `${allottedPending} to do` : 'All caught up'}</p>
+              </div>
+              <AssignedWorkList items={allotted.items} progress={allotProgress} />
+            </section>
+          ) : (
+            <div id="allotted" hidden />
+          )}
+
           <section className="profile-panel">
             <div className="profile-section-head">
               <h2>My courses</h2>
@@ -5819,14 +5830,6 @@ function ProfilePage({ user, cachedProfile }) {
           </div>
         )}
       </section>
-
-          <section className="profile-panel" id="allotted">
-            <div className="profile-section-head">
-              <h2>Allotted work</h2>
-              <p>Topics and questions sir has given you. Open a topic or question so it counts as done.</p>
-            </div>
-            <AssignedWorkList items={allotted.items} progress={allotProgress} />
-          </section>
 
           <section className="profile-panel">
             <div className="profile-section-head">

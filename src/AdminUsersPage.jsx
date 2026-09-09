@@ -319,6 +319,7 @@ export default function AdminUsersPage({ adminEmail }) {
   const [questions, setQuestions] = useState([])
   const [assignmentsByUid, setAssignmentsByUid] = useState({})
   const [allotRow, setAllotRow] = useState(null)
+  const [detailTab, setDetailTab] = useState('work')
 
   useEffect(() => {
     let active = true
@@ -568,7 +569,7 @@ export default function AdminUsersPage({ adminEmail }) {
               </h2>
               <p>
                 {insight.kind === 'all'
-                  ? 'Subunits opened, purchases, bookmarks, and mistakes.'
+                  ? 'Click a student to allot work, or open Activity for visits and purchases.'
                   : `${filtered.length} matching student${filtered.length === 1 ? '' : 's'}. Click the chart, stat, or country again to clear.`}
               </p>
             </div>
@@ -609,7 +610,14 @@ export default function AdminUsersPage({ adminEmail }) {
                 const overdue = assigned.items.filter((item) => assignmentStatus(item, progress, today) === 'overdue').length
                 return (
                   <article className={`users-person${open ? ' is-open' : ''}`} key={row.uid}>
-                    <button type="button" className="users-person-btn" onClick={() => setOpenId(open ? '' : row.uid)}>
+                    <button
+                      type="button"
+                      className="users-person-btn"
+                      onClick={() => {
+                        setOpenId(open ? '' : row.uid)
+                        setDetailTab('work')
+                      }}
+                    >
                       {row.photoURL ? (
                         <img className="users-avatar-img" src={row.photoURL} alt="" />
                       ) : (
@@ -619,23 +627,15 @@ export default function AdminUsersPage({ adminEmail }) {
                       )}
                       <span className="users-person-copy">
                         <strong>{row.displayName || 'Unnamed student'}</strong>
-                        <small>{row.email || row.uid}</small>
+                        <small>
+                          {row.email || row.uid}
+                          {row.paidLabels.length ? ' · Paid' : ''}
+                        </small>
                       </span>
-                      <span className="users-person-meta">
-                        <span className="meta-chip">{row.countryName}</span>
-                        <span className="meta-chip">
-                          {row.courses.reduce((count, course) => count + courseSubunits(course).length, 0) ||
-                            row.courses.reduce((count, course) => count + Number(course.visitedSubunitsCount || 0), 0)}{' '}
-                          subunits
-                        </span>
-                        <span className="meta-chip">{row.paidLabels.length ? 'Paid' : 'Free'}</span>
+                      <span className="users-person-aside">
                         {assigned.items.length ? (
-                          <span className={`meta-chip${overdue ? ' is-overdue' : pending ? ' is-pending' : ''}`}>
-                            {overdue
-                              ? `${overdue} overdue`
-                              : pending
-                                ? `${pending} not done`
-                                : `${assigned.items.length} allotted · done`}
+                          <span className={`allot-pill${overdue ? ' is-overdue' : pending ? ' is-pending' : ' is-done'}`}>
+                            {overdue ? `${overdue} overdue` : pending ? `${pending} to do` : 'Done'}
                           </span>
                         ) : null}
                         <small>{formatWhen(row.lastSeenAt)}</small>
@@ -643,119 +643,135 @@ export default function AdminUsersPage({ adminEmail }) {
                     </button>
                     {open ? (
                       <div className="users-detail">
-                        <p>
-                          {row.lastPath ? `Last page ${row.lastPath} · ` : ''}
-                          {row.countryCode ? `${row.countryCode} · ` : ''}
-                          {row.uid ? `${row.uid} · ` : ''}
-                          {row.bookmarks.length} bookmarks · {row.mistakes.length} mistakes
-                          {row.visitDates.length ? ` · ${row.visitDates.length} visit days` : ''}
-                        </p>
-                        {row.visitDates.length ? (
-                          <p className="users-visit-dates">{row.visitDates.map(formatDayLabel).join(' · ')}</p>
-                        ) : null}
-                        <div className="users-allot-block">
-                          <div className="users-allot-head">
-                            <h4>Allotted work</h4>
-                            <button type="button" className="btn ghost" onClick={() => setAllotRow(row)}>
-                              Allot topics / questions
-                            </button>
-                          </div>
-                          <AssignedWorkList
-                            items={assigned.items}
-                            progress={progress}
-                            onRemove={async (id) => {
-                              const nextItems = assigned.items.filter((item) => item.id !== id)
-                              const nextDoc = { items: nextItems, notices: assigned.notices }
-                              await saveStudentAssignments({
-                                uid: row.uid,
-                                email: row.email,
-                                displayName: row.displayName,
-                                ...nextDoc,
-                              })
-                              setAssignmentsByUid((current) => ({ ...current, [row.uid]: nextDoc }))
-                            }}
-                          />
+                        <div className="users-detail-tabs">
+                          <button
+                            type="button"
+                            className={`allot-tab${detailTab === 'work' ? ' is-active' : ''}`}
+                            onClick={() => setDetailTab('work')}
+                          >
+                            Work
+                          </button>
+                          <button
+                            type="button"
+                            className={`allot-tab${detailTab === 'activity' ? ' is-active' : ''}`}
+                            onClick={() => setDetailTab('activity')}
+                          >
+                            Activity
+                          </button>
                         </div>
-                        <div className="users-detail-stack">
-                          <div>
-                            <h4>Subunits accessed</h4>
-                            {row.courses.length === 0 ? (
-                              <p>No course visits saved yet.</p>
-                            ) : (
-                              <ul className="users-course-access">
-                                {row.courses.map((course) => {
-                                  const subunits = courseSubunits(course)
-                                  return (
-                                    <li key={course.slug || course.curriculumId || course.title}>
-                                      <strong>{course.title || course.slug || 'Course'}</strong>
-                                      <small>
-                                        {subunits.length || course.visitedSubunitsCount || 0} subunits
-                                        {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
-                                        {course.updatedAt ? ` · ${formatWhen(course.updatedAt)}` : ''}
-                                      </small>
-                                      {subunits.length ? (
-                                        <div className="users-subunit-row">
-                                          {subunits.map((subunit) => (
-                                            <span className="meta-chip" key={subunit.key} title={subunit.unitId || subunit.key}>
-                                              {subunit.name}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <p>No subunit names stored yet.</p>
-                                      )}
-                                    </li>
-                                  )
-                                })}
-                              </ul>
-                            )}
+                        {detailTab === 'work' ? (
+                          <div className="users-allot-block">
+                            <div className="users-allot-head">
+                              <p>
+                                {assigned.items.length
+                                  ? overdue
+                                    ? `${overdue} overdue`
+                                    : pending
+                                      ? `${pending} still to do`
+                                      : 'All done'
+                                  : 'No work allotted'}
+                              </p>
+                              <button
+                                type="button"
+                                className="btn primary"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setAllotRow(row)
+                                }}
+                              >
+                                Allot
+                              </button>
+                            </div>
+                            <AssignedWorkList
+                              items={assigned.items}
+                              progress={progress}
+                              onRemove={async (id) => {
+                                const nextItems = assigned.items.filter((item) => item.id !== id)
+                                const nextDoc = { items: nextItems, notices: assigned.notices }
+                                await saveStudentAssignments({
+                                  uid: row.uid,
+                                  email: row.email,
+                                  displayName: row.displayName,
+                                  ...nextDoc,
+                                })
+                                setAssignmentsByUid((current) => ({ ...current, [row.uid]: nextDoc }))
+                              }}
+                            />
                           </div>
-                          <div className="users-detail-grid">
+                        ) : (
+                          <div className="users-detail-stack">
+                            <p className="users-activity-line">
+                              {[
+                                row.countryName,
+                                row.lastPath ? `Last ${row.lastPath}` : '',
+                                row.visitDates.length ? `${row.visitDates.length} visit days` : '',
+                                `${row.bookmarks.length} bookmarks`,
+                                `${row.mistakes.length} mistakes`,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
                             <div>
-                              <h4>Paid for</h4>
-                              {row.purchases.length === 0 ? (
-                                <p>No paid products.</p>
+                              <h4>Courses</h4>
+                              {row.courses.length === 0 ? (
+                                <p>No course visits yet.</p>
                               ) : (
-                                <ul>
-                                  {row.purchases.map((item) => (
-                                    <li key={item.id}>
-                                      <strong>
-                                        {item.kind}: {item.title}
-                                      </strong>
-                                      <small>
-                                        {item.status}
-                                        {item.expiresAt ? ` · expires ${dateKey(item.expiresAt)}` : ''}
-                                        {item.amount ? ` · ${item.amount}` : ''}
-                                        {item.verifiedAt ? ` · ${formatWhen(item.verifiedAt)}` : ''}
-                                        {item.paymentId ? ` · ${item.paymentId}` : ''}
-                                      </small>
-                                    </li>
-                                  ))}
+                                <ul className="users-course-access">
+                                  {row.courses.map((course) => {
+                                    const subunits = courseSubunits(course)
+                                    return (
+                                      <li key={course.slug || course.curriculumId || course.title}>
+                                        <strong>{course.title || course.slug || 'Course'}</strong>
+                                        <small>
+                                          {subunits.length || course.visitedSubunitsCount || 0} subunits
+                                          {course.lastViewedSubunit ? ` · last ${course.lastViewedSubunit}` : ''}
+                                        </small>
+                                      </li>
+                                    )
+                                  })}
                                 </ul>
                               )}
                             </div>
-                            <div>
-                              <h4>Study lists</h4>
-                              {row.bookmarks.length ? (
-                                <>
-                                  <small className="users-list-label">Bookmarks</small>
-                                  {row.bookmarks.map((item) => (
-                                    <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
-                                  ))}
-                                </>
-                              ) : null}
-                              {row.mistakes.length ? (
-                                <>
-                                  <small className="users-list-label">Mistakes</small>
-                                  {row.mistakes.map((item) => (
-                                    <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
-                                  ))}
-                                </>
-                              ) : null}
-                              {row.bookmarks.length + row.mistakes.length === 0 ? <p>No saved questions.</p> : null}
+                            <div className="users-detail-grid">
+                              <div>
+                                <h4>Paid for</h4>
+                                {row.purchases.length === 0 ? (
+                                  <p>No paid products.</p>
+                                ) : (
+                                  <ul>
+                                    {row.purchases.map((item) => (
+                                      <li key={item.id}>
+                                        <strong>
+                                          {item.kind}: {item.title}
+                                        </strong>
+                                        <small>
+                                          {item.status}
+                                          {item.expiresAt ? ` · expires ${dateKey(item.expiresAt)}` : ''}
+                                          {item.amount ? ` · ${item.amount}` : ''}
+                                        </small>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                              <div>
+                                <h4>Study lists</h4>
+                                {row.bookmarks.length + row.mistakes.length === 0 ? (
+                                  <p>No saved questions.</p>
+                                ) : (
+                                  <>
+                                    {row.bookmarks.slice(0, 4).map((item) => (
+                                      <small key={`b-${item.questionId}`}>{item.preview || item.questionId}</small>
+                                    ))}
+                                    {row.mistakes.slice(0, 4).map((item) => (
+                                      <small key={`m-${item.questionId}`}>{item.preview || item.questionId}</small>
+                                    ))}
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     ) : null}
                   </article>
