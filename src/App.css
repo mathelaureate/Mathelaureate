@@ -931,6 +931,15 @@ nav button:hover {
   overflow: visible !important;
 }
 
+/* Safari inherits liga/calt-off and overflow-wrap:anywhere into KaTeX and drops or breaks glyphs. */
+.latex-text .katex,
+.latex-text .katex * {
+  font-feature-settings: normal;
+  font-variant-ligatures: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .latex-text ul,
 .latex-text ol {
   margin: 0.18rem 0 0.18rem 1.1rem;
@@ -1027,7 +1036,8 @@ nav button:hover {
 .geogebra-block iframe {
   width: 100%;
   aspect-ratio: 16 / 10;
-  height: auto;
+  height: 32rem;
+  min-height: 18rem;
   border: 1px solid #d5e0e3;
   border-radius: 10px;
   background: #fff;
@@ -2364,7 +2374,22 @@ select {
 
 /* Question card image spacing + smaller display size */
 .lesson-card-question {
-  padding: 0.9rem 1rem;
+  padding: 0 1rem 0.95rem;
+}
+
+.question-card-bar {
+  margin: 0 -1rem 0;
+  padding: 0.8rem 1rem 0.7rem;
+  border-bottom: 1px solid #c9d7e4;
+  background: #f5f8fb;
+}
+
+.lesson-card-question .question-card-bar .card-lang {
+  margin-bottom: 0.45rem;
+}
+
+.lesson-card-question .question-stem {
+  padding-top: 1rem;
 }
 
 .lesson-card-question .question-number-title {
@@ -2420,7 +2445,7 @@ select {
 }
 
 .lesson-card-question .question-meta-row {
-  margin: 0 0 0.8rem;
+  margin: 0.35rem 0 0;
 }
 
 .lesson-card-question,
@@ -3937,7 +3962,7 @@ body {
 }
 
 .course-page .lesson-card-lesson {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  background: #fff;
   border-color: #dbe6ee;
   border-left: 4px solid #1b6ea8;
   padding: 1.2rem 1.35rem 1.45rem;
@@ -3953,8 +3978,22 @@ body {
 .course-page .lesson-card .latex-heading,
 .course-page .lesson-card .question-stem,
 .course-page .lesson-card .solution-box,
-.course-page .lesson-card .katex {
-  color: #111827;
+.course-page .lesson-card .katex,
+.course-page .lesson-card .katex * {
+  color: #000;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+.course-page .lesson-card .latex-text,
+.course-page .lesson-card .latex-heading,
+.course-page .lesson-card .question-stem {
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.course-page .lesson-card .katex,
+.course-page .lesson-card .katex * {
+  font-weight: 400;
 }
 
 .lesson-rail {
