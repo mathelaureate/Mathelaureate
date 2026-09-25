@@ -2415,6 +2415,27 @@ select {
   align-items: center;
 }
 
+.lesson-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.lesson-card-top .latex-heading {
+  margin: 0;
+}
+
+.lesson-card-top .card-lang {
+  width: max-content;
+  margin: 0;
+}
+
+.lesson-card-top .card-lang-select {
+  width: 4.8rem;
+  font-family: var(--font-sans);
+}
+
 .card-lang-select {
   border: 1px solid #d5e0e8;
   background: #fff;

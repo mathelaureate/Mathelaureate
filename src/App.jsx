@@ -1683,10 +1683,10 @@ function CourseItemCard({
           </div>
         </header>
       ) : (
-        <>
-          <CardLangToggle variant="menu" lang={lang} busy={busy} error={error} onChange={chooseLang} />
+        <div className="lesson-card-top">
           {view.title ? <LatexText value={view.title} className="latex-heading" /> : null}
-        </>
+          <CardLangToggle variant="menu" lang={lang} busy={busy} error={error} onChange={chooseLang} />
+        </div>
       )}
       {activeTab === 'question' ? (
         <div className="question-stem">
