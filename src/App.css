@@ -3948,6 +3948,15 @@ body {
   border-left: 4px solid #1b6ea8;
 }
 
+.course-page .lesson-card,
+.course-page .lesson-card .latex-text,
+.course-page .lesson-card .latex-heading,
+.course-page .lesson-card .question-stem,
+.course-page .lesson-card .solution-box,
+.course-page .lesson-card .katex {
+  color: #111827;
+}
+
 .lesson-rail {
   display: grid;
   gap: 0.75rem;
