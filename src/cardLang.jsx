@@ -146,7 +146,29 @@ export function useCardLang(id, sourceFields) {
   return { lang, fields, busy, error, chooseLang }
 }
 
-export function CardLangToggle({ lang, busy, error, onChange }) {
+export function CardLangToggle({ lang, busy, error, onChange, variant = 'chips' }) {
+  if (variant === 'menu') {
+    return (
+      <div className="card-lang card-lang-menu">
+        <label>
+          <select
+            className="card-lang-select"
+            value={lang}
+            disabled={busy}
+            aria-label="Translate this card"
+            onChange={(event) => onChange(event.target.value)}
+          >
+            {CARD_LANGS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error ? <small className="card-lang-error">{error}</small> : null}
+      </div>
+    )
+  }
   return (
     <div className="card-lang">
       <div className="card-lang-row" role="group" aria-label="Translate this card">

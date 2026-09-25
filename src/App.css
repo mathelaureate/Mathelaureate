@@ -2378,18 +2378,62 @@ select {
 }
 
 .question-card-bar {
-  margin: 0 -1rem 0;
-  padding: 0.8rem 1rem 0.7rem;
-  border-bottom: 1px solid #c9d7e4;
-  background: #f5f8fb;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 -1rem;
+  padding: 0.22rem 0.65rem;
+  border-bottom: 1px solid #e4eaef;
+  background: #fff;
 }
 
-.lesson-card-question .question-card-bar .card-lang {
-  margin-bottom: 0.45rem;
+.question-card-bar .question-number-title {
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.question-card-bar .question-meta-row {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  gap: 0.28rem;
+}
+
+.question-card-bar .meta-chip {
+  padding: 0.04rem 0.38rem;
+  font-size: 0.68rem;
+}
+
+.question-card-bar .card-lang,
+.question-card-bar .card-lang-menu {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.card-lang-select {
+  border: 1px solid #d5e0e8;
+  background: #fff;
+  color: #14212b;
+  border-radius: 6px;
+  padding: 0.08rem 0.28rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.question-card-bar .question-tool-btn,
+.question-card-bar .ask-ai-btn {
+  width: 1.55rem;
+  height: 1.55rem;
 }
 
 .lesson-card-question .question-stem {
-  padding-top: 1rem;
+  padding-top: 0.75rem;
 }
 
 .lesson-card-question .question-number-title {
@@ -2445,7 +2489,7 @@ select {
 }
 
 .lesson-card-question .question-meta-row {
-  margin: 0.35rem 0 0;
+  margin: 0;
 }
 
 .lesson-card-question,
@@ -3985,9 +4029,8 @@ body {
 }
 
 .course-page .lesson-card .latex-text,
-.course-page .lesson-card .latex-heading,
 .course-page .lesson-card .question-stem {
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.6;
 }
 

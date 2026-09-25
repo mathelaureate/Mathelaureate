@@ -1646,33 +1646,7 @@ function CourseItemCard({
     >
       {activeTab === 'question' ? (
         <header className="question-card-bar">
-          <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-          <div className="question-card-head">
-            <h3 className="question-number-title">Question {index + 1}</h3>
-            <div className="question-card-tools">
-              {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
-              <button
-                type="button"
-                className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
-                onClick={() => onToggleWrong?.(item)}
-                disabled={studyBusy || !onToggleWrong}
-                aria-label={isWrong ? 'Remove from mistakes' : 'Mark as wrong'}
-                title={isWrong ? 'In mistakes' : 'Mark as wrong'}
-              >
-                <WrongMarkIcon />
-              </button>
-              <button
-                type="button"
-                className={`question-tool-btn${isBookmarked ? ' is-bookmarked' : ''}`}
-                onClick={() => onToggleBookmark?.(item)}
-                disabled={studyBusy || !onToggleBookmark}
-                aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
-                title={isBookmarked ? 'Bookmarked' : 'Bookmark'}
-              >
-                <BookmarkIcon filled={isBookmarked} />
-              </button>
-            </div>
-          </div>
+          <h3 className="question-number-title">Q {index + 1}</h3>
           <div className="question-meta-row">
             <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
             <span className="meta-chip">{item.marks || 0} marks</span>
@@ -1682,6 +1656,30 @@ function CourseItemCard({
             <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
               {String(item.difficulty || 'medium')}
             </span>
+          </div>
+          <CardLangToggle variant="menu" lang={lang} busy={busy} error={error} onChange={chooseLang} />
+          <div className="question-card-tools">
+            {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
+            <button
+              type="button"
+              className={`question-tool-btn${isWrong ? ' is-wrong' : ''}`}
+              onClick={() => onToggleWrong?.(item)}
+              disabled={studyBusy || !onToggleWrong}
+              aria-label={isWrong ? 'Remove from mistakes' : 'Mark as wrong'}
+              title={isWrong ? 'In mistakes' : 'Mark as wrong'}
+            >
+              <WrongMarkIcon />
+            </button>
+            <button
+              type="button"
+              className={`question-tool-btn${isBookmarked ? ' is-bookmarked' : ''}`}
+              onClick={() => onToggleBookmark?.(item)}
+              disabled={studyBusy || !onToggleBookmark}
+              aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
+              title={isBookmarked ? 'Bookmarked' : 'Bookmark'}
+            >
+              <BookmarkIcon filled={isBookmarked} />
+            </button>
           </div>
         </header>
       ) : (
