@@ -4008,14 +4008,14 @@ body {
 }
 
 .course-page .lesson-card-lesson {
-  background: #f7fafb;
+  background: #fff;
   border-color: #dbe6ee;
   border-left: 4px solid #1b6ea8;
   padding: 1.2rem 1.35rem 1.45rem;
 }
 
 .course-page .lesson-card-question {
-  background: #f7fafb;
+  background: #fff;
   border-left: 4px solid #1b6ea8;
 }
 
@@ -4026,7 +4026,7 @@ body {
 .course-page .lesson-card .solution-box,
 .course-page .lesson-card .katex,
 .course-page .lesson-card .katex * {
-  color: #3d4c5c;
+  color: #243140;
   -webkit-font-smoothing: antialiased;
 }
 
