@@ -1684,7 +1684,7 @@ function CourseItemCard({
         </header>
       ) : (
         <>
-          <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
+          <CardLangToggle variant="menu" lang={lang} busy={busy} error={error} onChange={chooseLang} />
           {view.title ? <LatexText value={view.title} className="latex-heading" /> : null}
         </>
       )}
