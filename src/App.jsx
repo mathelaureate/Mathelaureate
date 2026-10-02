@@ -34,6 +34,7 @@ import {
   recordViewedQuestion,
 } from './studentStudy'
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
+import PaperBuilder from './paperSheet'
 import { assignmentLabel, assignmentStatus, homeworkSessionsMap, normalizeAssignmentDoc, pickHomeworkQuestions, questionsForTopic, saveHomeworkSession } from './assignments'
 import {
   collectBankImageNames,
@@ -3706,6 +3707,8 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
   const [studyBusyId, setStudyBusyId] = useState('')
+  const [papersUsed, setPapersUsed] = useState(0)
+  const [paperOpen, setPaperOpen] = useState(false)
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -3787,6 +3790,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
         )
         setSavedQuestions(normalizeStudyList(progressData?.savedQuestions))
         setWrongQuestions(normalizeStudyList(progressData?.wrongQuestions))
+        setPapersUsed(Math.max(0, Number(progressData?.paperGenerations) || 0))
         setSelectedUnitId(nextUnitId)
         setSelectedSubunit(nextSubunit)
         setActiveTab(nextTab)
@@ -4118,6 +4122,33 @@ function CoursePage({ user, authReady, cachedProfile }) {
     return () => window.clearTimeout(timer)
   }, [activeTab, focusQuestionId, courseLoading, visibleQuestions.length, user])
 
+  function renderPaperQuestion(item) {
+    const blocks = (Array.isArray(item.descriptionBlocks) ? item.descriptionBlocks : []).filter(
+      (block) => block?.type !== 'geogebra',
+    )
+    if (contentBlocksHaveMediaOrText(blocks)) return renderContentBlocks(blocks, `paper-${item.id}`)
+    if (String(item.description || '').trim()) return <LatexText value={item.description} className="latex-text" />
+    return <p>Question</p>
+  }
+
+  async function recordPaperGeneration() {
+    const progressRef = doc(db, 'userCourseProgress', user.uid)
+    const progressSnap = await getDoc(progressRef)
+    const current = Math.max(0, Number(progressSnap.data()?.paperGenerations) || 0)
+    const next = current + 1
+    await setDoc(
+      progressRef,
+      {
+        uid: user.uid,
+        email: user.email || '',
+        paperGenerations: next,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    )
+    setPapersUsed(next)
+  }
+
   if (!authReady) {
     return (
       <main className="site site-full">
@@ -4378,7 +4409,12 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 <>
                   {activeTab === 'question' ? (
                     <div className="question-filter-row">
-                      <strong>Filter by difficulty</strong>
+                      <div className="question-filter-head">
+                        <strong>Filter by difficulty</strong>
+                        <button type="button" className="btn ghost" onClick={() => setPaperOpen(true)}>
+                          Make a paper
+                        </button>
+                      </div>
                       <div className="difficulty-chip-row">
                         <button
                           type="button"
@@ -4441,6 +4477,22 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       ))
                     )}
                   </div>
+                  {paperOpen ? (
+                    <PaperBuilder
+                      courseTitle={course.title}
+                      unitName={selectedUnit?.name}
+                      subunit={currentSubunit}
+                      questions={visibleQuestions}
+                      used={papersUsed}
+                      unlimited={
+                        paidForCurrentCourse ||
+                        String(user?.email || '').trim().toLowerCase() === adminAllowedEmail
+                      }
+                      renderQuestion={renderPaperQuestion}
+                      onClose={() => setPaperOpen(false)}
+                      onRecord={recordPaperGeneration}
+                    />
+                  ) : null}
                 </>
               )}
             </section>

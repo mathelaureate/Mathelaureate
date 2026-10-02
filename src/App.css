@@ -820,6 +820,13 @@ nav button:hover {
   color: #3f2c74;
 }
 
+.question-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .question-filter-row {
   display: grid;
   gap: 0.45rem;
@@ -830,7 +837,7 @@ nav button:hover {
   border: 1px solid #d5e0e3;
   border-radius: 10px;
   background: #f7fbfb;
-  width: fit-content;
+  width: 100%;
 }
 
 .difficulty-chip-row {
@@ -9411,5 +9418,256 @@ select:focus {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+.paper-make {
+  margin-left: auto;
+}
+
+.paper-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.paper-builder {
+  width: min(40rem, 100%);
+  max-height: min(86vh, 44rem);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  padding: 1rem 1.05rem 0.9rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+.paper-builder-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.paper-builder-head h3,
+.paper-builder-lead,
+.paper-builder-credit {
+  margin: 0;
+}
+
+.paper-builder-lead,
+.paper-builder-credit {
+  color: #5c6b74;
+  font-size: 0.88rem;
+}
+
+.paper-pick-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.paper-pick-list label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #e6edf2;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.paper-pick-list label.is-blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.paper-pick-list span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  color: #243140;
+  font-size: 0.86rem;
+}
+
+.paper-pick-list strong {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0b7a75;
+}
+
+.paper-pick-list em {
+  font-style: normal;
+  color: #5c6b74;
+  font-size: 0.78rem;
+}
+
+.paper-pick-empty {
+  color: #5c6b74;
+}
+
+.paper-builder-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.paper-builder-actions span {
+  margin-right: auto;
+  color: #5c6b74;
+  font-size: 0.84rem;
+}
+
+.paper-sheet {
+  position: fixed;
+  left: -14000px;
+  top: 0;
+  width: 190mm;
+  box-sizing: border-box;
+  padding: 14mm 16mm 22mm;
+  background: #fff;
+  color: #1c2430;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+.paper-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 2.5px solid #0b7a75;
+}
+
+.paper-brand img {
+  width: 46mm;
+  height: auto;
+}
+
+.paper-brand p,
+.paper-brand strong,
+.paper-brand span {
+  display: block;
+}
+
+.paper-brand p {
+  margin: 0;
+  font-family: Manrope, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0b7a75;
+}
+
+.paper-brand strong {
+  margin-top: 0.12rem;
+  font-size: 1.05rem;
+}
+
+.paper-brand span,
+.paper-brand-meta span {
+  color: #5c6b74;
+  font-family: Manrope, sans-serif;
+  font-size: 0.78rem;
+}
+
+.paper-brand-meta {
+  margin-left: auto;
+  text-align: right;
+}
+
+.paper-note {
+  margin: 0.75rem 0 1rem;
+  font-family: Manrope, sans-serif;
+  font-size: 0.78rem;
+  color: #5c6b74;
+}
+
+.paper-questions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1.15rem;
+}
+
+.paper-questions li {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.paper-questions li::before {
+  content: counter(paper-q) ".";
+  counter-increment: paper-q;
+  font-weight: 700;
+}
+
+.paper-questions {
+  counter-reset: paper-q;
+}
+
+.paper-q-body,
+.paper-q-body .latex-text {
+  color: #1c2430;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: 11.5pt;
+  line-height: 1.55;
+}
+
+.paper-q-marks {
+  font-family: Manrope, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.paper-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.4rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid #d5e0e8;
+  font-family: Manrope, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: #5c6b74;
+}
+
+@media print {
+  body.paper-printing * {
+    visibility: hidden;
+  }
+
+  body.paper-printing .paper-sheet,
+  body.paper-printing .paper-sheet * {
+    visibility: visible;
+  }
+
+  body.paper-printing .paper-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: auto;
+  }
+
+  body.paper-printing .paper-foot {
+    position: fixed;
+    left: 16mm;
+    right: 16mm;
+    bottom: 8mm;
   }
 }
