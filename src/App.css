@@ -9483,7 +9483,8 @@ select:focus {
   gap: 0.35rem;
 }
 
-.paper-units button {
+.paper-units button,
+.paper-units label {
   width: 100%;
   text-align: left;
   border: 0;
@@ -9494,12 +9495,68 @@ select:focus {
   cursor: pointer;
 }
 
+.paper-units label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+}
+
+.paper-units label span {
+  flex: 1;
+  min-width: 0;
+}
+
+.paper-units label small {
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.paper-units label.is-blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.paper-preview {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+  counter-reset: paper-preview;
+}
+
+.paper-preview li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid #e6edf2;
+  border-radius: 12px;
+}
+
+.paper-preview li::before {
+  content: "Q " counter(paper-preview);
+  counter-increment: paper-preview;
+  color: #0b7a75;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.paper-preview small {
+  color: #5c6b74;
+  font-size: 0.75rem;
+}
+
+.paper-tray .btn + .btn {
+  margin-top: 0.45rem;
+}
+
 .paper-units .is-open > button:first-child {
   font-weight: 750;
 }
 
-.paper-units .is-open > button:not(:first-child),
-.paper-units .is-open > button.is-active {
+.paper-units .is-open > label {
   padding-left: 0.9rem;
   color: #3d4c5c;
   font-size: 0.84rem;

@@ -4677,7 +4677,7 @@ function PaperGeneratorPage({ user, authReady, cachedProfile }) {
         <div className="ia-hero-inner">
           <p className="eyebrow">Paper</p>
           <h1>Make a question paper</h1>
-          <p>Pick questions from any topic. Free accounts can make 2 papers, with up to 10 questions each.</p>
+          <p>Tick topics. A 10-question paper is built for you. Free accounts can download 2 papers.</p>
         </div>
       </section>
       {!authReady || loading ? (
