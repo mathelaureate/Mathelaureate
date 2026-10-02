@@ -34,7 +34,7 @@ import {
   recordViewedQuestion,
 } from './studentStudy'
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
-import PaperBuilder from './paperSheet'
+import PaperStudio from './paperSheet'
 import { assignmentLabel, assignmentStatus, homeworkSessionsMap, normalizeAssignmentDoc, pickHomeworkQuestions, questionsForTopic, saveHomeworkSession } from './assignments'
 import {
   collectBankImageNames,
@@ -2113,7 +2113,9 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           <Link to="/teachers-resources" className={isTeachers ? 'nav-active' : undefined}>
             Teachers &amp; Resources
           </Link>
-        <a href="/#contact">Contact</a>
+          <Link to="/papers" className={path.startsWith('/papers') ? 'nav-active' : undefined}>
+            Paper
+          </Link>
         {user || cachedProfile ? (
           <>
             {user ? <AssignmentInbox user={user} /> : null}
@@ -2159,14 +2161,6 @@ function PresenceTracker({ user }) {
 
 function HomePage({ user, cachedProfile }) {
   const location = useLocation()
-  const [contactName, setContactName] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [contactSubject, setContactSubject] = useState('General inquiry')
-  const [contactMessage, setContactMessage] = useState('')
-  const [contactWebsite, setContactWebsite] = useState('')
-  const [contactSending, setContactSending] = useState(false)
-  const [contactFeedbackIsError, setContactFeedbackIsError] = useState(false)
-  const [contactFeedback, setContactFeedback] = useState('')
 
   useEffect(() => {
     if (!location.hash) return
@@ -2176,53 +2170,6 @@ function HomePage({ user, cachedProfile }) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [location.hash])
-
-  async function onContactSubmit(event) {
-    event.preventDefault()
-    if (!contactName.trim() || !contactEmail.trim() || !contactSubject.trim() || !contactMessage.trim()) {
-      setContactFeedbackIsError(true)
-      setContactFeedback('Please fill in your name, email, subject, and message.')
-      return
-    }
-    if (contactMessage.trim().length < 10) {
-      setContactFeedbackIsError(true)
-      setContactFeedback('Please add a little more detail to your message.')
-      return
-    }
-
-    setContactSending(true)
-    setContactFeedback('')
-    setContactFeedbackIsError(false)
-    try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: contactName.trim(),
-          email: contactEmail.trim(),
-          subject: contactSubject.trim(),
-          message: contactMessage.trim(),
-          website: contactWebsite.trim(),
-        }),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data?.error || 'Unable to send your message right now. Please try again later.')
-      }
-      setContactFeedbackIsError(false)
-      setContactFeedback('Message sent successfully. We will get back to you within 24 hours.')
-      setContactName('')
-      setContactEmail('')
-      setContactSubject('General inquiry')
-      setContactMessage('')
-      setContactWebsite('')
-    } catch (error) {
-      setContactFeedbackIsError(true)
-      setContactFeedback(error?.message || 'Unable to send your message right now. Please try again later.')
-    } finally {
-      setContactSending(false)
-    }
-  }
 
   return (
     <main className="site home-site site-full">
@@ -2448,62 +2395,6 @@ function HomePage({ user, cachedProfile }) {
         </div>
       </section>
 
-      <section id="contact" className="panel-section contact-section">
-        <Reveal className="contact-intro">
-          <p className="eyebrow">Get In Touch</p>
-          <h2>Contact Us</h2>
-          <p>Have questions about our programs? Send us a message and we&apos;ll get back to you within 24 hours.</p>
-        </Reveal>
-        <Reveal delay={80}>
-        <form className="contact-form contact-form-card" onSubmit={onContactSubmit}>
-          <div className="contact-grid-two">
-            <input
-              type="text"
-              placeholder="Full Name"
-              value={contactName}
-              onChange={(event) => setContactName(event.target.value)}
-              required
-            />
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={contactEmail}
-              onChange={(event) => setContactEmail(event.target.value)}
-              required
-            />
-          </div>
-          <select value={contactSubject} onChange={(event) => setContactSubject(event.target.value)} required>
-            <option value="General inquiry">General inquiry</option>
-            <option value="Program guidance">Program guidance</option>
-            <option value="Pricing and access">Pricing and access</option>
-            <option value="Technical support">Technical support</option>
-          </select>
-          <textarea
-            rows={4}
-            placeholder="Your message"
-            value={contactMessage}
-            onChange={(event) => setContactMessage(event.target.value)}
-            required
-          />
-          <input
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-            value={contactWebsite}
-            onChange={(event) => setContactWebsite(event.target.value)}
-            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-          />
-          <div className="contact-actions-row">
-            <button type="submit" className="btn primary" id="login" disabled={contactSending}>
-              {contactSending ? 'Sending...' : 'Send Message'}
-            </button>
-          </div>
-          {contactFeedback ? <p className={contactFeedbackIsError ? 'error-text' : 'success-text'}>{contactFeedback}</p> : null}
-        </form>
-        </Reveal>
-      </section>
-
       <footer className="home-footer">
         <div className="home-footer-inner">
           <div className="home-footer-brand">
@@ -2538,7 +2429,7 @@ function HomePage({ user, cachedProfile }) {
           <div className="home-footer-legal">
             <Link to="/privacy-policy">Privacy Policy</Link>
             <Link to="/terms-of-use">Terms</Link>
-            <a href="/#contact">Accessibility</a>
+            <Link to="/papers">Paper</Link>
           </div>
         </div>
       </footer>
@@ -3707,8 +3598,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
   const [savedQuestions, setSavedQuestions] = useState([])
   const [wrongQuestions, setWrongQuestions] = useState([])
   const [studyBusyId, setStudyBusyId] = useState('')
-  const [papersUsed, setPapersUsed] = useState(0)
-  const [paperOpen, setPaperOpen] = useState(false)
 
   if (!course) {
     return <Navigate to="/" replace />
@@ -3790,7 +3679,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
         )
         setSavedQuestions(normalizeStudyList(progressData?.savedQuestions))
         setWrongQuestions(normalizeStudyList(progressData?.wrongQuestions))
-        setPapersUsed(Math.max(0, Number(progressData?.paperGenerations) || 0))
         setSelectedUnitId(nextUnitId)
         setSelectedSubunit(nextSubunit)
         setActiveTab(nextTab)
@@ -4122,33 +4010,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
     return () => window.clearTimeout(timer)
   }, [activeTab, focusQuestionId, courseLoading, visibleQuestions.length, user])
 
-  function renderPaperQuestion(item) {
-    const blocks = (Array.isArray(item.descriptionBlocks) ? item.descriptionBlocks : []).filter(
-      (block) => block?.type !== 'geogebra',
-    )
-    if (contentBlocksHaveMediaOrText(blocks)) return renderContentBlocks(blocks, `paper-${item.id}`)
-    if (String(item.description || '').trim()) return <LatexText value={item.description} className="latex-text" />
-    return <p>Question</p>
-  }
-
-  async function recordPaperGeneration() {
-    const progressRef = doc(db, 'userCourseProgress', user.uid)
-    const progressSnap = await getDoc(progressRef)
-    const current = Math.max(0, Number(progressSnap.data()?.paperGenerations) || 0)
-    const next = current + 1
-    await setDoc(
-      progressRef,
-      {
-        uid: user.uid,
-        email: user.email || '',
-        paperGenerations: next,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true },
-    )
-    setPapersUsed(next)
-  }
-
   if (!authReady) {
     return (
       <main className="site site-full">
@@ -4409,12 +4270,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                 <>
                   {activeTab === 'question' ? (
                     <div className="question-filter-row">
-                      <div className="question-filter-head">
-                        <strong>Filter by difficulty</strong>
-                        <button type="button" className="btn ghost" onClick={() => setPaperOpen(true)}>
-                          Make a paper
-                        </button>
-                      </div>
+                      <strong>Filter by difficulty</strong>
                       <div className="difficulty-chip-row">
                         <button
                           type="button"
@@ -4477,22 +4333,6 @@ function CoursePage({ user, authReady, cachedProfile }) {
                       ))
                     )}
                   </div>
-                  {paperOpen ? (
-                    <PaperBuilder
-                      courseTitle={course.title}
-                      unitName={selectedUnit?.name}
-                      subunit={currentSubunit}
-                      questions={visibleQuestions}
-                      used={papersUsed}
-                      unlimited={
-                        paidForCurrentCourse ||
-                        String(user?.email || '').trim().toLowerCase() === adminAllowedEmail
-                      }
-                      renderQuestion={renderPaperQuestion}
-                      onClose={() => setPaperOpen(false)}
-                      onRecord={recordPaperGeneration}
-                    />
-                  ) : null}
                 </>
               )}
             </section>
@@ -4711,6 +4551,161 @@ function MockQuestionCard({
                           ) : null}
       </div>
     </article>
+  )
+}
+
+function PaperGeneratorPage({ user, authReady, cachedProfile }) {
+  const [loginPending, setLoginPending] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [unitsByCourse, setUnitsByCourse] = useState({})
+  const [questions, setQuestions] = useState([])
+  const [papersUsed, setPapersUsed] = useState(0)
+  const [payments, setPayments] = useState(() => normalizeUserPayments())
+  const [paywall, setPaywall] = useState(() => normalizePaywallConfig())
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return undefined
+    }
+    let active = true
+    async function load() {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const [curriculaData, records, paywallData, paymentSnap, progressSnap] = await Promise.all([
+          getCachedAppDoc('curricula', curriculaDocRef),
+          getCachedContentItems(),
+          getCachedAppDoc('paywall', paywallDocRef),
+          getDoc(doc(db, 'userPayments', user.uid)),
+          getDoc(doc(db, 'userCourseProgress', user.uid)),
+        ])
+        if (!active) return
+        const courses = ensureRequiredCurricula(curriculaData?.courses)
+        const nextUnits = {}
+        for (const course of courseCatalog) {
+          const match = courses.find((item) => item.id === course.curriculumId)
+          nextUnits[course.slug] = match?.units || []
+        }
+        setUnitsByCourse(nextUnits)
+        setQuestions((records || []).filter((item) => item.itemType === 'question' && item.id))
+        setPaywall(normalizePaywallConfig(paywallData))
+        setPayments(normalizeUserPayments(paymentSnap.exists() ? paymentSnap.data() : {}))
+        const progress = progressSnap.exists() ? progressSnap.data() : {}
+        setPapersUsed(Math.max(0, Number(progress?.paperGenerations) || 0))
+      } catch (error) {
+        if (active) setLoadError(error?.message || 'Unable to load the question bank.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  async function startGoogleLogin() {
+    setLoginPending(true)
+    setLoginError('')
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      setLoginError(error?.message?.replace('Firebase: ', '') || 'Unable to complete Google sign-in.')
+    } finally {
+      setLoginPending(false)
+    }
+  }
+
+  function renderPaperQuestion(item) {
+    const blocks = (Array.isArray(item.descriptionBlocks) ? item.descriptionBlocks : []).filter(
+      (block) => block?.type !== 'geogebra',
+    )
+    const normalized = normalizeContentBlocks(blocks)
+    if (normalized.length) {
+      return (
+        <div className="content-blocks-render">
+          {normalized.map((block, index) => renderNormalizedContentBlock(block, `paper-${item.id}`, index))}
+        </div>
+      )
+    }
+    if (String(item.description || '').trim()) return <LatexText value={item.description} className="latex-text" />
+    return <p>Question</p>
+  }
+
+  function isLocked(item) {
+    if (hasCourseAccess(payments, item.curriculumId)) return false
+    if (String(user?.email || '').trim().toLowerCase() === adminAllowedEmail) return false
+    const lockedUnits = paywall.lockedUnits?.[item.curriculumId] || []
+    const lockedSubunits = paywall.lockedSubunits?.[item.curriculumId] || []
+    return lockedUnits.includes(item.unitId) || lockedSubunits.includes(`${item.unitId}::${item.subunit}`)
+  }
+
+  async function recordPaperGeneration() {
+    const progressRef = doc(db, 'userCourseProgress', user.uid)
+    const progressSnap = await getDoc(progressRef)
+    const current = Math.max(0, Number(progressSnap.data()?.paperGenerations) || 0)
+    const next = current + 1
+    await setDoc(
+      progressRef,
+      {
+        uid: user.uid,
+        email: user.email || '',
+        paperGenerations: next,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    )
+    setPapersUsed(next)
+  }
+
+  const hasPaidCourse = Object.values(payments.courses || {}).some((entry) => entry?.paid)
+  const unlimited =
+    hasPaidCourse ||
+    hasActiveSubscription(payments) ||
+    String(user?.email || '').trim().toLowerCase() === adminAllowedEmail
+
+  return (
+    <main className="site site-full paper-page">
+      <SiteHeader user={user} cachedProfile={cachedProfile} />
+      <section className="ia-hero">
+        <div className="ia-hero-inner">
+          <p className="eyebrow">Paper</p>
+          <h1>Make a question paper</h1>
+          <p>Pick questions from any topic. Free accounts can make 2 papers, with up to 10 questions each.</p>
+        </div>
+      </section>
+      {!authReady || loading ? (
+        <p className="ia-status">Loading the question bank...</p>
+      ) : !user ? (
+        <section className="panel-section auth-card">
+          <h2>Sign in required</h2>
+          <p>Use your Google account to build a paper.</p>
+          {loginError ? <p className="error-text">{loginError}</p> : null}
+          <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
+            {loginPending ? 'Signing in...' : 'Continue with Google'}
+          </button>
+        </section>
+      ) : loadError ? (
+        <p className="error-text">{loadError}</p>
+      ) : (
+        <PaperStudio
+          courses={courseCatalog}
+          unitsByCourse={unitsByCourse}
+          questions={questions}
+          used={papersUsed}
+          unlimited={unlimited}
+          isLocked={isLocked}
+          renderQuestion={renderPaperQuestion}
+          onRecord={recordPaperGeneration}
+        />
+      )}
+    </main>
   )
 }
 
@@ -9761,6 +9756,7 @@ function App() {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/terms-of-use" element={<TermsOfUsePage user={user} cachedProfile={cachedProfile} />} />
         <Route path="/mock-generator" element={<MockGeneratorPage user={user} authReady={authReady} cachedProfile={cachedProfile} />} />
+        <Route path="/papers" element={<PaperGeneratorPage user={user} authReady={authReady} cachedProfile={cachedProfile} />} />
         <Route
           path="/courses/:slug"
           element={

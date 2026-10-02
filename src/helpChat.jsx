@@ -54,8 +54,8 @@ const TOPICS = [
     id: 'contact',
     chip: 'How do I contact you?',
     keys: ['contact', 'email', 'message', 'support', 'help', 'reach', 'talk'],
-    text: 'Use the contact form on this page. We aim to reply within 24 hours. You can also write to mathelaureate@gmail.com.',
-    links: [{ to: '/#contact', label: 'Contact form' }],
+    text: 'Write to mathelaureate@gmail.com. We aim to reply within 24 hours.',
+    links: [{ to: '/papers', label: 'Make a paper' }],
   },
   {
     id: 'teachers',
@@ -101,7 +101,7 @@ function answerFor(input) {
     text: 'I can help with courses, sign-in, pricing, IA, the mock generator, and contact. For help with a maths question, sign in and open a course, then tap the sparkle on that question.',
     links: [
       { to: '/#programs', label: 'Programs' },
-      { to: '/#contact', label: 'Contact' },
+      { to: '/papers', label: 'Make a paper' },
     ],
   }
 }
