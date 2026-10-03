@@ -3173,6 +3173,12 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               >
                 <div className="ia-grid-card-preview">
                   <TeachersResourceCardPreview post={post} />
+                  {String(post.category || '').toLowerCase() === 'worksheets' ? (
+                    <span className="resource-curriculum-tags">
+                      <span>IB</span>
+                      <span>IGCSE</span>
+                    </span>
+                  ) : null}
                 </div>
                 <div className="ia-grid-card-body">
                   <div className="ia-idea-meta">
@@ -5414,9 +5420,9 @@ function ProfileQuestionCard({
   removing = false,
   onOpenImage,
   showRemove = false,
-  solutionOpen = false,
+  compact = false,
 }) {
-  const [showSolution, setShowSolution] = useState(solutionOpen)
+  const [showSolution, setShowSolution] = useState(false)
   const translateSource = useMemo(
     () =>
       item || {
@@ -5437,9 +5443,9 @@ function ProfileQuestionCard({
   const hasSolution = questionHasSolution(item)
   const solutionVideo = toYouTubeEmbedUrl(item?.solutionVideoLink)
   return (
-    <article className="study-question-card">
-      <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      <div className="study-question-head">
+    <article className={`study-question-card${compact ? ' is-compact' : ''}`}>
+      {compact ? null : <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />}
+      {compact ? null : <div className="study-question-head">
         <p className="study-question-kicker">
           {[entry.courseTitle || entry.courseSlug, entry.unitName || item?.unitName, entry.subunit]
             .filter(Boolean)
@@ -5459,8 +5465,8 @@ function ProfileQuestionCard({
             )
           }
         />
-      </div>
-      <div className="question-meta-row">
+      </div>}
+      {compact ? null : <div className="question-meta-row">
         <span className="meta-chip">{(item ? normalizeGdc(item.gdc) : entry.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
         {(item?.marks || entry.marks) ? <span className="meta-chip">{item?.marks || entry.marks} marks</span> : null}
         {String(item?.questionLevel || entry.questionLevel || '').trim() ? (
@@ -5471,7 +5477,7 @@ function ProfileQuestionCard({
             {String(item?.difficulty || entry.difficulty || 'medium')}
           </span>
         ) : null}
-      </div>
+      </div>}
       <div className="study-question-body">
         {view && contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
           <StudyContentBlocks
@@ -5513,7 +5519,6 @@ function ProfileQuestionCard({
           </button>
         ) : null}
       </div>
-      {solutionOpen && !hasSolution ? <p className="profile-paper-missing">No answer is saved for this question yet.</p> : null}
       {showSolution && hasSolution ? (
         <div className="study-question-solution">
           {view?.solution && !contentBlocksHaveMediaOrText(view.solutionBlocks) ? (
@@ -6022,6 +6027,49 @@ function formatGeneratedPaperDate(value) {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+function ProfilePaper({ paper, questionById, onOpenImage }) {
+  return (
+    <article className="profile-paper">
+      <header className="profile-paper-head">
+        <h3>{paper.title}</h3>
+        <p>
+          {formatGeneratedPaperDate(paper.createdAt)}
+          {paper.subtitle ? ` · ${paper.subtitle}` : ''}
+          {` · ${paper.questionIds.length} question${paper.questionIds.length === 1 ? '' : 's'}`}
+        </p>
+      </header>
+      <ol className="profile-paper-questions">
+        {paper.questionIds.map((questionId, index) => {
+          const item = questionById.get(questionId) || null
+          const marks = Number(item?.marks) || 0
+          const section = marks >= 9 ? 'B' : 'A'
+          const previous = index > 0 ? questionById.get(paper.questionIds[index - 1]) : null
+          const previousSection = previous && (Number(previous.marks) || 0) >= 9 ? 'B' : index > 0 ? 'A' : ''
+          return (
+            <li key={`${paper.id}-${questionId}-${index}`}>
+              {section !== previousSection ? <h3 className="profile-paper-section">Section {section}</h3> : null}
+              <p className="profile-paper-mark">
+                {index + 1}. {marks > 0 ? `[Maximum mark: ${marks}]` : 'Question'}
+              </p>
+              <ProfileQuestionCard
+                compact
+                entry={{
+                  questionId,
+                  subunit: item?.subunit || '',
+                  marks,
+                  preview: item ? '' : 'This question is no longer in the bank.',
+                }}
+                item={item}
+                onOpenImage={onOpenImage}
+              />
+            </li>
+          )
+        })}
+      </ol>
+    </article>
+  )
+}
+
 function ProfilePage({ user, cachedProfile }) {
   const location = useLocation()
   const [myCourses, setMyCourses] = useState([])
@@ -6301,44 +6349,12 @@ function ProfilePage({ user, cachedProfile }) {
             ) : (
               <div className="profile-paper-list">
                 {generatedPapers.map((paper) => (
-                  <article className="profile-paper" key={paper.id}>
-                    <header className="profile-paper-head">
-                      <h3>{paper.title}</h3>
-                      <p>
-                        {formatGeneratedPaperDate(paper.createdAt)}
-                        {paper.subtitle ? ` · ${paper.subtitle}` : ''}
-                        {` · ${paper.questionIds.length} question${paper.questionIds.length === 1 ? '' : 's'}`}
-                      </p>
-                    </header>
-                    <div className="study-question-list">
-                      {paper.questionIds.map((questionId, index) => {
-                        const item = questionById.get(questionId) || null
-                        const marks = Number(item?.marks) || 0
-                        const section = marks >= 9 ? 'B' : 'A'
-                        const previous = index > 0 ? questionById.get(paper.questionIds[index - 1]) : null
-                        const previousSection = previous && (Number(previous.marks) || 0) >= 9 ? 'B' : index > 0 ? 'A' : ''
-                        return (
-                          <div key={`${paper.id}-${questionId}-${index}`}>
-                            {section !== previousSection ? <h3 className="profile-paper-section">Section {section}</h3> : null}
-                            <p className="profile-paper-mark">
-                              {index + 1}. {marks > 0 ? `[Maximum mark: ${marks}]` : 'Question'}
-                            </p>
-                            <ProfileQuestionCard
-                              entry={{
-                                questionId,
-                                subunit: item?.subunit || '',
-                                marks,
-                                preview: item ? '' : 'This question is no longer in the bank.',
-                              }}
-                              item={item}
-                              onOpenImage={setExpandedImageUrl}
-                              solutionOpen
-                            />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </article>
+                  <ProfilePaper
+                    key={paper.id}
+                    paper={paper}
+                    questionById={questionById}
+                    onOpenImage={setExpandedImageUrl}
+                  />
                 ))}
               </div>
             )}
