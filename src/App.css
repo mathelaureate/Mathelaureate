@@ -9598,7 +9598,7 @@ select:focus {
   width: min(100% - 2.5rem, 96rem);
   margin: 1rem auto 2rem;
   display: grid;
-  grid-template-columns: 16.5rem minmax(0, 1fr) 16rem;
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr) minmax(0, 18rem);
   gap: 0.85rem;
   align-items: start;
 }
@@ -9691,7 +9691,7 @@ select:focus {
 
 .paper-units label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
   font-size: 0.84rem;
 }
@@ -9707,9 +9707,14 @@ select:focus {
 .paper-tray li span {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.paper-units label small,
+.paper-tray li button {
+  flex-shrink: 0;
 }
 
 .paper-units label small {
@@ -10011,17 +10016,25 @@ select:focus {
   top: 0;
   z-index: 120;
   background: #fff;
+  pointer-events: none;
 }
 
 .paper-busy-screen {
   position: fixed;
   inset: 0;
-  z-index: 130;
+  z-index: 140;
   display: grid;
   place-items: center;
-  background: rgba(247, 250, 251, 0.94);
+  background: #f7fafb;
   color: #0f2c4d;
   font-weight: 750;
+}
+
+.paper-tray .paper-builder-credit {
+  margin: 0 0 0.75rem;
+  color: #0f2c4d;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .paper-measure {

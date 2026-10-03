@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Link } from 'react-router-dom'
 import { savePagesAsPdf } from './paperPdf'
 
 export const PAPER_QUESTION_LIMIT = 10
@@ -344,7 +345,11 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
     setError('')
     const host = document.createElement('div')
     host.className = 'paper-export-host'
-    document.body.appendChild(host)
+    const cover = document.createElement('div')
+    cover.className = 'paper-busy-screen'
+    cover.setAttribute('role', 'status')
+    cover.textContent = 'Preparing your PDF…'
+    document.body.append(host, cover)
     const root = createRoot(host)
     try {
       const pages = await new Promise((resolve, reject) => {
@@ -374,6 +379,7 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
     } finally {
       root.unmount()
       host.remove()
+      cover.remove()
       setBusy(false)
     }
   }
@@ -475,7 +481,7 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
             ? 'Unlimited papers'
             : remaining > 0
               ? `${remaining} free paper${remaining === 1 ? '' : 's'} left`
-              : '2 free papers used'}
+              : '2 free papers used. Please pay to download more.'}
         </p>
         <ul key={topicKeys.join('|')}>
           {topicKeys.length === 0 ? (
@@ -497,19 +503,22 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
           )}
         </ul>
         {error ? <p className="error-text">{error}</p> : null}
-        {!allowed ? <p className="paper-builder-credit">Unlock the course to make more papers.</p> : null}
+        {!allowed ? (
+          <p className="paper-builder-credit">You've used your 2 free papers. Please pay to download more.</p>
+        ) : null}
         <button type="button" className="btn ghost" onClick={() => setMix((value) => value + 1)} disabled={!paper.length || busy}>
           New mix
         </button>
-        <button type="button" className="btn primary" onClick={download} disabled={!allowed || !paper.length || busy}>
-          {busy ? 'Preparing…' : 'Download PDF'}
-        </button>
+        {!allowed ? (
+          <Link className="btn primary" to="/programs">
+            Please pay
+          </Link>
+        ) : (
+          <button type="button" className="btn primary" onClick={download} disabled={!paper.length || busy}>
+            {busy ? 'Preparing…' : 'Download PDF'}
+          </button>
+        )}
       </aside>
-      {busy ? (
-        <div className="paper-busy-screen" role="status">
-          Preparing your PDF…
-        </div>
-      ) : null}
     </div>
   )
 }
