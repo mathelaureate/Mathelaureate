@@ -6022,8 +6022,32 @@ body {
   padding: 0.2rem 0.48rem;
 }
 
-.resource-curriculum-tags span:last-child {
+.resource-curriculum-tags .resource-level-igcse {
   background: #0b7a75;
+}
+
+.resource-level-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem 1.1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.resource-level-choices legend {
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.15rem;
+  font-weight: 650;
+}
+
+.resource-level-choices label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 650;
 }
 
 .ia-grid-unlocked {

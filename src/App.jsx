@@ -617,6 +617,17 @@ function mapTeachersResourceCategory(value) {
   return raw
 }
 
+const resourceCurriculumOptions = ['IB', 'IGCSE']
+
+function normalizeResourceCurricula(value, category) {
+  if (Array.isArray(value)) {
+    const picked = new Set(value.map((level) => String(level || '').trim().toUpperCase()))
+    return resourceCurriculumOptions.filter((level) => picked.has(level))
+  }
+  if (String(category || '').toLowerCase() === 'worksheets') return [...resourceCurriculumOptions]
+  return []
+}
+
 function normalizeTeachersResourcesPosts(raw) {
   if (!Array.isArray(raw)) return []
   return raw
@@ -625,6 +636,7 @@ function normalizeTeachersResourcesPosts(raw) {
       title: String(item?.title || '').trim(),
       description: String(item?.description || '').trim(),
       category: mapTeachersResourceCategory(item?.category || item?.topic),
+      curricula: normalizeResourceCurricula(item?.curricula, mapTeachersResourceCategory(item?.category || item?.topic)),
       imageUrl: String(item?.imageUrl || '').trim(),
       imagePath: String(item?.imagePath || '').trim(),
       pdfUrl: String(item?.pdfUrl || '').trim(),
@@ -3173,10 +3185,13 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               >
                 <div className="ia-grid-card-preview">
                   <TeachersResourceCardPreview post={post} />
-                  {String(post.category || '').toLowerCase() === 'worksheets' ? (
+                  {post.curricula?.length ? (
                     <span className="resource-curriculum-tags">
-                      <span>IB</span>
-                      <span>IGCSE</span>
+                      {post.curricula.map((level) => (
+                        <span key={level} className={`resource-level-${level.toLowerCase()}`}>
+                          {level}
+                        </span>
+                      ))}
                     </span>
                   ) : null}
                 </div>
@@ -6818,6 +6833,7 @@ function AdminPage({ mode = 'admin' }) {
   const [resourcePostTitle, setResourcePostTitle] = useState('')
   const [resourcePostDescription, setResourcePostDescription] = useState('')
   const [resourcePostCategory, setResourcePostCategory] = useState('Activities')
+  const [resourcePostCurricula, setResourcePostCurricula] = useState([])
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
   const [resourcePostPdfFile, setResourcePostPdfFile] = useState(null)
@@ -8541,6 +8557,7 @@ function AdminPage({ mode = 'admin' }) {
       title: resourcePostTitle.trim(),
       description: resourcePostDescription.trim(),
       category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
+      curricula: normalizeResourceCurricula(resourcePostCurricula, ''),
       imageUrl,
       imagePath,
       pdfUrl,
@@ -8563,6 +8580,7 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostTitle('')
     setResourcePostDescription('')
     setResourcePostCategory('Activities')
+    setResourcePostCurricula([])
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
     setResourcePostPdfFile(null)
@@ -8579,6 +8597,7 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostTitle(item.title || '')
     setResourcePostDescription(item.description || '')
     setResourcePostCategory(mapTeachersResourceCategory(item.category) || 'Activities')
+    setResourcePostCurricula(normalizeResourceCurricula(item.curricula, item.category))
     setResourcePostImageFile(null)
     setResourcePostPdfFile(null)
     setResourceExistingPdfUrl(item.pdfUrl || '')
@@ -9059,6 +9078,23 @@ function AdminPage({ mode = 'admin' }) {
                     ))}
                 </select>
               </label>
+              <fieldset className="resource-level-choices">
+                <legend>Curriculum</legend>
+                {resourceCurriculumOptions.map((level) => (
+                  <label key={level}>
+                    <input
+                      type="checkbox"
+                      checked={resourcePostCurricula.includes(level)}
+                      onChange={() =>
+                        setResourcePostCurricula((current) =>
+                          current.includes(level) ? current.filter((item) => item !== level) : [...current, level],
+                        )
+                      }
+                    />
+                    {level}
+                  </label>
+                ))}
+              </fieldset>
               <label>
                 Summary (optional)
                 <textarea
@@ -9133,7 +9169,10 @@ function AdminPage({ mode = 'admin' }) {
                       </div>
                     </div>
                     <h3>{item.title}</h3>
-                    <small>{item.category || 'Activities'}</small>
+                    <small>
+                      {item.category || 'Activities'}
+                      {item.curricula?.length ? ` · ${item.curricula.join(' · ')}` : ''}
+                    </small>
                     {item.pdfFileName ? <small>{item.pdfFileName}</small> : null}
                     {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
                     {item.imageUrl ? (
