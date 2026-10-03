@@ -995,8 +995,8 @@ nav button:hover {
 
 .lesson-card .katex-display,
 .solution-box .katex-display {
+  max-width: 100%;
   overflow-x: auto;
-  overflow-y: visible;
 }
 
 .solution-modal-overlay {
@@ -2580,8 +2580,8 @@ select {
 
 .lesson-card-question .katex-display {
   margin: 0.4rem 0;
+  max-width: 100%;
   overflow-x: auto;
-  overflow-y: visible;
 }
 
 .course-head {
@@ -5217,8 +5217,8 @@ body {
 .course-page .latex-text,
 .course-page .latex-heading {
   max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .lesson-rail {
@@ -5263,7 +5263,7 @@ body {
   min-width: 0 !important;
   max-width: 100%;
   width: 100%;
-  overflow-x: visible;
+  overflow-x: auto;
   z-index: 1;
   box-sizing: border-box;
 }
@@ -5304,7 +5304,6 @@ body {
 }
 
 .course-page .katex-display,
-.course-page .katex,
 .course-page .latex-text,
 .course-page .latex-heading {
   max-width: 100%;
@@ -5312,7 +5311,6 @@ body {
 
 .course-page .katex-display {
   overflow-x: auto;
-  overflow-y: visible;
 }
 
 .course-page .lesson-card-question,
@@ -5338,8 +5336,8 @@ body {
 }
 
 .course-page .lesson-card-question .katex-display {
+  max-width: 100%;
   overflow-x: auto;
-  overflow-y: visible;
 }
 
 .course-page .lesson-card-question .katex-display > .katex {
@@ -5390,6 +5388,44 @@ body {
   .course-page .course-workspace-grid.course-workspace-lms > .lesson-rail {
     grid-column: 1;
   }
+}
+
+.course-page .lesson-card-top,
+.course-page .lesson-title-row,
+.course-page .question-card-bar,
+.course-page .content-blocks-render,
+.course-page .question-stem,
+.course-page .geogebra-block {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.course-page .lesson-card-top,
+.course-page .question-card-bar {
+  flex-wrap: wrap;
+}
+
+.course-page .lesson-card-top .latex-heading,
+.course-page .lesson-page-title {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.course-page .lesson-card-top .latex-heading {
+  flex: 1 1 12rem;
+}
+
+.course-page .lesson-card img,
+.course-page .content-image-block,
+.course-page .content-image-block .image-open-btn {
+  max-width: 100% !important;
+  height: auto;
+}
+
+.course-page .geogebra-block iframe,
+.course-page .lesson-video-wrap,
+.course-page .lesson-video-frame {
+  max-width: 100%;
 }
 
 /* ========== Events horizontal row cards ========== */
@@ -7164,9 +7200,10 @@ body {
 /* Keep sticky site nav truly full-width even inside centered containers */
 .site-topbar,
 .topbar.site-topbar {
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
   padding: 0;
   border: none;
   border-radius: 0;
