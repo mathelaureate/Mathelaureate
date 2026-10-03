@@ -506,18 +506,20 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
         {!allowed ? (
           <p className="paper-builder-credit">You've used your 2 free papers. Please pay to download more.</p>
         ) : null}
-        <button type="button" className="btn ghost" onClick={() => setMix((value) => value + 1)} disabled={!paper.length || busy}>
-          New mix
-        </button>
-        {!allowed ? (
-          <Link className="btn primary" to="/programs">
-            Please pay
-          </Link>
-        ) : (
-          <button type="button" className="btn primary" onClick={download} disabled={!paper.length || busy}>
-            {busy ? 'Preparing…' : 'Download PDF'}
+        <div className="paper-tray-actions">
+          <button type="button" className="btn ghost" onClick={() => setMix((value) => value + 1)} disabled={!paper.length || busy}>
+            New mix
           </button>
-        )}
+          {!allowed ? (
+            <Link className="btn primary" to="/programs">
+              Please pay
+            </Link>
+          ) : (
+            <button type="button" className="btn primary" onClick={download} disabled={!paper.length || busy}>
+              {busy ? 'Preparing…' : 'Download PDF'}
+            </button>
+          )}
+        </div>
       </aside>
     </div>
   )

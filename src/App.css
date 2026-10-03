@@ -9876,8 +9876,19 @@ select:focus {
   font-size: 1rem;
 }
 
-.paper-tray .btn {
+.paper-tray-actions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.paper-tray-actions .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  position: static;
 }
 
 .paper-q-topic {
