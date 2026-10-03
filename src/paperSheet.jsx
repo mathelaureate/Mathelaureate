@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { savePagesAsPdf } from './paperPdf'
 
 export const PAPER_QUESTION_LIMIT = 10
 export const FREE_PAPER_LIMIT = 2
+const SEP = '\u001f'
 
 function mixSeed(keys, mix) {
   const text = `${mix}|${keys.join('|')}`
@@ -22,23 +25,30 @@ function shuffle(items, rand) {
   return next
 }
 
-function questionsForTopic(questions, curriculumId, key) {
-  const split = key.indexOf('::')
-  const unitId = key.slice(0, split)
-  const subunit = key.slice(split + 2)
+function topicKey(curriculumId, unitId, subunit) {
+  return [curriculumId, unitId, subunit].join(SEP)
+}
+
+function parseTopicKey(key) {
+  const [curriculumId, unitId, subunit] = String(key).split(SEP)
+  return { curriculumId, unitId, subunit }
+}
+
+function questionsForTopic(questions, key) {
+  const { curriculumId, unitId, subunit } = parseTopicKey(key)
   return questions.filter(
     (item) => item.curriculumId === curriculumId && item.unitId === unitId && item.subunit === subunit,
   )
 }
 
-function buildPaper(questions, curriculumId, keys, isLocked, limit, mix) {
+function buildPaper(questions, keys, isLocked, limit, mix) {
   let state = mixSeed(keys, mix)
   const rand = () => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0
     return state / 4294967296
   }
   const pools = keys
-    .map((key) => shuffle(questionsForTopic(questions, curriculumId, key).filter((item) => !isLocked?.(item)), rand))
+    .map((key) => shuffle(questionsForTopic(questions, key).filter((item) => !isLocked?.(item)), rand))
     .filter((pool) => pool.length)
   const picked = []
   let turn = 0
@@ -54,102 +64,246 @@ function formatPaperDate(date = new Date()) {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function PaperDocument({ courseTitle, questions, renderQuestion }) {
-  const totalMarks = questions.reduce((sum, item) => sum + (Number(item.marks) || 0), 0)
-  const topics = [...new Set(questions.map((item) => item.subunit).filter(Boolean))]
-  const mixed = topics.length > 1
+function fileName(title) {
+  const clean = String(title || 'practice paper')
+    .replace(/[^\w]+/g, ' ')
+    .trim()
+  return `Mathelaureate ${clean || 'practice paper'}.pdf`
+}
+
+function outerHeight(element) {
+  const style = getComputedStyle(element)
+  return element.offsetHeight + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0)
+}
+
+function packQuestions(nodes, firstLimit, nextLimit) {
+  const pages = []
+  let current = []
+  let used = 0
+  let limit = firstLimit
+  nodes.forEach((node) => {
+    const height = outerHeight(node)
+    if (current.length && used + height > limit) {
+      pages.push(current)
+      current = []
+      used = 0
+      limit = nextLimit
+    }
+    current.push(node.dataset.index)
+    used += height
+  })
+  if (current.length) pages.push(current)
+  return pages
+}
+
+function QuestionRow({ item, index, showTopic, renderQuestion }) {
   return (
-    <article className="paper-sheet">
-      <header className="paper-brand">
-        <img src="/menu-logo.png" alt="Mathelaureate" />
-        <div>
-          <p>Mathelaureate</p>
-          <strong>{courseTitle || 'Practice paper'}</strong>
-          <span>{mixed ? 'Mixed topics' : topics[0] || 'Practice paper'}</span>
+    <div className="paper-q" data-index={index}>
+      <span className="paper-q-num">{index + 1}.</span>
+      <div className="paper-q-body">
+        {showTopic && item.subunit ? <small className="paper-q-topic">{item.subunit}</small> : null}
+        {renderQuestion(item, index)}
+      </div>
+      <span className="paper-q-marks">{Number(item.marks) > 0 ? `[${Number(item.marks)}]` : ''}</span>
+    </div>
+  )
+}
+
+function PaperBrand({ courseTitle, subtitle, questions }) {
+  const totalMarks = questions.reduce((sum, item) => sum + (Number(item.marks) || 0), 0)
+  return (
+    <header className="paper-brand" data-part="header">
+      <img src="/paper-logo.png" alt="Mathelaureate" />
+      <div className="paper-brand-copy">
+        <strong>{courseTitle || 'Practice paper'}</strong>
+        <span>{subtitle || 'Practice paper'}</span>
+      </div>
+      <div className="paper-brand-meta">
+        <span>{formatPaperDate()}</span>
+        <span>
+          {questions.length} question{questions.length === 1 ? '' : 's'}
+        </span>
+        <span>{totalMarks > 0 ? `${totalMarks} marks` : '\u00a0'}</span>
+      </div>
+    </header>
+  )
+}
+
+function PaperPage({ first, courseTitle, subtitle, questions, page, pages, children }) {
+  return (
+    <article className="paper-page-sheet">
+      {first ? (
+        <>
+          <PaperBrand courseTitle={courseTitle} subtitle={subtitle} questions={questions} />
+          <p className="paper-note" data-part="note">
+            Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.
+          </p>
+        </>
+      ) : (
+        <div className="paper-run" data-part="run">
+          <span>Mathelaureate</span>
+          <span>{courseTitle}</span>
         </div>
-        <div className="paper-brand-meta">
-          <span>{formatPaperDate()}</span>
-          <span>
-            {questions.length} question{questions.length === 1 ? '' : 's'}
-          </span>
-          {totalMarks > 0 ? <span>{totalMarks} marks</span> : null}
-        </div>
-      </header>
-      <p className="paper-note">Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.</p>
-      <ol className="paper-questions">
-        {questions.map((item, index) => (
-          <li key={item.id || index}>
-            <div className="paper-q-body">
-              {mixed && item.subunit ? <small className="paper-q-topic">{item.subunit}</small> : null}
-              {renderQuestion(item, index)}
-            </div>
-            <span className="paper-q-marks">{Number(item.marks) > 0 ? `[${Number(item.marks)}]` : ''}</span>
-          </li>
-        ))}
-      </ol>
-      <footer className="paper-foot">
+      )}
+      <div className="paper-page-body">{children}</div>
+      <footer className="paper-foot" data-part="foot">
         <span>Mathelaureate</span>
+        <span>
+          {page} / {pages}
+        </span>
         <span>www.mathelaureate.com</span>
       </footer>
     </article>
   )
 }
 
-export default function PaperStudio({
-  courses,
-  unitsByCourse,
-  questions,
-  used,
-  unlimited,
-  isLocked,
-  renderQuestion,
-  onRecord,
-}) {
-  const [courseSlug, setCourseSlug] = useState(courses[0]?.slug || '')
-  const [openUnitId, setOpenUnitId] = useState('')
+function PaperExport({ courseTitle, subtitle, questions, renderQuestion, showTopic, onPages }) {
+  const measureRef = useRef(null)
+  const pagesRef = useRef(null)
+  const [groups, setGroups] = useState(null)
+
+  useEffect(() => {
+    let cancel = false
+    async function measure() {
+      await document.fonts?.ready
+      const root = measureRef.current
+      if (!root) return
+      const images = [...root.querySelectorAll('img')]
+      await Promise.all(
+        images.map(
+          (img) =>
+            img.complete && img.naturalWidth
+              ? null
+              : new Promise((resolve) => {
+                  img.onload = resolve
+                  img.onerror = resolve
+                }),
+        ),
+      )
+      if (cancel || !measureRef.current) return
+      const probe = document.createElement('div')
+      probe.className = 'paper-page-sheet'
+      probe.style.position = 'absolute'
+      probe.style.visibility = 'hidden'
+      probe.style.pointerEvents = 'none'
+      measureRef.current.appendChild(probe)
+      const style = getComputedStyle(probe)
+      const innerHeight = probe.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0)
+      probe.remove()
+      const header = outerHeight(measureRef.current.querySelector('[data-part="header"]'))
+      const note = outerHeight(measureRef.current.querySelector('[data-part="note"]'))
+      const run = outerHeight(measureRef.current.querySelector('[data-part="run"]'))
+      const foot = measureRef.current.querySelector('[data-part="foot"]').offsetHeight
+      const nodes = [...measureRef.current.querySelectorAll('.paper-q')]
+      const packed = packQuestions(nodes, innerHeight - header - note - foot, innerHeight - run - foot)
+      if (!cancel) setGroups(packed.map((indexes) => indexes.map((index) => questions[Number(index)])))
+    }
+    measure()
+    return () => {
+      cancel = true
+    }
+  }, [questions])
+
+  useEffect(() => {
+    if (!groups || !pagesRef.current) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      onPages?.([...pagesRef.current.querySelectorAll('.paper-page-sheet')])
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [groups, onPages])
+
+  return (
+    <>
+      {groups ? null : (
+        <div ref={measureRef} className="paper-measure">
+          <PaperBrand courseTitle={courseTitle} subtitle={subtitle} questions={questions} />
+          <p className="paper-note" data-part="note">
+            Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.
+          </p>
+          <div className="paper-run" data-part="run">
+            <span>Mathelaureate</span>
+            <span>{courseTitle}</span>
+          </div>
+          <footer className="paper-foot" data-part="foot">
+            <span>Mathelaureate</span>
+            <span>1 / 1</span>
+            <span>www.mathelaureate.com</span>
+          </footer>
+          {questions.map((item, index) => (
+            <QuestionRow key={item.id || index} item={item} index={index} showTopic={showTopic} renderQuestion={renderQuestion} />
+          ))}
+        </div>
+      )}
+      <div ref={pagesRef}>
+        {(groups || []).map((items, pageIndex) => (
+          <PaperPage
+            key={pageIndex}
+            first={pageIndex === 0}
+            courseTitle={courseTitle}
+            subtitle={subtitle}
+            questions={questions}
+            page={pageIndex + 1}
+            pages={groups.length}
+          >
+            {items.map((item) => (
+              <QuestionRow
+                key={item.id}
+                item={item}
+                index={questions.indexOf(item)}
+                showTopic={showTopic}
+                renderQuestion={renderQuestion}
+              />
+            ))}
+          </PaperPage>
+        ))}
+      </div>
+    </>
+  )
+}
+
+export default function PaperStudio({ courses, unitsByCourse, questions, used, unlimited, isLocked, renderQuestion, onRecord }) {
+  const [openCourses, setOpenCourses] = useState(() => [courses[0]?.slug].filter(Boolean))
+  const [openUnits, setOpenUnits] = useState([])
   const [topicKeys, setTopicKeys] = useState([])
   const [mix, setMix] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [ready, setReady] = useState(false)
-  const course = courses.find((item) => item.slug === courseSlug) || courses[0]
-  const units = unitsByCourse[course?.slug] || []
-  const firstUnitId = units[0]?.id || ''
   const remaining = Math.max(0, FREE_PAPER_LIMIT - used)
   const allowed = unlimited || remaining > 0
   const lockRef = useRef(isLocked)
   lockRef.current = isLocked
+  const seededUnits = useRef(false)
 
   useEffect(() => {
-    setOpenUnitId(firstUnitId)
-    setTopicKeys([])
-    setMix(0)
-    setReady(false)
-  }, [course?.slug, firstUnitId])
-
-  useEffect(() => {
-    if (!ready) return undefined
-    const previousTitle = document.title
-    document.title = `Mathelaureate ${course?.shortTitle || 'paper'}`
-    document.body.classList.add('paper-printing')
-    const cleanup = () => {
-      document.body.classList.remove('paper-printing')
-      document.title = previousTitle
-      window.removeEventListener('afterprint', cleanup)
-    }
-    window.addEventListener('afterprint', cleanup)
-    const timer = window.setTimeout(() => window.print(), 40)
-    return () => window.clearTimeout(timer)
-  }, [ready, course?.shortTitle])
+    if (seededUnits.current) return
+    const course = courses[0]
+    const unit = unitsByCourse[course?.slug]?.[0]
+    if (!course || !unit) return
+    seededUnits.current = true
+    setOpenUnits([`${course.slug}${SEP}${unit.id}`])
+  }, [courses, unitsByCourse])
 
   const paper = useMemo(
-    () =>
-      buildPaper(questions, course?.curriculumId, topicKeys, (item) => lockRef.current?.(item), PAPER_QUESTION_LIMIT, mix),
-    [questions, course?.curriculumId, topicKeys, mix],
+    () => buildPaper(questions, topicKeys, (item) => lockRef.current?.(item), PAPER_QUESTION_LIMIT, mix),
+    [questions, topicKeys, mix],
   )
+  const selectedCourseIds = [...new Set(topicKeys.map((key) => parseTopicKey(key).curriculumId))]
+  const courseTitle =
+    selectedCourseIds.length === 1
+      ? courses.find((item) => item.curriculumId === selectedCourseIds[0])?.title || 'Practice paper'
+      : selectedCourseIds
+          .map((id) => courses.find((item) => item.curriculumId === id)?.shortTitle)
+          .filter(Boolean)
+          .join(' · ') || 'Practice paper'
+  const topicNames = [...new Set(paper.map((item) => item.subunit).filter(Boolean))]
+  const subtitle = selectedCourseIds.length > 1 || topicNames.length > 1 ? 'Mixed topics' : topicNames[0] || 'Practice paper'
+  const showTopic = topicNames.length > 1
+
+  function toggleList(list, setList, key) {
+    setList(list.includes(key) ? list.filter((item) => item !== key) : [...list, key])
+  }
 
   function toggleTopic(key) {
-    setReady(false)
     setError('')
     setTopicKeys((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
   }
@@ -158,12 +312,35 @@ export default function PaperStudio({
     if (!paper.length || !allowed || busy) return
     setBusy(true)
     setError('')
+    const host = document.createElement('div')
+    host.className = 'paper-export-host'
+    document.body.appendChild(host)
+    const root = createRoot(host)
     try {
+      const pages = await new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error('The paper took too long to prepare.')), 20000)
+        root.render(
+          <PaperExport
+            courseTitle={courseTitle}
+            subtitle={subtitle}
+            questions={paper}
+            renderQuestion={renderQuestion}
+            showTopic={showTopic}
+            onPages={(nodes) => {
+              window.clearTimeout(timer)
+              resolve(nodes)
+            }}
+          />,
+        )
+      })
+      if (!pages.length) throw new Error('Unable to prepare this paper.')
+      await savePagesAsPdf(pages, fileName(courseTitle))
       await onRecord?.()
-      setReady(true)
     } catch (saveError) {
       setError(saveError?.message || 'Unable to prepare this paper.')
     } finally {
+      root.unmount()
+      host.remove()
       setBusy(false)
     }
   }
@@ -171,47 +348,56 @@ export default function PaperStudio({
   return (
     <div className="paper-studio">
       <aside className="paper-tree">
-        <label>
-          Course
-          <select
-            value={course?.slug || ''}
-            onChange={(event) => setCourseSlug(event.target.value)}
-          >
-            {courses.map((item) => (
-              <option key={item.slug} value={item.slug}>
-                {item.shortTitle || item.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <p className="paper-tree-lead">Tick topics from any course. They mix into one paper.</p>
         <div className="paper-units">
-          {units.map((unit) => {
-            const open = openUnitId === unit.id
+          {courses.map((course) => {
+            const units = unitsByCourse[course.slug] || []
+            const courseOpen = openCourses.includes(course.slug)
+            const pickedHere = topicKeys.filter((key) => parseTopicKey(key).curriculumId === course.curriculumId).length
             return (
-              <div key={unit.id} className={open ? 'is-open' : ''}>
-                <button type="button" onClick={() => setOpenUnitId(open ? '' : unit.id)}>
-                  {unit.name}
+              <div key={course.slug} className={courseOpen ? 'is-open paper-course' : 'paper-course'}>
+                <button type="button" className="paper-course-btn" onClick={() => toggleList(openCourses, setOpenCourses, course.slug)}>
+                  <span>{course.shortTitle || course.title}</span>
+                  {pickedHere ? <small>{pickedHere}</small> : null}
                 </button>
-                {open
-                  ? (unit.subunits || []).map((name) => {
-                      const key = `${unit.id}::${name}`
-                      const pool = questionsForTopic(questions, course?.curriculumId, key)
-                      const locked = pool.length > 0 && pool.every((item) => isLocked?.(item))
-                      const empty = pool.length === 0
+                <div className="paper-fold">
+                  <div>
+                    {units.map((unit) => {
+                      const unitToken = `${course.slug}${SEP}${unit.id}`
+                      const unitOpen = openUnits.includes(unitToken)
                       return (
-                        <label key={key} className={locked || empty ? 'is-blocked' : ''}>
-                          <input
-                            type="checkbox"
-                            checked={topicKeys.includes(key)}
-                            disabled={locked || empty}
-                            onChange={() => toggleTopic(key)}
-                          />
-                          <span>{name}</span>
-                          <small>{locked ? 'Locked' : pool.length}</small>
-                        </label>
+                        <div key={unit.id} className={unitOpen ? 'is-open' : ''}>
+                          <button type="button" onClick={() => toggleList(openUnits, setOpenUnits, unitToken)}>
+                            {unit.name}
+                          </button>
+                          <div className="paper-fold">
+                            <div>
+                              {(unit.subunits || []).map((name) => {
+                                const key = topicKey(course.curriculumId, unit.id, name)
+                                const pool = questionsForTopic(questions, key)
+                                const locked = pool.length > 0 && pool.every((item) => isLocked?.(item))
+                                const empty = pool.length === 0
+                                const on = topicKeys.includes(key)
+                                return (
+                                  <label key={key} className={locked || empty ? 'is-blocked' : on ? 'is-on' : ''} title={name}>
+                                    <input
+                                      type="checkbox"
+                                      checked={on}
+                                      disabled={locked || empty}
+                                      onChange={() => toggleTopic(key)}
+                                    />
+                                    <span>{name}</span>
+                                    <small>{locked ? 'Locked' : pool.length}</small>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
                       )
-                    })
-                  : null}
+                    })}
+                  </div>
+                </div>
               </div>
             )
           })}
@@ -223,17 +409,21 @@ export default function PaperStudio({
           <p>
             {paper.length
               ? `${paper.length} question${paper.length === 1 ? '' : 's'} from ${topicKeys.length} topic${topicKeys.length === 1 ? '' : 's'}.`
-              : 'Tick subtopics on the left. The paper fills itself, up to 10 questions.'}
+              : 'Tick subtopics from any course. The paper fills itself, up to 10 questions.'}
           </p>
         </header>
         {paper.length === 0 ? (
           <p className="paper-pick-empty">No paper yet.</p>
         ) : (
-          <ol className="paper-preview">
+          <ol key={`${mix}-${paper.map((item) => item.id).join('-')}`} className="paper-preview">
             {paper.map((item, index) => (
-              <li key={item.id || index}>
-                <small>{item.subunit}</small>
-                {renderQuestion(item)}
+              <li key={item.id || index} style={{ '--i': index }}>
+                <span className="paper-preview-num">{index + 1}</span>
+                <div>
+                  {item.subunit ? <small>{item.subunit}</small> : null}
+                  {renderQuestion(item)}
+                </div>
+                <em>{Number(item.marks) > 0 ? `[${Number(item.marks)}]` : ''}</em>
               </li>
             ))}
           </ol>
@@ -250,30 +440,39 @@ export default function PaperStudio({
               ? `${remaining} free paper${remaining === 1 ? '' : 's'} left`
               : '2 free papers used'}
         </p>
-        <ul>
+        <ul key={topicKeys.join('|')}>
           {topicKeys.length === 0 ? (
             <li className="paper-pick-empty">No topics ticked.</li>
           ) : (
-            topicKeys.map((key) => (
-              <li key={key}>
-                <span>{key.slice(key.indexOf('::') + 2)}</span>
-                <button type="button" onClick={() => toggleTopic(key)} aria-label="Remove topic">
-                  ×
-                </button>
-              </li>
-            ))
+            topicKeys.map((key, index) => {
+              const { curriculumId, subunit } = parseTopicKey(key)
+              const course = courses.find((item) => item.curriculumId === curriculumId)
+              const label = course?.shortTitle ? `${course.shortTitle} · ${subunit}` : subunit
+              return (
+                <li key={key} style={{ '--i': index }}>
+                  <span title={label}>{label}</span>
+                  <button type="button" onClick={() => toggleTopic(key)} aria-label="Remove topic">
+                    ×
+                  </button>
+                </li>
+              )
+            })
           )}
         </ul>
         {error ? <p className="error-text">{error}</p> : null}
         {!allowed ? <p className="paper-builder-credit">Unlock the course to make more papers.</p> : null}
-        <button type="button" className="btn ghost" onClick={() => setMix((value) => value + 1)} disabled={!paper.length}>
+        <button type="button" className="btn ghost" onClick={() => setMix((value) => value + 1)} disabled={!paper.length || busy}>
           New mix
         </button>
         <button type="button" className="btn primary" onClick={download} disabled={!allowed || !paper.length || busy}>
           {busy ? 'Preparing…' : 'Download PDF'}
         </button>
       </aside>
-      {ready ? <PaperDocument courseTitle={course?.title} questions={paper} renderQuestion={renderQuestion} /> : null}
+      {busy ? (
+        <div className="paper-busy-screen" role="status">
+          Preparing your PDF…
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -2120,8 +2120,8 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
           <>
             {user ? <AssignmentInbox user={user} /> : null}
             <Link to="/profile" className={`profile-icon${isProfile ? ' is-active' : ''}`} aria-label="Study home">
-              {profileLabel}
-            </Link>
+            {profileLabel}
+          </Link>
           </>
         ) : (
           <button type="button" className="login-btn" onClick={onLoginSignupClick}>
@@ -2422,7 +2422,7 @@ function HomePage({ user, cachedProfile }) {
             <h4>Contact</h4>
             <Link to="/privacy-policy">Privacy Policy</Link>
             <Link to="/terms-of-use">Terms of Use</Link>
-          </div>
+        </div>
         </div>
         <div className="home-footer-bottom">
           <small>&copy; 2026 Mathelaureate. All rights reserved.</small>
@@ -4677,7 +4677,7 @@ function PaperGeneratorPage({ user, authReady, cachedProfile }) {
         <div className="ia-hero-inner">
           <p className="eyebrow">Paper</p>
           <h1>Make a question paper</h1>
-          <p>Tick topics. A 10-question paper is built for you. Free accounts can download 2 papers.</p>
+          <p>Tick topics from any course. They mix into one paper of up to 10 questions. Free accounts can download 2 papers.</p>
         </div>
       </section>
       {!authReady || loading ? (
