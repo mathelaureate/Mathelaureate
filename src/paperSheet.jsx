@@ -152,6 +152,9 @@ function PaperBrand({ courseTitle, subtitle, questions }) {
 function PaperPage({ first, courseTitle, subtitle, questions, page, pages, children }) {
   return (
     <article className="paper-page-sheet">
+      <p className="paper-watermark" aria-hidden="true">
+        Mathelaureate
+      </p>
       {first ? (
         <>
           <PaperBrand courseTitle={courseTitle} subtitle={subtitle} questions={questions} />

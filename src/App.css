@@ -10029,6 +10029,7 @@ select:focus {
 }
 
 .paper-page-sheet {
+  position: relative;
   width: 210mm;
   height: 297mm;
   box-sizing: border-box;
@@ -10039,6 +10040,29 @@ select:focus {
   flex-direction: column;
   overflow: hidden;
   font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+.paper-watermark {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 0;
+  margin: 0;
+  transform: translate(-50%, -50%) rotate(-32deg);
+  color: rgba(15, 44, 77, 0.13);
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 42pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.paper-page-sheet > :not(.paper-watermark) {
+  position: relative;
+  z-index: 1;
 }
 
 .paper-brand {
