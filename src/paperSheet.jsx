@@ -361,7 +361,11 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
       })
       if (!pages.length) throw new Error('Unable to prepare this paper.')
       await savePagesAsPdf(pages, fileName(courseTitle))
-      await onRecord?.()
+      await onRecord?.({
+        title: courseTitle,
+        subtitle,
+        questionIds: paper.map((item) => item.id).filter(Boolean),
+      })
     } catch (saveError) {
       setError(saveError?.message || 'Unable to prepare this paper.')
     } finally {

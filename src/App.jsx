@@ -34,7 +34,7 @@ import {
   recordViewedQuestion,
 } from './studentStudy'
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
-import PaperStudio from './paperSheet'
+import PaperStudio, { PAPER_QUESTION_LIMIT } from './paperSheet'
 import { assignmentLabel, assignmentStatus, homeworkSessionsMap, normalizeAssignmentDoc, pickHomeworkQuestions, questionsForTopic, saveHomeworkSession } from './assignments'
 import {
   collectBankImageNames,
@@ -4646,17 +4646,30 @@ function PaperGeneratorPage({ user, authReady, cachedProfile }) {
     return lockedUnits.includes(item.unitId) || lockedSubunits.includes(`${item.unitId}::${item.subunit}`)
   }
 
-  async function recordPaperGeneration() {
+  async function recordPaperGeneration(paperMeta) {
     const progressRef = doc(db, 'userCourseProgress', user.uid)
     const progressSnap = await getDoc(progressRef)
-    const current = Math.max(0, Number(progressSnap.data()?.paperGenerations) || 0)
+    const data = progressSnap.exists() ? progressSnap.data() || {} : {}
+    const current = Math.max(0, Number(data.paperGenerations) || 0)
     const next = current + 1
+    const previous = Array.isArray(data.generatedPapers) ? data.generatedPapers : []
+    const entry = {
+      id: `${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      title: String(paperMeta?.title || 'Practice paper').slice(0, 160),
+      subtitle: String(paperMeta?.subtitle || '').slice(0, 160),
+      questionIds: (Array.isArray(paperMeta?.questionIds) ? paperMeta.questionIds : [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+        .slice(0, PAPER_QUESTION_LIMIT),
+    }
     await setDoc(
       progressRef,
       {
         uid: user.uid,
         email: user.email || '',
         paperGenerations: next,
+        generatedPapers: [entry, ...previous].slice(0, 24),
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -5401,8 +5414,9 @@ function ProfileQuestionCard({
   removing = false,
   onOpenImage,
   showRemove = false,
+  solutionOpen = false,
 }) {
-  const [showSolution, setShowSolution] = useState(false)
+  const [showSolution, setShowSolution] = useState(solutionOpen)
   const translateSource = useMemo(
     () =>
       item || {
@@ -5499,6 +5513,7 @@ function ProfileQuestionCard({
           </button>
         ) : null}
       </div>
+      {solutionOpen && !hasSolution ? <p className="profile-paper-missing">No answer is saved for this question yet.</p> : null}
       {showSolution && hasSolution ? (
         <div className="study-question-solution">
           {view?.solution && !contentBlocksHaveMediaOrText(view.solutionBlocks) ? (
@@ -5981,6 +5996,32 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
   )
 }
 
+function normalizeGeneratedPapers(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((entry) => {
+      const questionIds = (Array.isArray(entry?.questionIds) ? entry.questionIds : [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+        .slice(0, PAPER_QUESTION_LIMIT)
+      if (!questionIds.length) return null
+      return {
+        id: String(entry?.id || questionIds.join('-')),
+        createdAt: String(entry?.createdAt || ''),
+        title: String(entry?.title || 'Practice paper'),
+        subtitle: String(entry?.subtitle || ''),
+        questionIds,
+      }
+    })
+    .filter(Boolean)
+}
+
+function formatGeneratedPaperDate(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Saved paper'
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 function ProfilePage({ user, cachedProfile }) {
   const location = useLocation()
   const [myCourses, setMyCourses] = useState([])
@@ -5997,6 +6038,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [expandedImageUrl, setExpandedImageUrl] = useState('')
   const [allotted, setAllotted] = useState({ items: [], notices: [] })
   const [allotProgress, setAllotProgress] = useState({})
+  const [generatedPapers, setGeneratedPapers] = useState([])
   const questionById = useMemo(() => {
     const map = new Map()
     for (const item of questionBank) {
@@ -6038,6 +6080,7 @@ function ProfilePage({ user, cachedProfile }) {
         setLastViewedCourse(resolveLastViewedCourse(data))
         setSavedQuestions(normalizeStudyList(data.savedQuestions))
         setWrongQuestions(nextWrong)
+        setGeneratedPapers(normalizeGeneratedPapers(data.generatedPapers))
         setVisitDates(collectVisitDates(data))
         setSuggestionGroups(
           suggestSimilarQuestionsByTopic({
@@ -6055,6 +6098,7 @@ function ProfilePage({ user, cachedProfile }) {
           setWrongQuestions([])
           setVisitDates([])
           setSuggestionGroups([])
+          setGeneratedPapers([])
         }
       } finally {
         if (active) setIsLoadingCourses(false)
@@ -6176,6 +6220,9 @@ function ProfilePage({ user, cachedProfile }) {
               <Link className="ia-pill" to="/#programs">
                 Programs
               </Link>
+              <Link className="ia-pill" to="/papers">
+                Papers
+              </Link>
               <Link className="ia-pill" to="/mock-generator">
                 Mock Generator
               </Link>
@@ -6235,6 +6282,67 @@ function ProfilePage({ user, cachedProfile }) {
           </div>
         )}
       </section>
+
+          <section className="profile-panel" id="papers">
+            <div className="profile-section-head">
+              <h2>Papers</h2>
+              <p>Questions from papers you downloaded, with the worked answers.</p>
+            </div>
+            {isLoadingCourses ? (
+              <p className="ia-status">Loading your papers...</p>
+            ) : generatedPapers.length === 0 ? (
+              <div className="ia-empty">
+                <h2>No papers yet</h2>
+                <p>Download a paper and its questions will show up here with the answers.</p>
+                <Link className="btn primary" to="/papers">
+                  Make a paper
+                </Link>
+              </div>
+            ) : (
+              <div className="profile-paper-list">
+                {generatedPapers.map((paper) => (
+                  <article className="profile-paper" key={paper.id}>
+                    <header className="profile-paper-head">
+                      <h3>{paper.title}</h3>
+                      <p>
+                        {formatGeneratedPaperDate(paper.createdAt)}
+                        {paper.subtitle ? ` · ${paper.subtitle}` : ''}
+                        {` · ${paper.questionIds.length} question${paper.questionIds.length === 1 ? '' : 's'}`}
+                      </p>
+                    </header>
+                    <div className="study-question-list">
+                      {paper.questionIds.map((questionId, index) => {
+                        const item = questionById.get(questionId) || null
+                        const marks = Number(item?.marks) || 0
+                        const section = marks >= 9 ? 'B' : 'A'
+                        const previous = index > 0 ? questionById.get(paper.questionIds[index - 1]) : null
+                        const previousSection = previous && (Number(previous.marks) || 0) >= 9 ? 'B' : index > 0 ? 'A' : ''
+                        return (
+                          <div key={`${paper.id}-${questionId}-${index}`}>
+                            {section !== previousSection ? <h3 className="profile-paper-section">Section {section}</h3> : null}
+                            <p className="profile-paper-mark">
+                              {index + 1}. {marks > 0 ? `[Maximum mark: ${marks}]` : 'Question'}
+                            </p>
+                            <ProfileQuestionCard
+                              entry={{
+                                questionId,
+                                subunit: item?.subunit || '',
+                                marks,
+                                preview: item ? '' : 'This question is no longer in the bank.',
+                              }}
+                              item={item}
+                              onOpenImage={setExpandedImageUrl}
+                              solutionOpen
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="profile-panel">
             <div className="profile-section-head">
