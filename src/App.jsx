@@ -6019,26 +6019,36 @@ function normalizeGeneratedPapers(value) {
       }
     })
     .filter(Boolean)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
 }
 
 function formatGeneratedPaperDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Saved paper'
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
-function ProfilePaper({ paper, questionById, onOpenImage }) {
+function ProfilePaper({ paper, questionById, onOpenImage, open, onToggle }) {
+  const topic = paper.subtitle && paper.subtitle !== paper.title ? paper.subtitle : ''
   return (
-    <article className="profile-paper">
-      <header className="profile-paper-head">
-        <h3>{paper.title}</h3>
-        <p>
-          {formatGeneratedPaperDate(paper.createdAt)}
-          {paper.subtitle ? ` · ${paper.subtitle}` : ''}
-          {` · ${paper.questionIds.length} question${paper.questionIds.length === 1 ? '' : 's'}`}
-        </p>
-      </header>
-      <ol className="profile-paper-questions">
+    <article className={`profile-paper${open ? ' is-open' : ''}`}>
+      <button type="button" className="profile-paper-toggle" aria-expanded={open} onClick={onToggle}>
+        <span className="profile-paper-head">
+          <h3>{paper.title}</h3>
+          {topic ? <p className="profile-paper-topic">{topic}</p> : null}
+          <p>
+            {formatGeneratedPaperDate(paper.createdAt)}
+            {` · ${paper.questionIds.length} question${paper.questionIds.length === 1 ? '' : 's'}`}
+          </p>
+        </span>
+      </button>
+      {open ? <ol className="profile-paper-questions">
         {paper.questionIds.map((questionId, index) => {
           const item = questionById.get(questionId) || null
           const marks = Number(item?.marks) || 0
@@ -6065,7 +6075,7 @@ function ProfilePaper({ paper, questionById, onOpenImage }) {
             </li>
           )
         })}
-      </ol>
+      </ol> : null}
     </article>
   )
 }
@@ -6087,6 +6097,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [allotted, setAllotted] = useState({ items: [], notices: [] })
   const [allotProgress, setAllotProgress] = useState({})
   const [generatedPapers, setGeneratedPapers] = useState([])
+  const [openPaperId, setOpenPaperId] = useState('')
   const questionById = useMemo(() => {
     const map = new Map()
     for (const item of questionBank) {
@@ -6334,7 +6345,7 @@ function ProfilePage({ user, cachedProfile }) {
           <section className="profile-panel" id="papers">
             <div className="profile-section-head">
               <h2>Papers</h2>
-              <p>Questions from papers you downloaded, with the worked answers.</p>
+              <p>Newest first. Open a paper to see the questions from that paper.</p>
             </div>
             {isLoadingCourses ? (
               <p className="ia-status">Loading your papers...</p>
@@ -6354,6 +6365,8 @@ function ProfilePage({ user, cachedProfile }) {
                     paper={paper}
                     questionById={questionById}
                     onOpenImage={setExpandedImageUrl}
+                    open={openPaperId === paper.id}
+                    onToggle={() => setOpenPaperId((current) => (current === paper.id ? '' : paper.id))}
                   />
                 ))}
               </div>
