@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /editor
+Disallow: /profile
+Disallow: /homework
+
+Sitemap: https://www.mathelaureate.com/sitemap.xml

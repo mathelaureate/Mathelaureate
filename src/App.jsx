@@ -20,6 +20,7 @@ import TutorChat, { SparkleIcon } from './tutorChat'
 import HelpChat from './helpChat'
 import { openTutor, questionTutorContext, topicTutorContext } from './tutor'
 import AdminUsersPage from './AdminUsersPage'
+import { applyPageMeta, metaForPath } from './seo'
 import {
   SAVED_QUESTIONS_KEY,
   WRONG_QUESTIONS_KEY,
@@ -2146,6 +2147,14 @@ function SiteHeader({ user, cachedProfile, bare = false }) {
   )
 }
 
+function PageMeta() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    applyPageMeta(metaForPath(pathname))
+  }, [pathname])
+  return null
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => {
@@ -2838,6 +2847,16 @@ function IaDetailPage({ user, cachedProfile }) {
   }, [iaId])
 
   useEffect(() => {
+    if (!iaItem?.title) return undefined
+    applyPageMeta({
+      title: iaItem.title,
+      description: iaItem.description || 'An IB maths Internal Assessment example from Mathelaureate.',
+      path: `/ia/${iaId}`,
+    })
+    return undefined
+  }, [iaItem, iaId])
+
+  useEffect(() => {
     let active = true
     async function loadPayments() {
       if (!user?.uid) {
@@ -3250,6 +3269,16 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
       active = false
     }
   }, [postId])
+
+  useEffect(() => {
+    if (!post?.title) return undefined
+    applyPageMeta({
+      title: post.title,
+      description: post.description || 'A classroom worksheet or activity from Mathelaureate.',
+      path: `/teachers-resources/${postId}`,
+    })
+    return undefined
+  }, [post, postId])
 
   return (
     <main className="site site-full ia-page ia-detail-page">
@@ -9917,6 +9946,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <PageMeta />
       <PresenceTracker user={user} />
       <Routes>
         <Route path="/" element={<HomePage user={user} cachedProfile={cachedProfile} />} />
