@@ -96,15 +96,35 @@ function packQuestions(nodes, firstLimit, nextLimit) {
   return pages
 }
 
-function QuestionRow({ item, index, showTopic, renderQuestion }) {
+const PAPER_NOTE = 'Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.'
+const PAPER_SOLUTIONS = 'Solutions to these questions can be found on mathelaureate.com.'
+
+function paperSection(item) {
+  return (Number(item.marks) || 0) >= 9 ? 'B' : 'A'
+}
+
+function orderPaper(items) {
+  return [...items.filter((item) => paperSection(item) === 'A'), ...items.filter((item) => paperSection(item) === 'B')]
+}
+
+function sectionHeading(items, index) {
+  const section = paperSection(items[index])
+  if (index > 0 && paperSection(items[index - 1]) === section) return ''
+  return `Section ${section}`
+}
+
+function QuestionRow({ item, index, renderQuestion, sectionLabel }) {
+  const marks = Number(item.marks) || 0
   return (
     <div className="paper-q" data-index={index}>
-      <span className="paper-q-num">{index + 1}.</span>
-      <div className="paper-q-body">
-        {showTopic && item.subunit ? <small className="paper-q-topic">{item.subunit}</small> : null}
-        {renderQuestion(item, index)}
+      {sectionLabel ? <h3 className="paper-section">{sectionLabel}</h3> : null}
+      <div className="paper-q-row">
+        <span className="paper-q-num">{index + 1}.</span>
+        <div className="paper-q-body">
+          {marks > 0 ? <p className="paper-q-max">[Maximum mark: {marks}]</p> : null}
+          {renderQuestion(item, index)}
+        </div>
       </div>
-      <span className="paper-q-marks">{Number(item.marks) > 0 ? `[${Number(item.marks)}]` : ''}</span>
     </div>
   )
 }
@@ -136,7 +156,7 @@ function PaperPage({ first, courseTitle, subtitle, questions, page, pages, child
         <>
           <PaperBrand courseTitle={courseTitle} subtitle={subtitle} questions={questions} />
           <p className="paper-note" data-part="note">
-            Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.
+            {PAPER_NOTE} {PAPER_SOLUTIONS}
           </p>
         </>
       ) : (
@@ -157,7 +177,7 @@ function PaperPage({ first, courseTitle, subtitle, questions, page, pages, child
   )
 }
 
-function PaperExport({ courseTitle, subtitle, questions, renderQuestion, showTopic, onPages }) {
+function PaperExport({ courseTitle, subtitle, questions, renderQuestion, onPages }) {
   const measureRef = useRef(null)
   const pagesRef = useRef(null)
   const [groups, setGroups] = useState(null)
@@ -218,7 +238,7 @@ function PaperExport({ courseTitle, subtitle, questions, renderQuestion, showTop
         <div ref={measureRef} className="paper-measure">
           <PaperBrand courseTitle={courseTitle} subtitle={subtitle} questions={questions} />
           <p className="paper-note" data-part="note">
-            Answer all questions. Show your working. Diagrams are not drawn to scale unless stated.
+            {PAPER_NOTE} {PAPER_SOLUTIONS}
           </p>
           <div className="paper-run" data-part="run">
             <span>Mathelaureate</span>
@@ -230,7 +250,13 @@ function PaperExport({ courseTitle, subtitle, questions, renderQuestion, showTop
             <span>www.mathelaureate.com</span>
           </footer>
           {questions.map((item, index) => (
-            <QuestionRow key={item.id || index} item={item} index={index} showTopic={showTopic} renderQuestion={renderQuestion} />
+            <QuestionRow
+              key={item.id || index}
+              item={item}
+              index={index}
+              renderQuestion={renderQuestion}
+              sectionLabel={sectionHeading(questions, index)}
+            />
           ))}
         </div>
       )}
@@ -245,15 +271,18 @@ function PaperExport({ courseTitle, subtitle, questions, renderQuestion, showTop
             page={pageIndex + 1}
             pages={groups.length}
           >
-            {items.map((item) => (
-              <QuestionRow
-                key={item.id}
-                item={item}
-                index={questions.indexOf(item)}
-                showTopic={showTopic}
-                renderQuestion={renderQuestion}
-              />
-            ))}
+            {items.map((item) => {
+              const index = questions.indexOf(item)
+              return (
+                <QuestionRow
+                  key={item.id || index}
+                  item={item}
+                  index={index}
+                  renderQuestion={renderQuestion}
+                  sectionLabel={sectionHeading(questions, index)}
+                />
+              )
+            })}
           </PaperPage>
         ))}
       </div>
@@ -284,7 +313,7 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
   }, [courses, unitsByCourse])
 
   const paper = useMemo(
-    () => buildPaper(questions, topicKeys, (item) => lockRef.current?.(item), PAPER_QUESTION_LIMIT, mix),
+    () => orderPaper(buildPaper(questions, topicKeys, (item) => lockRef.current?.(item), PAPER_QUESTION_LIMIT, mix)),
     [questions, topicKeys, mix],
   )
   const selectedCourseIds = [...new Set(topicKeys.map((key) => parseTopicKey(key).curriculumId))]
@@ -297,8 +326,6 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
           .join(' · ') || 'Practice paper'
   const topicNames = [...new Set(paper.map((item) => item.subunit).filter(Boolean))]
   const subtitle = selectedCourseIds.length > 1 || topicNames.length > 1 ? 'Mixed topics' : topicNames[0] || 'Practice paper'
-  const showTopic = topicNames.length > 1
-
   function toggleList(list, setList, key) {
     setList(list.includes(key) ? list.filter((item) => item !== key) : [...list, key])
   }
@@ -325,7 +352,6 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
             subtitle={subtitle}
             questions={paper}
             renderQuestion={renderQuestion}
-            showTopic={showTopic}
             onPages={(nodes) => {
               window.clearTimeout(timer)
               resolve(nodes)
@@ -408,7 +434,7 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
           <h2>Generated paper</h2>
           <p>
             {paper.length
-              ? `${paper.length} question${paper.length === 1 ? '' : 's'} from ${topicKeys.length} topic${topicKeys.length === 1 ? '' : 's'}.`
+              ? `${paper.length} question${paper.length === 1 ? '' : 's'} from ${topicKeys.length} topic${topicKeys.length === 1 ? '' : 's'}. ${PAPER_SOLUTIONS}`
               : 'Tick subtopics from any course. The paper fills itself, up to 10 questions.'}
           </p>
         </header>
@@ -416,16 +442,20 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
           <p className="paper-pick-empty">No paper yet.</p>
         ) : (
           <ol key={`${mix}-${paper.map((item) => item.id).join('-')}`} className="paper-preview">
-            {paper.map((item, index) => (
-              <li key={item.id || index} style={{ '--i': index }}>
-                <span className="paper-preview-num">{index + 1}</span>
-                <div>
-                  {item.subunit ? <small>{item.subunit}</small> : null}
-                  {renderQuestion(item)}
-                </div>
-                <em>{Number(item.marks) > 0 ? `[${Number(item.marks)}]` : ''}</em>
-              </li>
-            ))}
+            {paper.map((item, index) => {
+              const heading = sectionHeading(paper, index)
+              const marks = Number(item.marks) || 0
+              return (
+                <li key={item.id || index} style={{ '--i': index }}>
+                  <span className="paper-preview-num">{index + 1}.</span>
+                  <div>
+                    {heading ? <strong className="paper-preview-section">{heading}</strong> : null}
+                    {marks > 0 ? <p className="paper-q-max">[Maximum mark: {marks}]</p> : null}
+                    {renderQuestion(item)}
+                  </div>
+                </li>
+              )
+            })}
           </ol>
         )}
       </section>
