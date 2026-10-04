@@ -460,9 +460,9 @@ export default function PaperStudio({ courses, unitsByCourse, questions, used, u
               const marks = Number(item.marks) || 0
               return (
                 <li key={item.id || index} style={{ '--i': index }}>
+                  {heading ? <strong className="paper-preview-section">{heading}</strong> : null}
                   <span className="paper-preview-num">{index + 1}.</span>
                   <div>
-                    {heading ? <strong className="paper-preview-section">{heading}</strong> : null}
                     {marks > 0 ? <p className="paper-q-max">[Maximum mark: {marks}]</p> : null}
                     {renderQuestion(item)}
                   </div>
