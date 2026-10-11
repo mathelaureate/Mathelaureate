@@ -291,6 +291,7 @@ function DailyUsersChart({ daily, maxDaily, selectedDay, onSelectDay }) {
                 role="button"
                 tabIndex="0"
                 aria-label={`${formatDayLabel(point.day)}: ${point.count} students`}
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onSelectDay(selected ? '' : point.day)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {

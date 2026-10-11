@@ -8057,6 +8057,12 @@ select:focus {
 
 .users-chart-hit {
   cursor: pointer;
+  outline: none;
+}
+
+.users-chart-hit:focus,
+.users-chart-hit:focus-visible {
+  outline: none;
 }
 
 .users-chart-tip {
@@ -8469,7 +8475,8 @@ select:focus {
 }
 
 .allot-modal {
-  width: min(640px, 100%);
+  width: min(720px, calc(100vw - 1.5rem));
+  height: min(86vh, 760px);
   max-height: min(86vh, 760px);
   display: flex;
   flex-direction: column;
@@ -8557,15 +8564,27 @@ select:focus {
 }
 
 .allot-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.45rem;
-  flex: 1;
+  align-items: stretch;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  padding: 0 1.15rem 0.4rem;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  padding: 0 1.15rem 0.6rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.allot-list > input[type='search'] {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .allot-unit {
+  flex: 0 0 auto;
   border: 1px solid #e8eef3;
   border-radius: 12px;
   background: #fbfdff;
@@ -8632,14 +8651,24 @@ select:focus {
 .allot-check {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.55rem;
+  gap: 0.65rem;
   align-items: start;
-  padding: 0.42rem 0.8rem 0.5rem;
+  padding: 0.55rem 0.85rem;
   cursor: pointer;
+}
+
+.allot-check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.12rem;
 }
 
 .allot-check:hover {
   background: #f1f5f9;
+}
+
+.allot-check.is-on {
+  background: #eef6f5;
 }
 
 .allot-check.is-done {

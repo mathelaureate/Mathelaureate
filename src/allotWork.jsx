@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
@@ -43,7 +44,8 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
   const [courseSlug, setCourseSlug] = useState(COURSE_OPTIONS[0].slug)
   const [selected, setSelected] = useState(() => new Set())
   const [dueAt, setDueAt] = useState('')
-  const [openUnit, setOpenUnit] = useState('')
+  const [openUnits, setOpenUnits] = useState(() => new Set())
+  const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const people = useMemo(
@@ -53,12 +55,14 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
 
   useEffect(() => {
     setSelected(new Set())
-    setOpenUnit('')
+    setOpenUnits(new Set())
+    setQuery('')
   }, [courseSlug])
 
   const course = COURSE_OPTIONS.find((item) => item.slug === courseSlug) || COURSE_OPTIONS[0]
   const curriculum = curricula.find((item) => item.id === course.curriculumId) || null
   const units = curriculum?.units || []
+  const needle = query.trim().toLowerCase()
   const existingKeys = useMemo(() => {
     if (!people.length) return new Set()
     let shared = null
@@ -133,9 +137,23 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
     }
   }
 
-  return (
-    <section className="allot-overlay" role="dialog" aria-modal="true" onClick={onClose}>
-      <article className="allot-modal" onClick={(event) => event.stopPropagation()}>
+  function visibleSubunits(unit) {
+    const names = unit.subunits || []
+    if (!needle) return names
+    if (String(unit.name || '').toLowerCase().includes(needle)) return names
+    return names.filter((name) => String(name).toLowerCase().includes(needle))
+  }
+
+  const modal = (
+    <section
+      className="allot-overlay"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <article className="allot-modal" onMouseDown={(event) => event.stopPropagation()}>
         <header className="allot-modal-head">
           <div>
             <p className="eyebrow">Assign homework</p>
@@ -167,16 +185,36 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
           </label>
         </div>
         <div className="allot-list">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search topics"
+            aria-label="Search topics"
+          />
           {units.length === 0 ? (
             <p className="allot-empty">No topics loaded for this course.</p>
           ) : (
             units.map((unit) => {
+              const names = visibleSubunits(unit)
+              if (!names.length) return null
               const counts = unitCounts(unit)
-              const expanded = openUnit === unit.id
+              const expanded = Boolean(needle) || openUnits.has(unit.id)
               return (
                 <div className={`allot-unit${expanded ? ' is-open' : ''}`} key={unit.id}>
                   <div className="allot-unit-row">
-                    <button type="button" className="allot-unit-btn" onClick={() => setOpenUnit(expanded ? '' : unit.id)}>
+                    <button
+                      type="button"
+                      className="allot-unit-btn"
+                      onClick={() =>
+                        setOpenUnits((current) => {
+                          const next = new Set(current)
+                          if (next.has(unit.id)) next.delete(unit.id)
+                          else next.add(unit.id)
+                          return next
+                        })
+                      }
+                    >
                       <span>{expanded ? '▾' : '▸'}</span>
                       <strong>{unit.name}</strong>
                       <small>
@@ -190,11 +228,11 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
                     </button>
                   </div>
                   {expanded
-                    ? (unit.subunits || []).map((subunit) => {
+                    ? names.map((subunit) => {
                         const key = topicAssignmentKey(course.slug, unit.id, subunit)
                         const already = existingKeys.has(key)
                         return (
-                          <label key={key} className={`allot-check${already ? ' is-done' : ''}`}>
+                          <label key={key} className={`allot-check${already ? ' is-done' : ''}${selected.has(key) ? ' is-on' : ''}`}>
                             <input
                               type="checkbox"
                               checked={already || selected.has(key)}
@@ -210,6 +248,9 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
               )
             })
           )}
+          {units.length > 0 && needle && units.every((unit) => visibleSubunits(unit).length === 0) ? (
+            <p className="allot-empty">No topics match that search.</p>
+          ) : null}
         </div>
         {error ? <p className="error-text">{error}</p> : null}
         <div className="allot-actions">
@@ -224,6 +265,8 @@ export function AllotModal({ title, targets, curricula, existingByUid, onClose, 
       </article>
     </section>
   )
+
+  return createPortal(modal, document.body)
 }
 
 function AssignmentRow({ item, status, onRemove, linked }) {
