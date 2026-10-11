@@ -4834,6 +4834,10 @@ function mockSubunitKey(unitId, name) {
   return `${unitId}\u001f${name}`
 }
 
+function isHlSubtopic(name) {
+  return /^(AHL|HL)\b/i.test(String(name || '').trim())
+}
+
 function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loginPending, setLoginPending] = useState(false)
   const [loginError, setLoginError] = useState('')
@@ -4950,8 +4954,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     setSelectedSubunitKeys((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]))
   }
 
+  function subunitsForUnit(unit) {
+    const names = unit.subunits || []
+    if (selectedLevel !== 'sl') return names
+    return names.filter((name) => !isHlSubtopic(name))
+  }
+
   function toggleUnitSubunits(unit) {
-    const keys = (unit.subunits || []).map((name) => mockSubunitKey(unit.id, name))
+    const keys = subunitsForUnit(unit).map((name) => mockSubunitKey(unit.id, name))
     const allOn = keys.length > 0 && keys.every((key) => selectedSubunitKeys.includes(key))
     setSelectedSubunitKeys((prev) => {
       if (allOn) return prev.filter((key) => !keys.includes(key))
@@ -5230,6 +5240,11 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                           setSelectedLevel(level.id)
                           resetPaperSettingsFor(selectedCourseSlug, level.id)
                           setBuildError('')
+                          if (level.id === 'sl') {
+                            setSelectedSubunitKeys((current) =>
+                              current.filter((key) => !isHlSubtopic(key.split('\u001f').slice(1).join('\u001f'))),
+                            )
+                          }
                         }}
                       >
                         {level.label}
@@ -5243,8 +5258,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                 {units.length === 0 ? (
                   <p className="muted-text">No topics found for this course.</p>
                 ) : (
-                  units.map((unit, index) => {
-                    const names = unit.subunits || []
+                  units.filter((unit) => subunitsForUnit(unit).length > 0).map((unit, index) => {
+                    const names = subunitsForUnit(unit)
                     const keys = names.map((name) => mockSubunitKey(unit.id, name))
                     const pickedCount = keys.filter((key) => selectedSubunitKeys.includes(key)).length
                     const allOn = keys.length > 0 && pickedCount === keys.length
@@ -5296,7 +5311,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                   className="btn mock-secondary-btn"
                   onClick={() =>
                     setSelectedSubunitKeys(
-                      units.flatMap((unit) => (unit.subunits || []).map((name) => mockSubunitKey(unit.id, name))),
+                      units.flatMap((unit) => subunitsForUnit(unit).map((name) => mockSubunitKey(unit.id, name))),
                     )
                   }
                   disabled={!units.length}
