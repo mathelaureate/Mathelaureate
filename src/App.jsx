@@ -6048,13 +6048,16 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
               <span style={{ width: `${Math.round(((solvedCount + (checked ? 0.35 : 0)) / Math.max(1, total)) * 100)}%` }} />
             </div>
             <article key={current.id} className="lesson-card lesson-card-question homework-card">
-              <div className="question-meta-row">
-                <span className={`meta-chip difficulty-${String(current.difficulty || 'medium').toLowerCase()}`}>
-                  {String(current.difficulty || 'medium')}
-                </span>
-                <span className="meta-chip">{current.marks || 0}m</span>
+              <div className="homework-qmeta">
+                <span className="homework-qindex">Question {solvedCount + 1}</span>
+                <div className="question-meta-row">
+                  <span className={`meta-chip difficulty-${String(current.difficulty || 'medium').toLowerCase()}`}>
+                    {String(current.difficulty || 'medium')}
+                  </span>
+                  <span className="meta-chip">{current.marks || 0} marks</span>
+                </div>
               </div>
-              <div className="question-stem">
+              <div className="question-stem homework-stem">
                 {contentBlocksHaveMediaOrText(current.descriptionBlocks)
                   ? renderBlocks(current.descriptionBlocks, `hw-${current.id}`)
                   : String(current.description || '').trim()
@@ -6076,6 +6079,7 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
             </article>
             {checked ? (
               <article className="homework-solution" key={`sol-${current.id}`}>
+                <p className="homework-solution-label">Solution</p>
                 {current.solution && !contentBlocksHaveMediaOrText(current.solutionBlocks) ? (
                   <div className="solution-box">
                     <LatexText value={current.solution} className="latex-text" />
@@ -6113,46 +6117,27 @@ function HomeworkTestPage({ user, authReady, cachedProfile }) {
               {!checked ? (
                 <button
                   type="button"
-                  className="homework-icon-btn is-primary"
+                  className="homework-action is-primary"
                   onClick={() => {
                     setChecked(true)
                     recordViewedQuestion(user, current.id).catch(() => {})
                   }}
-                  aria-label="Show solution"
-                  title="Show solution"
                 >
                   <EyeIcon />
+                  Show solution
                 </button>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    className="homework-icon-btn is-wrong"
-                    onClick={() => goNext('wrong')}
-                    disabled={busy}
-                    aria-label="Wrong"
-                    title="Wrong"
-                  >
+                  <button type="button" className="homework-action is-wrong" onClick={() => goNext('wrong')} disabled={busy}>
                     <WrongMarkIcon />
+                    Wrong
                   </button>
-                  <button
-                    type="button"
-                    className="homework-icon-btn is-right"
-                    onClick={() => goNext('right')}
-                    disabled={busy}
-                    aria-label="Right"
-                    title="Right"
-                  >
+                  <button type="button" className="homework-action is-right" onClick={() => goNext('right')} disabled={busy}>
                     <CheckIcon />
+                    Right
                   </button>
-                  <button
-                    type="button"
-                    className="homework-icon-btn is-primary"
-                    onClick={() => goNext('')}
-                    disabled={busy}
-                    aria-label={last ? 'Finish' : 'Next'}
-                    title={last ? 'Finish' : 'Next'}
-                  >
+                  <button type="button" className="homework-action is-next" onClick={() => goNext('')} disabled={busy}>
+                    {last ? 'Finish' : 'Next'}
                     <NextIcon />
                   </button>
                 </>
