@@ -72,7 +72,7 @@ function normalizeMessages(raw) {
   if (!Array.isArray(raw)) return []
   return raw
     .map((item) => ({
-      role: item?.role === 'assistant' || item?.role === 'model' ? 'model' : 'user',
+      role: item?.role === 'assistant' || item?.role === 'model' ? 'assistant' : 'user',
       text: String(item?.text || item?.content || '').trim().slice(0, MAX_MESSAGE_CHARS),
     }))
     .filter((item) => item.text)
@@ -113,9 +113,43 @@ function extractDelta(payload) {
   const content = choice?.delta?.content ?? choice?.message?.content
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
-    return content.map((part) => String(part?.text || part || '')).join('')
+    return content.map((part) => (typeof part === 'string' ? part : String(part?.text || ''))).join('')
   }
   return ''
+}
+
+function writeDelta(response, delta, state) {
+  if (!delta) return state
+  if (!response.headersSent) {
+    response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    response.setHeader('Cache-Control', 'no-cache, no-transform')
+    response.setHeader('X-Accel-Buffering', 'no')
+    response.statusCode = 200
+    if (typeof response.flushHeaders === 'function') response.flushHeaders()
+  }
+  response.write(delta)
+  return true
+}
+
+function consumeSse(chunk, response, wrote) {
+  const frames = String(chunk || '').split(/\r?\n\r?\n/)
+  const rest = frames.pop() || ''
+  let nextWrote = wrote
+  for (const frame of frames) {
+    const line = frame
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .find((item) => item.startsWith('data:'))
+    if (!line) continue
+    const raw = line.slice(5).trim()
+    if (!raw || raw === '[DONE]') continue
+    try {
+      nextWrote = writeDelta(response, extractDelta(JSON.parse(raw)), nextWrote) || nextWrote
+    } catch {
+      // Ignore malformed SSE frames.
+    }
+  }
+  return { rest, wrote: nextWrote }
 }
 
 async function streamChat({ key, messages, response }) {
@@ -149,29 +183,13 @@ async function streamChat({ key, messages, response }) {
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-      const frames = buffer.split('\n\n')
-      buffer = frames.pop() || ''
-      for (const frame of frames) {
-        const line = frame.split('\n').find((item) => item.startsWith('data:'))
-        if (!line) continue
-        const raw = line.slice(5).trim()
-        if (!raw || raw === '[DONE]') continue
-        try {
-          const delta = extractDelta(JSON.parse(raw))
-          if (!delta) continue
-          if (!response.headersSent) {
-            response.setHeader('Content-Type', 'text/plain; charset=utf-8')
-            response.setHeader('Cache-Control', 'no-cache, no-transform')
-            response.setHeader('X-Accel-Buffering', 'no')
-            response.statusCode = 200
-            if (typeof response.flushHeaders === 'function') response.flushHeaders()
-          }
-          wrote = true
-          response.write(delta)
-        } catch {
-          // Ignore malformed SSE frames.
-        }
-      }
+      const consumed = consumeSse(buffer, response, wrote)
+      buffer = consumed.rest
+      wrote = consumed.wrote
+    }
+    if (buffer.trim()) {
+      const consumed = consumeSse(`${buffer}\n\n`, response, wrote)
+      wrote = consumed.wrote
     }
     if (wrote) {
       response.end()
@@ -230,10 +248,15 @@ export default async function handler(request, response) {
 
     const prefix = contextBlock(body?.context)
     const chatMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.map((item, index) => ({
-        role: item.role === 'model' ? 'assistant' : 'user',
-        content: prefix && index === 0 && item.role === 'user' ? `${prefix}\n\n${item.text}` : item.text,
+      {
+        role: 'system',
+        content: prefix
+          ? `${SYSTEM_PROMPT}\n\n${prefix}\nOn a follow-up, answer the latest message. Do not repeat the earlier hint unless they ask.`
+          : SYSTEM_PROMPT,
+      },
+      ...messages.map((item) => ({
+        role: item.role === 'assistant' ? 'assistant' : 'user',
+        content: item.text,
       })),
     ]
 

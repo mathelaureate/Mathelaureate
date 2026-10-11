@@ -9131,6 +9131,10 @@ select:focus {
   pointer-events: none;
 }
 
+.tutor-root:has(.tutor-panel.is-open) {
+  z-index: 96;
+}
+
 .tutor-fab,
 .tutor-panel.is-open {
   pointer-events: auto;
@@ -9297,10 +9301,14 @@ select:focus {
 }
 
 .tutor-thread {
-  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0.95rem 0.9rem;
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.7rem;
   background: #f4f7fa;
 }
@@ -9352,7 +9360,8 @@ select:focus {
 }
 
 .tutor-bubble {
-  max-width: 92%;
+  max-width: min(92%, 100%);
+  min-width: 0;
   padding: 0.7rem 0.8rem;
   border-radius: 16px;
   font-size: 0.9rem;
@@ -9362,18 +9371,23 @@ select:focus {
 }
 
 .tutor-bubble.is-user {
-  justify-self: end;
+  align-self: flex-end;
   background: #0f2c4d;
   color: #fff;
   border-bottom-right-radius: 6px;
 }
 
 .tutor-bubble.is-bot {
-  justify-self: start;
+  align-self: flex-start;
   background: #fff;
   border: 1px solid #e2e8f0;
   color: #0f172a;
   border-bottom-left-radius: 6px;
+}
+
+.tutor-bubble.latex-text {
+  overflow: auto !important;
+  max-width: min(92%, 100%);
 }
 
 .tutor-bubble.is-streaming {

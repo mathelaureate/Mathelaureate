@@ -185,6 +185,9 @@ export default function TutorChat({ user }) {
   const scrollerRef = useRef(null)
   const inputRef = useRef(null)
   const abortRef = useRef(null)
+  const requestRef = useRef(0)
+  const messagesRef = useRef([])
+  messagesRef.current = messages
   const hidden = location.pathname === '/' || /^\/(admin|editor|homework)(\/|$)/.test(location.pathname)
   const page = useMemo(
     () => pageContext(location.pathname, location.search),
@@ -246,8 +249,14 @@ export default function TutorChat({ user }) {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
-    const history = [...messages.filter((item) => !item.streaming), { role: 'user', text: nextText }]
-    setMessages([...history, { role: 'assistant', text: '', streaming: true }])
+    const requestId = requestRef.current + 1
+    requestRef.current = requestId
+    const history = [
+      ...messagesRef.current.filter((item) => !item.streaming && String(item.text || '').trim()),
+      { role: 'user', text: nextText },
+    ]
+    const withReply = (reply, streaming) => [...history, { role: 'assistant', text: reply, streaming }]
+    setMessages(withReply('', true))
     setInput('')
     setBusy(true)
     setError('')
@@ -259,16 +268,19 @@ export default function TutorChat({ user }) {
         token,
         signal: controller.signal,
         onDelta: (next) => {
-          setMessages([...history, { role: 'assistant', text: next, streaming: true }])
+          if (requestRef.current !== requestId) return
+          setMessages(withReply(next, true))
         },
       })
-      setMessages([...history, { role: 'assistant', text: reply }])
+      if (requestRef.current !== requestId) return
+      setMessages(withReply(reply, false))
+      window.setTimeout(() => inputRef.current?.focus(), 0)
     } catch (sendError) {
-      if (sendError?.name === 'AbortError') return
+      if (requestRef.current !== requestId || sendError?.name === 'AbortError') return
       setMessages(history)
       setError(sendError?.message || 'Unable to reach Laureate.')
     } finally {
-      setBusy(false)
+      if (requestRef.current === requestId) setBusy(false)
     }
   }
 
