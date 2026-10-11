@@ -4,7 +4,7 @@ import { questionPreviewText } from './studentStudy'
 
 export const COURSE_OPTIONS = [
   { slug: 'ibdp-aa', title: 'IBDP Mathematics AA', curriculumId: 'ibdp-aa-hl' },
-  { slug: 'ibdp-ai', title: 'IBDP Mathematics AI HL', curriculumId: 'ibdp-ai-hl' },
+  { slug: 'ibdp-ai', title: 'IBDP Mathematics AI', curriculumId: 'ibdp-ai-hl' },
   { slug: 'ibmyp', title: 'IB MYP Mathematics', curriculumId: 'ibmyp' },
   { slug: 'igcse-additional', title: 'IGCSE Additional Maths', curriculumId: 'igcse-add-maths' },
   { slug: 'igcse-international', title: 'IGCSE International Maths', curriculumId: 'igcse-intl-maths' },

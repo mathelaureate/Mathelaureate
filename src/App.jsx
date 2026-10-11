@@ -178,7 +178,7 @@ const defaultCurricula = [
   },
   {
     id: 'ibdp-ai-hl',
-    name: 'IBDP AI HL',
+    name: 'IBDP Mathematics AI',
     units: [
       {
         id: 'ai-number-algebra',
@@ -388,13 +388,22 @@ const defaultCurricula = [
   },
   {
     id: 'ibmyp',
-    name: 'IBMYP',
-    units: [
-      { id: 'number', name: 'Number', subunits: ['Integers', 'Fractions'] },
-      { id: 'relations', name: 'Relationships', subunits: ['Patterns', 'Graphing'] },
-    ],
+    name: 'IB MYP Mathematics',
+    units: [],
   },
 ]
+
+{
+  const intlCourse = defaultCurricula.find((course) => course.id === 'igcse-intl-maths')
+  const mypCourse = defaultCurricula.find((course) => course.id === 'ibmyp')
+  if (intlCourse && mypCourse) {
+    mypCourse.units = intlCourse.units.map((unit) => ({
+      id: unit.id,
+      name: unit.name,
+      subunits: [...unit.subunits],
+    }))
+  }
+}
 
 const adminPasscode = (import.meta.env.VITE_ADMIN_PASSCODE || '').trim()
 const adminPasscodeKey = 'mathelaureate-admin-passcode-ok'
@@ -1288,8 +1297,8 @@ const courseCatalog = [
   },
   {
     slug: 'ibdp-ai',
-    title: 'IBDP Mathematics AI HL',
-    shortTitle: 'IBDP AI HL',
+    title: 'IBDP Mathematics AI',
+    shortTitle: 'IBDP AI',
     curriculumId: 'ibdp-ai-hl',
     description: 'Applications pathway with modelling, statistics, and technology-led problem solving.',
     highlights: ['Modelling in context', 'Statistics and probability', 'Technology-led exam practice'],
@@ -1301,10 +1310,9 @@ const courseCatalog = [
     title: 'IB MYP Mathematics',
     shortTitle: 'IB MYP',
     curriculumId: 'ibmyp',
-    description: 'Middle Years mathematics across number, algebra, and relationships.',
+    description: 'Middle Years mathematics across number, algebra, geometry, statistics, and probability.',
     highlights: ['Concept-based units', 'Inquiry and investigation', 'School-aligned practice'],
     icon: 'myp',
-    listedWhenContent: true,
   },
 ]
 
