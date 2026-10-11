@@ -28,7 +28,7 @@ Style:
 - Never invent IB markschemes. If unsure, say so and show a standard method.`
 
 function openaiKey() {
-  return String(env.OPENAI_API_KEY || '').trim()
+  return String(env.OPENAI_API_KEY || env.open_api_key || env.OPEN_API_KEY || '').trim()
 }
 
 function isAllowedOrigin(request) {
