@@ -1284,7 +1284,41 @@ const courseCatalog = [
     highlights: ['Clear concept sequencing', 'Exam-style mixed practice', 'Applied mathematical thinking'],
     icon: 'intl',
   },
+  {
+    slug: 'ibdp-ai',
+    title: 'IBDP Mathematics AI HL',
+    shortTitle: 'IBDP AI HL',
+    curriculumId: 'ibdp-ai-hl',
+    description: 'Applications pathway with modelling, statistics, and technology-led problem solving.',
+    highlights: ['Modelling in context', 'Statistics and probability', 'Technology-led exam practice'],
+    icon: 'ai',
+    listedWhenContent: true,
+  },
+  {
+    slug: 'ibmyp',
+    title: 'IB MYP Mathematics',
+    shortTitle: 'IB MYP',
+    curriculumId: 'ibmyp',
+    description: 'Middle Years mathematics across number, algebra, and relationships.',
+    highlights: ['Concept-based units', 'Inquiry and investigation', 'School-aligned practice'],
+    icon: 'myp',
+    listedWhenContent: true,
+  },
 ]
+
+function curriculumIdsWithContent(records) {
+  const ids = new Set()
+  for (const item of records || []) {
+    const id = String(item?.curriculumId || '').trim()
+    if (id) ids.add(id)
+  }
+  return ids
+}
+
+function coursesReadyForStudents(records) {
+  const ready = curriculumIdsWithContent(records)
+  return courseCatalog.filter((course) => !course.listedWhenContent || ready.has(course.curriculumId))
+}
 function ensureRequiredCurricula(cachedCurricula) {
   if (!Array.isArray(cachedCurricula)) return defaultCurricula
 
@@ -2459,9 +2493,25 @@ function HomePage({ user, cachedProfile }) {
 }
 
 function ProgramCards({ withLinks = false }) {
+  const [courses, setCourses] = useState(() => coursesReadyForStudents([]))
+
+  useEffect(() => {
+    let active = true
+    getCachedContentItems((fresh) => {
+      if (active) setCourses(coursesReadyForStudents(fresh))
+    })
+      .then((records) => {
+        if (active) setCourses(coursesReadyForStudents(records))
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="program-grid">
-      {courseCatalog.map((course) => {
+      {courses.map((course) => {
         const card = (
           <article className={`program-card icon-${course.icon || 'aa'}`}>
             <span className="program-icon" aria-hidden="true" />
@@ -4758,7 +4808,7 @@ function PaperGeneratorPage({ user, authReady, cachedProfile }) {
         <p className="error-text">{loadError}</p>
       ) : (
         <PaperStudio
-          courses={courseCatalog}
+          courses={coursesReadyForStudents(questions)}
           unitsByCourse={unitsByCourse}
           questions={questions}
           used={papersUsed}
@@ -5121,7 +5171,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     resetPaperSettingsFor(nextSlug, nextLevel)
                   }}
                 >
-                  {courseCatalog.map((course) => (
+                  {courseCatalog
+                    .filter((course) => !course.listedWhenContent)
+                    .map((course) => (
                     <option key={course.slug} value={course.slug}>
                       {course.title}
                     </option>

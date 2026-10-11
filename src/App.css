@@ -3565,6 +3565,22 @@ body {
   content: 'π';
 }
 
+.icon-ai .program-icon {
+  background: #1a4f8c;
+}
+.icon-ai .program-icon::before {
+  content: 'AI';
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.icon-myp .program-icon {
+  background: #0e6b5c;
+}
+.icon-myp .program-icon::before {
+  content: 'M';
+}
+
 .program-card h3 {
   margin: 0.2rem 0 0;
   color: #0f2c4d;
