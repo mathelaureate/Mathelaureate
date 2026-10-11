@@ -614,7 +614,7 @@ function hasIaAccess(payments, iaId) {
 
 function mapTeachersResourceCategory(value) {
   const raw = String(value || '').trim()
-  if (!raw || /^guides?$/i.test(raw)) return 'Activities'
+  if (!raw || /^guides?$/i.test(raw) || /^(classroom|assessments?|other)$/i.test(raw)) return 'Activities'
   return raw
 }
 
@@ -643,10 +643,11 @@ function normalizeTeachersResourcesPosts(raw) {
       pdfUrl: String(item?.pdfUrl || '').trim(),
       pdfPath: String(item?.pdfPath || '').trim(),
       pdfFileName: String(item?.pdfFileName || '').trim(),
+      videoUrl: String(item?.videoUrl || '').trim(),
       createdAt: String(item?.createdAt || ''),
       updatedAt: String(item?.updatedAt || item?.createdAt || ''),
     }))
-    .filter((item) => item.title && (item.description || item.pdfUrl))
+    .filter((item) => item.title && (item.description || item.pdfUrl || item.videoUrl))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
 }
 
@@ -1216,7 +1217,8 @@ function toYouTubeEmbedUrl(input) {
   const watchMatch = raw.match(/[?&]v=([a-zA-Z0-9_-]{6,})/)
   const shortMatch = raw.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/)
   const embedMatch = raw.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/)
-  const id = watchMatch?.[1] || shortMatch?.[1] || embedMatch?.[1]
+  const shortsMatch = raw.match(/youtube\.com\/(?:shorts|live)\/([a-zA-Z0-9_-]{6,})/)
+  const id = watchMatch?.[1] || shortMatch?.[1] || embedMatch?.[1] || shortsMatch?.[1]
   if (!id) return ''
   return `https://www.youtube.com/embed/${id}`
 }
@@ -3108,7 +3110,7 @@ function IaDetailPage({ user, cachedProfile }) {
   )
 }
 
-const teachersResourceCategories = ['All', 'Activities', 'Worksheets', 'Videos', 'Classroom', 'Assessments', 'Other']
+const teachersResourceCategories = ['All', 'Activities', 'Worksheets', 'Videos']
 
 function TeachersResourceCardPreview({ post }) {
   if (post.imageUrl) {
@@ -3116,7 +3118,7 @@ function TeachersResourceCardPreview({ post }) {
   }
   return (
     <div className="ia-grid-card-fallback">
-      <span>PDF</span>
+      <span>{post.videoUrl ? 'Video' : 'PDF'}</span>
       <p>{post.category || post.title || 'Resource'}</p>
     </div>
   )
@@ -3157,11 +3159,6 @@ function TeachersResourcesPage({ user, cachedProfile }) {
     }
   }, [])
 
-  const categoryChips = useMemo(() => {
-    const fromPosts = posts.map((post) => post.category).filter(Boolean)
-    return [...new Set([...teachersResourceCategories, ...fromPosts])]
-  }, [posts])
-
   const filteredPosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return posts.filter((post) => {
@@ -3169,7 +3166,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
         return false
       }
       if (!query) return true
-      const haystack = [post.title, post.description, post.category, post.pdfFileName].join(' ').toLowerCase()
+      const haystack = [post.title, post.description, post.category, post.pdfFileName, post.videoUrl].join(' ').toLowerCase()
       return haystack.includes(query)
     })
   }, [posts, searchQuery, categoryFilter])
@@ -3191,7 +3188,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
             <span>Teachers &amp; Resources</span>
           </p>
           <h1>Teachers &amp; Resources</h1>
-          <p className="ia-hero-sub">Classroom activities, worksheets, and teaching materials</p>
+          <p className="ia-hero-sub">Activities, worksheets, and teaching videos</p>
         </div>
       </section>
 
@@ -3205,7 +3202,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               </button>
             </div>
             <div className="ia-pill-col" role="group" aria-label="Category">
-              {categoryChips.map((category) => (
+              {teachersResourceCategories.map((category) => (
                 <button
                   key={category}
                   type="button"
@@ -3226,7 +3223,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search activities, worksheets, classroom ideas..."
+              placeholder="Search activities, worksheets, videos..."
             />
           </label>
 
@@ -3235,7 +3232,7 @@ function TeachersResourcesPage({ user, cachedProfile }) {
           {!loadingPosts && posts.length === 0 ? (
             <div className="ia-empty">
               <h2>No resources yet</h2>
-              <p>Teacher activities and classroom materials will appear here soon.</p>
+              <p>Activities, worksheets, and videos will appear here.</p>
             </div>
           ) : null}
           {!loadingPosts && posts.length > 0 && filteredPosts.length === 0 ? (
@@ -3367,8 +3364,12 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
 
               <div className="ia-facts-grid">
                 <div className="ia-fact-card">
-                  <span>Document</span>
-                  <strong>{post.pdfFileName || (post.pdfUrl ? 'PDF uploaded' : 'Not uploaded')}</strong>
+                  <span>{post.videoUrl && !post.pdfUrl ? 'Video' : 'Document'}</span>
+                  <strong>
+                    {[post.videoUrl ? 'YouTube' : '', post.pdfFileName || (post.pdfUrl ? 'PDF uploaded' : '')]
+                      .filter(Boolean)
+                      .join(' · ') || 'Not uploaded'}
+                  </strong>
                 </div>
                 <div className="ia-fact-card">
                   <span>Category</span>
@@ -3378,11 +3379,22 @@ function TeachersResourceDetailPage({ user, cachedProfile }) {
             </div>
 
             <div className="ia-detail-viewer">
+              {toYouTubeEmbedUrl(post.videoUrl) ? (
+                <div className="resource-video">
+                  <iframe
+                    title={post.title || 'Teaching video'}
+                    src={toYouTubeEmbedUrl(post.videoUrl)}
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              ) : null}
               {post.pdfUrl ? (
                 <Suspense fallback={<p className="ia-doc-status">Loading document…</p>}>
                   <IaDocumentViewer url={post.pdfUrl} unlocked previewPages={1} />
                 </Suspense>
-              ) : (
+              ) : toYouTubeEmbedUrl(post.videoUrl) ? null : (
                 <p className="muted-text">No PDF uploaded for this resource yet.</p>
               )}
             </div>
@@ -6981,6 +6993,7 @@ function AdminPage({ mode = 'admin' }) {
   const [resourcePostImageFile, setResourcePostImageFile] = useState(null)
   const [resourcePostImagePreviewUrl, setResourcePostImagePreviewUrl] = useState('')
   const [resourcePostPdfFile, setResourcePostPdfFile] = useState(null)
+  const [resourcePostVideoUrl, setResourcePostVideoUrl] = useState('')
   const [resourceExistingPdfUrl, setResourceExistingPdfUrl] = useState('')
   const [resourceExistingPdfName, setResourceExistingPdfName] = useState('')
   const [resourceExistingPdfPath, setResourceExistingPdfPath] = useState('')
@@ -8660,8 +8673,15 @@ function AdminPage({ mode = 'admin' }) {
       setDataError('Could not find the resource you are editing.')
       return
     }
-    if (!resourcePostPdfFile && !(isEditing && existingItem?.pdfUrl)) {
-      setDataError('Upload a PDF for this resource.')
+    const category = mapTeachersResourceCategory(resourcePostCategory) || 'Activities'
+    const videoUrl = category === 'Videos' ? String(resourcePostVideoUrl || '').trim() : ''
+    if (videoUrl && !toYouTubeEmbedUrl(videoUrl)) {
+      setDataError('Paste a YouTube link, like https://www.youtube.com/watch?v=...')
+      return
+    }
+    const hasPdf = Boolean(resourcePostPdfFile || (isEditing && existingItem?.pdfUrl))
+    if (!hasPdf && !toYouTubeEmbedUrl(videoUrl)) {
+      setDataError(category === 'Videos' ? 'Add a YouTube link, or upload a PDF.' : 'Upload a PDF for this resource.')
       return
     }
 
@@ -8700,13 +8720,14 @@ function AdminPage({ mode = 'admin' }) {
       id: isEditing ? existingItem.id : `tr-${Date.now()}`,
       title: resourcePostTitle.trim(),
       description: resourcePostDescription.trim(),
-      category: mapTeachersResourceCategory(resourcePostCategory) || 'Activities',
+      category,
       curricula: normalizeResourceCurricula(resourcePostCurricula, ''),
       imageUrl,
       imagePath,
       pdfUrl,
       pdfPath,
       pdfFileName,
+      videoUrl,
       createdAt: isEditing ? existingItem.createdAt || new Date().toISOString() : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -8728,6 +8749,7 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostImageFile(null)
     setResourcePostImagePreviewUrl('')
     setResourcePostPdfFile(null)
+    setResourcePostVideoUrl('')
     setResourceExistingPdfUrl('')
     setResourceExistingPdfName('')
     setResourceExistingPdfPath('')
@@ -8744,6 +8766,7 @@ function AdminPage({ mode = 'admin' }) {
     setResourcePostCurricula(normalizeResourceCurricula(item.curricula, item.category))
     setResourcePostImageFile(null)
     setResourcePostPdfFile(null)
+    setResourcePostVideoUrl(item.videoUrl || '')
     setResourceExistingPdfUrl(item.pdfUrl || '')
     setResourceExistingPdfName(item.pdfFileName || '')
     setResourceExistingPdfPath(item.pdfPath || '')
@@ -9248,13 +9271,29 @@ function AdminPage({ mode = 'admin' }) {
                   placeholder="Short note shown beside the PDF"
                 />
               </label>
+              {resourcePostCategory === 'Videos' ? (
+                <label>
+                  YouTube link
+                  <input
+                    type="url"
+                    value={resourcePostVideoUrl}
+                    onChange={(event) => setResourcePostVideoUrl(event.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                </label>
+              ) : null}
               <label>
-                Resource PDF {editingTeachersResourceId ? '(optional — keep current if empty)' : '(required)'}
+                Resource PDF{' '}
+                {resourcePostCategory === 'Videos'
+                  ? '(optional if you add a YouTube link)'
+                  : editingTeachersResourceId
+                    ? '(optional — keep current if empty)'
+                    : '(required)'}
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
                   onChange={onResourcePostPdfChange}
-                  required={!editingTeachersResourceId}
+                  required={!editingTeachersResourceId && resourcePostCategory !== 'Videos'}
                 />
               </label>
               {resourcePostPdfFile ? <small className="muted-text">Selected: {resourcePostPdfFile.name}</small> : null}
@@ -9318,6 +9357,7 @@ function AdminPage({ mode = 'admin' }) {
                       {item.curricula?.length ? ` · ${item.curricula.join(' · ')}` : ''}
                     </small>
                     {item.pdfFileName ? <small>{item.pdfFileName}</small> : null}
+                    {item.videoUrl ? <small>YouTube video</small> : null}
                     {item.description ? <LatexText value={item.description} className="latex-text" /> : null}
                     {item.imageUrl ? (
                       <div className="admin-record-image">

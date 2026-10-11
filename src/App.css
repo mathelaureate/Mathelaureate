@@ -5039,7 +5039,7 @@ body {
 }
 
 .profile-page .ia-empty .btn {
-  margin-top: 0.75rem;
+  margin-top: 0.55rem;
 }
 
 .study-question-list {
@@ -5940,23 +5940,35 @@ body {
 }
 
 .ia-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   margin: 0.25rem 0;
-  padding: 1.5rem 1.2rem;
+  padding: 1.55rem 1.25rem 1.35rem;
   border: 1px dashed #cbd5e1;
   border-radius: 14px;
   background: #fff;
   text-align: center;
+  user-select: none;
 }
 
 .ia-empty h2 {
-  margin: 0 0 0.3rem;
+  margin: 0;
   color: var(--ia-ink);
   font-size: 1.1rem;
 }
 
 .ia-empty p {
+  max-width: 34rem;
   margin: 0;
   color: var(--ia-muted);
+  line-height: 1.45;
+}
+
+.ia-empty .btn {
+  margin-top: 0.55rem;
+  position: static;
 }
 
 .ia-card-grid {
@@ -6479,6 +6491,22 @@ body {
   border: 1px solid #d5dbe1;
   border-radius: 14px;
   padding: 0;
+}
+
+.resource-video {
+  padding: 0.85rem;
+  background: #0f172a;
+}
+
+.resource-video iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 16rem;
+  border: 0;
+  border-radius: 10px;
+  background: #000;
 }
 
 .ia-doc-stage {
