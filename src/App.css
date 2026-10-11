@@ -2390,9 +2390,13 @@ select {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  box-sizing: border-box;
+  width: calc(100% + 2rem);
+  max-width: none;
   margin: 0 -1rem;
   padding: 0.62rem 0.8rem;
   border-bottom: 1px solid #e1e7ee;
+  border-radius: 12px 12px 0 0;
   background: #eef3f6;
 }
 
@@ -5056,6 +5060,10 @@ body {
 .study-question-card .card-lang,
 .lesson-card-question .card-lang {
   margin-bottom: 0.2rem;
+}
+
+.lesson-card-question .question-card-bar .card-lang {
+  margin: 0;
 }
 
 .study-question-kicker {

@@ -4584,9 +4584,19 @@ function MockQuestionCard({
 
   return (
     <article className="lesson-card lesson-card-question">
-      <CardLangToggle lang={lang} busy={busy} error={error} onChange={chooseLang} />
-      <div className="question-card-head">
-                            <h3 className="question-number-title">Question {index + 1}</h3>
+      <header className="question-card-bar">
+        <h3 className="question-number-title">Question {index + 1}</h3>
+        <div className="question-meta-row">
+          <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
+          <span className="meta-chip">{item.marks || 0} marks</span>
+          {String(item.questionLevel || '').trim() ? (
+            <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
+          ) : null}
+          <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
+            {String(item.difficulty || 'medium')}
+          </span>
+        </div>
+        <CardLangToggle variant="menu" lang={lang} busy={busy} error={error} onChange={chooseLang} />
         <div className="question-card-tools">
           {onAskAi ? <AskAiButton onClick={() => onAskAi(item, index)} /> : null}
           <button
@@ -4610,17 +4620,7 @@ function MockQuestionCard({
             <BookmarkIcon filled={isBookmarked} />
           </button>
         </div>
-      </div>
-                            <div className="question-meta-row">
-        <span className="meta-chip">{normalizeGdc(item.gdc) === 'gdc' ? 'GDC' : 'No GDC'}</span>
-                              <span className="meta-chip">{item.marks || 0} marks</span>
-        {String(item.questionLevel || '').trim() ? (
-          <span className="meta-chip">{String(item.questionLevel).toUpperCase()}</span>
-        ) : null}
-                              <span className={`meta-chip difficulty-${String(item.difficulty || 'medium').toLowerCase()}`}>
-                                {String(item.difficulty || 'medium')}
-                              </span>
-                            </div>
+      </header>
       <div className="question-stem">
         {contentBlocksHaveMediaOrText(view.descriptionBlocks) ? (
           renderBlocks(view.descriptionBlocks, `mock-${item.id}`)
