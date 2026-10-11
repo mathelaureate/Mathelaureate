@@ -5,7 +5,7 @@ const WINDOW_MS = 10 * 60 * 1000
 const MAX_REQUESTS_PER_WINDOW = 30
 const MAX_MESSAGE_CHARS = 2000
 const MAX_HISTORY = 8
-const MODELS = ['gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-flash-latest']
+const MODELS = ['gpt-4.1-mini', 'gpt-4o-mini']
 const PUBLIC_ERRORS = {
   400: 'Send a message.',
   401: 'Sign in to chat with Laureate.',
@@ -23,12 +23,12 @@ Style:
 - Warm, clear, exam-aware. Short paragraphs.
 - Default to a hint or next step in 2–5 sentences. Only give a full worked solution if they ask.
 - Use LaTeX with $inline$ and $$display$$.
-- Do not mention being an AI model or Gemini.
+- Do not mention being an AI model or ChatGPT.
 - If a question or topic is attached, stay on that.
 - Never invent IB markschemes. If unsure, say so and show a standard method.`
 
-function geminiKey() {
-  return String(env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || '').trim()
+function openaiKey() {
+  return String(env.OPENAI_API_KEY || '').trim()
 }
 
 function isAllowedOrigin(request) {
@@ -109,33 +109,32 @@ function contextBlock(context) {
 }
 
 function extractDelta(payload) {
-  return (payload?.candidates?.[0]?.content?.parts || [])
-    .map((part) => String(part?.text || ''))
-    .join('')
+  const choice = payload?.choices?.[0]
+  const content = choice?.delta?.content ?? choice?.message?.content
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content.map((part) => String(part?.text || part || '')).join('')
+  }
+  return ''
 }
 
-async function streamGemini({ key, contents, response }) {
+async function streamChat({ key, messages, response }) {
   let lastError = 'Tutor is unavailable right now.'
   for (const model of MODELS) {
-    const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents,
-          generationConfig: {
-            temperature: 0.45,
-            maxOutputTokens: 768,
-            ...(model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-          },
-        }),
+    const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
       },
-    )
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.45,
+        max_tokens: 768,
+        stream: true,
+      }),
+    })
     if (!upstream.ok || !upstream.body) {
       const payload = await upstream.json().catch(() => ({}))
       lastError = payload?.error?.message || lastError
@@ -216,7 +215,7 @@ export default async function handler(request, response) {
       return
     }
 
-    const key = geminiKey()
+    const key = openaiKey()
     if (!key) {
       sendJson(response, 503, { error: clientError(503) })
       return
@@ -230,12 +229,15 @@ export default async function handler(request, response) {
     }
 
     const prefix = contextBlock(body?.context)
-    const contents = messages.map((item, index) => ({
-      role: item.role,
-      parts: [{ text: prefix && index === 0 && item.role === 'user' ? `${prefix}\n\n${item.text}` : item.text }],
-    }))
+    const chatMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...messages.map((item, index) => ({
+        role: item.role === 'model' ? 'assistant' : 'user',
+        content: prefix && index === 0 && item.role === 'user' ? `${prefix}\n\n${item.text}` : item.text,
+      })),
+    ]
 
-    await streamGemini({ key, contents, response })
+    await streamChat({ key, messages: chatMessages, response })
   } catch {
     if (response.headersSent) {
       response.end()
