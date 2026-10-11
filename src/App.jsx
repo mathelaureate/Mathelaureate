@@ -4393,7 +4393,7 @@ function CoursePage({ user, authReady, cachedProfile }) {
                     </div>
                   ) : null}
 
-                  <div className="lesson-content">
+                  <div className={`lesson-content${activeTab === 'question' ? ' lesson-content-questions' : ''}`}>
                     {activeItems.length === 0 ? (
                       <article className="lesson-card">
                         <h3>No content yet</h3>

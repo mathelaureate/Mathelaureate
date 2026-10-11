@@ -5352,6 +5352,10 @@ body {
   max-width: 100%;
 }
 
+.course-page .lesson-content-questions {
+  gap: 1.15rem;
+}
+
 .course-page .lesson-card {
   min-width: 0;
   max-width: 100%;
