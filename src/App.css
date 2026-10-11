@@ -5451,12 +5451,21 @@ body {
 
 .course-page .lesson-card-top,
 .course-page .lesson-title-row,
-.course-page .question-card-bar,
 .course-page .content-blocks-render,
 .course-page .question-stem,
 .course-page .geogebra-block {
   min-width: 0;
   max-width: 100%;
+}
+
+.course-page .question-card-bar {
+  min-width: 0;
+  max-width: none;
+  width: calc(100% + 2rem);
+  margin-left: -1rem;
+  margin-right: -1rem;
+  box-sizing: border-box;
+  border-radius: 10px 12px 0 0;
 }
 
 .course-page .lesson-card-top,
