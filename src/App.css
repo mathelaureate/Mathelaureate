@@ -6824,9 +6824,53 @@ body {
 .mock-unit-list {
   display: grid;
   gap: 0.55rem;
-  max-height: 28rem;
+  max-height: 32rem;
   overflow: auto;
   padding-right: 0.2rem;
+}
+
+.mock-unit-block {
+  border: 1px solid #d7e3ec;
+  border-radius: 12px;
+  background: #f9fbfd;
+}
+
+.mock-unit-block.active {
+  border-color: #9fc2db;
+  background: #f4f9fd;
+}
+
+.mock-unit-block .mock-unit-option {
+  border: 0;
+  background: transparent;
+}
+
+.mock-subunit-list {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0 0.75rem 0.7rem 2.15rem;
+}
+
+.mock-subunit-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: start;
+  padding: 0.28rem 0.35rem;
+  border-radius: 8px;
+  color: #243140;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.mock-subunit-option.active {
+  background: #e7f1f8;
+}
+
+.mock-subunit-option small {
+  color: #607484;
+  font-size: 0.75rem;
 }
 
 .mock-unit-option {

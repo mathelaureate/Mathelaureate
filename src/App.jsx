@@ -4822,6 +4822,18 @@ function PaperGeneratorPage({ user, authReady, cachedProfile }) {
   )
 }
 
+function MockSubunitCheckbox({ checked, indeterminate, onChange, label }) {
+  const inputRef = useRef(null)
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return <input ref={inputRef} type="checkbox" checked={checked} onChange={onChange} aria-label={label} />
+}
+
+function mockSubunitKey(unitId, name) {
+  return `${unitId}\u001f${name}`
+}
+
 function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loginPending, setLoginPending] = useState(false)
   const [loginError, setLoginError] = useState('')
@@ -4831,7 +4843,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
   const [loadError, setLoadError] = useState('')
   const [selectedCourseSlug, setSelectedCourseSlug] = useState('ibdp-aa')
   const [selectedLevel, setSelectedLevel] = useState(() => getMockBlueprint('ibdp-aa').defaultLevel)
-  const [selectedUnitIds, setSelectedUnitIds] = useState([])
+  const [selectedSubunitKeys, setSelectedSubunitKeys] = useState([])
   const [paperSettings, setPaperSettings] = useState(() =>
     createDefaultMockPaperSettings(getMockPapersForCourse('ibdp-aa', 'hl')),
   )
@@ -4888,7 +4900,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         setQuestionPool(questions)
         setSavedQuestions(normalizeStudyList(progressData?.savedQuestions))
         setWrongQuestions(normalizeStudyList(progressData?.wrongQuestions))
-        setSelectedUnitIds([])
+        setSelectedSubunitKeys([])
         const nextLevel = getMockBlueprint(selectedCourse.slug).defaultLevel
         setSelectedLevel(nextLevel)
         resetPaperSettingsFor(selectedCourse.slug, nextLevel)
@@ -4933,8 +4945,26 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     }
   }
 
-  function toggleUnit(unitId) {
-    setSelectedUnitIds((prev) => (prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId]))
+  function toggleSubunit(unitId, name) {
+    const key = mockSubunitKey(unitId, name)
+    setSelectedSubunitKeys((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]))
+  }
+
+  function toggleUnitSubunits(unit) {
+    const keys = (unit.subunits || []).map((name) => mockSubunitKey(unit.id, name))
+    const allOn = keys.length > 0 && keys.every((key) => selectedSubunitKeys.includes(key))
+    setSelectedSubunitKeys((prev) => {
+      if (allOn) return prev.filter((key) => !keys.includes(key))
+      return [...new Set([...prev, ...keys])]
+    })
+  }
+
+  function matchingQuestionCount(unitId, subunitName) {
+    return questionPool.filter((question) => {
+      if (question.unitId !== unitId) return false
+      if (subunitName && question.subunit !== subunitName) return false
+      return matchesSelectedLevel(question)
+    }).length
   }
 
   function updatePaperSetting(paperId, patch) {
@@ -4974,7 +5004,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
   function getPoolForPaper(paperDef) {
     const unitFiltered = questionPool.filter((question) => {
-      if (!selectedUnitIds.includes(question.unitId)) return false
+      if (!selectedSubunitKeys.includes(mockSubunitKey(question.unitId, question.subunit))) return false
       if (!matchesSelectedLevel(question)) return false
       return normalizeGdc(question.gdc) === paperDef.gdc
     })
@@ -4999,8 +5029,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
   function buildMock() {
     setBuildError('')
-    if (selectedUnitIds.length === 0) {
-      setBuildError('Select at least one unit to include in your mock.')
+    if (selectedSubunitKeys.length === 0) {
+      setBuildError('Select at least one subtopic to include in your mock.')
       return
     }
 
@@ -5041,7 +5071,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     })
 
     if (nextPapers.every((paper) => paper.questions.length === 0)) {
-      setBuildError('No matching questions found for the selected course, level, units, and paper type.')
+      setBuildError('No matching questions found for the selected course, level, subtopics, and paper type.')
       return
     }
 
@@ -5053,8 +5083,14 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
     setGeneratedPapers({
       courseTitle: selectedCourse.title,
       levelLabel: levelLabel || '',
-      unitIds: [...selectedUnitIds],
-      unitNames: units.filter((unit) => selectedUnitIds.includes(unit.id)).map((unit) => unit.name),
+      unitIds: [...new Set(selectedSubunitKeys.map((key) => key.split('\u001f')[0]))],
+      unitNames: units.flatMap((unit) => {
+        const names = unit.subunits || []
+        const picked = names.filter((name) => selectedSubunitKeys.includes(mockSubunitKey(unit.id, name)))
+        if (!picked.length) return []
+        if (picked.length === names.length) return [unit.name]
+        return picked
+      }),
       createdAt: new Date().toISOString(),
       papers: nextPapers,
     })
@@ -5115,7 +5151,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
           <article className="auth-card mock-auth-card">
             <p className="eyebrow">Mock Generator</p>
             <h1>Build a custom exam paper</h1>
-            <p>Sign in to pick a course, level, and units, then generate paper-style mocks from your question bank.</p>
+            <p>Sign in to pick a course, level, and subtopics, then generate paper-style mocks from your question bank.</p>
             <button type="button" className="btn primary" onClick={startGoogleLogin} disabled={loginPending}>
               {loginPending ? 'Signing in...' : 'Continue with Google'}
             </button>
@@ -5157,7 +5193,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
         {!loading && !loadError && !generatedPapers ? (
           <div className="mock-builder-grid">
             <article className="mock-panel">
-              <h2>1. Course, level &amp; units</h2>
+              <h2>1. Course, level &amp; subtopics</h2>
               <label className="mock-field">
                 <span>Course</span>
                 <select
@@ -5167,7 +5203,7 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     const nextLevel = getMockBlueprint(nextSlug).defaultLevel
                     setSelectedCourseSlug(nextSlug)
                     setSelectedLevel(nextLevel)
-                    setSelectedUnitIds([])
+                    setSelectedSubunitKeys([])
                     resetPaperSettingsFor(nextSlug, nextLevel)
                   }}
                 >
@@ -5205,28 +5241,51 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
 
               <div className="mock-unit-list">
                 {units.length === 0 ? (
-                  <p className="muted-text">No units found for this course.</p>
+                  <p className="muted-text">No topics found for this course.</p>
                 ) : (
                   units.map((unit, index) => {
-                    const checked = selectedUnitIds.includes(unit.id)
-                    const unitQuestionCount = questionPool.filter((question) => {
-                      if (question.unitId !== unit.id) return false
-                      if (selectedCourseSlug !== 'ibdp-aa') return true
-                      const level = String(question.questionLevel || '').trim().toLowerCase()
-                      if (selectedLevel === 'sl') return !level || level === 'sl'
-                      return true
-                    }).length
+                    const names = unit.subunits || []
+                    const keys = names.map((name) => mockSubunitKey(unit.id, name))
+                    const pickedCount = keys.filter((key) => selectedSubunitKeys.includes(key)).length
+                    const allOn = keys.length > 0 && pickedCount === keys.length
+                    const someOn = pickedCount > 0 && !allOn
+                    const unitQuestionCount = matchingQuestionCount(unit.id)
                     return (
-                      <label className={`mock-unit-option ${checked ? 'active' : ''}`} key={unit.id}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleUnit(unit.id)} />
-                        <span>
-                          <strong>
-                            Unit {index + 1}
-                            {unit.name ? ` · ${unit.name.replace(/^Topic\s+\d+:\s*/i, '')}` : ''}
-                          </strong>
-                          <small>{unitQuestionCount} matching questions</small>
-                        </span>
-                      </label>
+                      <div className={`mock-unit-block ${pickedCount ? 'active' : ''}`} key={unit.id}>
+                        <label className="mock-unit-option">
+                          <MockSubunitCheckbox
+                            checked={allOn}
+                            indeterminate={someOn}
+                            onChange={() => toggleUnitSubunits(unit)}
+                            label={unit.name || `Topic ${index + 1}`}
+                          />
+                          <span>
+                            <strong>
+                              {unit.name || `Topic ${index + 1}`}
+                            </strong>
+                            <small>{unitQuestionCount} matching questions</small>
+                          </span>
+                        </label>
+                        {names.length ? (
+                          <div className="mock-subunit-list">
+                            {names.map((name) => {
+                              const on = selectedSubunitKeys.includes(mockSubunitKey(unit.id, name))
+                              const count = matchingQuestionCount(unit.id, name)
+                              return (
+                                <label className={`mock-subunit-option ${on ? 'active' : ''}`} key={name}>
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    onChange={() => toggleSubunit(unit.id, name)}
+                                  />
+                                  <span>{name}</span>
+                                  <small>{count}</small>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
                     )
                   })
                     )}
@@ -5235,7 +5294,11 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                 <button
                   type="button"
                   className="btn mock-secondary-btn"
-                  onClick={() => setSelectedUnitIds(units.map((unit) => unit.id))}
+                  onClick={() =>
+                    setSelectedSubunitKeys(
+                      units.flatMap((unit) => (unit.subunits || []).map((name) => mockSubunitKey(unit.id, name))),
+                    )
+                  }
                   disabled={!units.length}
                 >
                   Select all
@@ -5243,8 +5306,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                 <button
                   type="button"
                   className="btn mock-secondary-btn"
-                  onClick={() => setSelectedUnitIds([])}
-                  disabled={!selectedUnitIds.length}
+                  onClick={() => setSelectedSubunitKeys([])}
+                  disabled={!selectedSubunitKeys.length}
                 >
                   Clear
                 </button>
@@ -5264,8 +5327,8 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                     paperDef,
                     Number(settings.targetMarks) > 0 ? settings.targetMarks : paperDef.fullMarks,
                   )
-                  const available = selectedUnitIds.length ? getPoolForPaper(paperDef).length : 0
-                  const availableMarks = selectedUnitIds.length
+                  const available = selectedSubunitKeys.length ? getPoolForPaper(paperDef).length : 0
+                  const availableMarks = selectedSubunitKeys.length
                     ? getPoolForPaper(paperDef).reduce((sum, question) => sum + (Number(question.marks) || 0), 0)
                     : 0
                   return (
@@ -5301,9 +5364,9 @@ function MockGeneratorPage({ user, authReady, cachedProfile }) {
                         <strong>{autoMinutes} min</strong>
                       </p>
                       <p className="mock-available">
-                        {selectedUnitIds.length
+                        {selectedSubunitKeys.length
                           ? `${available} Q · ${availableMarks} marks in bank`
-                          : 'Select units'}
+                          : 'Select subtopics'}
                       </p>
                     </div>
                   )
