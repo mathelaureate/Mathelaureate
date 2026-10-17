@@ -1036,19 +1036,19 @@ nav button:hover {
 
 .geogebra-block {
   margin-top: 0.55rem;
-  display: grid;
-  gap: 0.4rem;
+  display: flex;
+  justify-content: center;
   width: 100%;
 }
 
 .geogebra-block iframe {
-  width: 100%;
-  aspect-ratio: 16 / 10;
+  width: min(100%, 56rem);
   height: 32rem;
   min-height: 18rem;
-  border: 1px solid #d5e0e3;
-  border-radius: 10px;
-  background: #fff;
+  margin-inline: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   display: block;
 }
 

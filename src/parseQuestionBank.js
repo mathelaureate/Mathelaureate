@@ -188,15 +188,15 @@ export function toGeoGebraEmbedUrl(input) {
   const iframeSrcMatch = rawInput.match(/src=["']([^"']+)["']/i)
   const raw = String(iframeSrcMatch?.[1] || rawInput).trim()
   if (!raw) return ''
-  if (raw.includes('geogebra.org/material/iframe/id/')) return raw
+  if (raw.includes('geogebra.org/material/iframe/id/')) return raw.replace(/\/border\/[0-9a-fA-F]+/gi, '')
 
   const idMatch =
     raw.match(/geogebra\.org\/m\/([a-zA-Z0-9]+)/) ||
     raw.match(/material\/show\/id\/([a-zA-Z0-9]+)/) ||
     raw.match(/^([a-zA-Z0-9]{6,})$/)
   const materialId = idMatch?.[1]
-  if (!materialId) return /geogebra\.org/i.test(raw) ? raw : ''
-  return `https://www.geogebra.org/material/iframe/id/${materialId}/width/900/height/520/border/888888/sfsb/true/smb/false/stb/false/stbh/false/ai/false/asb/false/sri/true/rc/false`
+  if (!materialId) return /geogebra\.org/i.test(raw) ? raw.replace(/\/border\/[0-9a-fA-F]+/gi, '') : ''
+  return `https://www.geogebra.org/material/iframe/id/${materialId}/width/900/height/520/sfsb/true/smb/false/stb/false/stbh/false/ai/false/asb/false/sri/true/rc/false`
 }
 
 export function normalizeGeoGebraSource(input) {
