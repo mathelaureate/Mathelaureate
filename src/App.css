@@ -5042,6 +5042,233 @@ body {
   margin-top: 0.55rem;
 }
 
+.plan-form,
+.plan-board,
+.plan-field,
+.plan-days {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.plan-field span,
+.plan-unit {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.plan-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 0.7rem;
+}
+
+.plan-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.plan-add .btn {
+  width: auto;
+  padding: 0.72rem 0.95rem;
+}
+
+.plan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #d5e0e8;
+  border-radius: 999px;
+  background: #fff;
+  color: #243140;
+  padding: 0.28rem 0.55rem 0.28rem 0.7rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.plan-chip span {
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.plan-topics {
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.3rem;
+}
+
+.plan-unit {
+  margin: 0.55rem 0.5rem 0.15rem;
+}
+
+.plan-topic {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.38rem 0.45rem;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.plan-topic.is-on {
+  background: #eef6f5;
+}
+
+.plan-topic span {
+  color: #243140;
+  font-size: 0.92rem;
+  font-weight: 450;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+}
+
+.plan-empty,
+.plan-note,
+.plan-meta p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.plan-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.plan-meter {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.plan-meter span {
+  display: block;
+  height: 100%;
+  background: #0b7a75;
+}
+
+.plan-day {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem 0.65rem;
+  user-select: none;
+}
+
+.plan-day.is-today {
+  border-color: #9ec9c4;
+  background: #f4fbfa;
+}
+
+.plan-day header {
+  display: grid;
+  gap: 0.12rem;
+  justify-items: start;
+}
+
+.plan-day header strong {
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.plan-day header span {
+  color: #64748b;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.plan-day ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.plan-day li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.plan-day li label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  cursor: pointer;
+  flex: 1;
+}
+
+.plan-day li label span {
+  color: #243140;
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.plan-day li.is-done label span {
+  color: #64748b;
+  text-decoration: line-through;
+}
+
+.plan-day li a {
+  color: #1b6ea8;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-decoration: none;
+  margin-left: 1.65rem;
+}
+
+.plan-ask {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #1b6ea8;
+  padding: 0.15rem 0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.plan-ask:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.plan-actions .btn {
+  width: auto;
+}
+
 .study-question-list {
   display: grid;
   gap: 0.7rem;
@@ -5209,6 +5436,11 @@ body {
 
   .profile-hero-row {
     align-items: flex-start;
+  }
+
+  .plan-row,
+  .plan-add {
+    grid-template-columns: 1fr;
   }
 }
 

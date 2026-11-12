@@ -37,6 +37,7 @@ import {
 import { AssignmentInbox, AssignedWorkList } from './allotWork'
 import PaperStudio, { PAPER_QUESTION_LIMIT } from './paperSheet'
 import { assignmentLabel, assignmentStatus, homeworkSessionsMap, normalizeAssignmentDoc, pickHomeworkQuestions, questionsForTopic, saveHomeworkSession } from './assignments'
+import TestPlanPanel from './testPlan'
 import {
   collectBankImageNames,
   decodeBankHtmlEntities,
@@ -6276,6 +6277,7 @@ function ProfilePage({ user, cachedProfile }) {
   const [allotted, setAllotted] = useState({ items: [], notices: [] })
   const [allotProgress, setAllotProgress] = useState({})
   const [generatedPapers, setGeneratedPapers] = useState([])
+  const [testPlan, setTestPlan] = useState(null)
   const [openPaperId, setOpenPaperId] = useState('')
   const questionById = useMemo(() => {
     const map = new Map()
@@ -6319,6 +6321,7 @@ function ProfilePage({ user, cachedProfile }) {
         setSavedQuestions(normalizeStudyList(data.savedQuestions))
         setWrongQuestions(nextWrong)
         setGeneratedPapers(normalizeGeneratedPapers(data.generatedPapers))
+        setTestPlan(data.testPlan || null)
         setVisitDates(collectVisitDates(data))
         setSuggestionGroups(
           suggestSimilarQuestionsByTopic({
@@ -6337,6 +6340,7 @@ function ProfilePage({ user, cachedProfile }) {
           setVisitDates([])
           setSuggestionGroups([])
           setGeneratedPapers([])
+          setTestPlan(null)
         }
       } finally {
         if (active) setIsLoadingCourses(false)
@@ -6455,6 +6459,9 @@ function ProfilePage({ user, cachedProfile }) {
           <div className="ia-filter-block">
             <h2>Quick links</h2>
             <div className="ia-pill-col">
+              <a className="ia-pill" href="#test-plan">
+                Test plan
+              </a>
               <Link className="ia-pill" to="/#programs">
                 Programs
               </Link>
@@ -6486,6 +6493,15 @@ function ProfilePage({ user, cachedProfile }) {
           ) : (
             <div id="homework" hidden />
           )}
+
+          <TestPlanPanel
+            user={user}
+            curricula={curricula}
+            courses={courseCatalog}
+            wrongQuestions={wrongQuestions}
+            savedPlan={testPlan}
+            isLoading={isLoadingCourses}
+          />
 
           <section className="profile-panel">
             <div className="profile-section-head">
