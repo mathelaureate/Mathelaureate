@@ -84,6 +84,41 @@ export function unitsForCourse(curricula, curriculumId) {
     .filter((unit) => unit.id && unit.subunits.length)
 }
 
+export function calendarMonths(fromIso, toIso) {
+  const start = isoDate(fromIso)
+  const end = isoDate(toIso)
+  if (!start || !end || end < start) return []
+  const months = []
+  let year = Number(start.slice(0, 4))
+  let month = Number(start.slice(5, 7)) - 1
+  const endYear = Number(end.slice(0, 4))
+  const endMonth = Number(end.slice(5, 7)) - 1
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    months.push({ year, month })
+    month += 1
+    if (month > 11) {
+      month = 0
+      year += 1
+    }
+  }
+  return months
+}
+
+export function monthGrid(year, month) {
+  const pad = (new Date(year, month, 1).getDay() + 6) % 7
+  const count = new Date(year, month + 1, 0).getDate()
+  const cells = Array.from({ length: pad }, () => null)
+  for (let day = 1; day <= count; day += 1) {
+    cells.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+  }
+  while (cells.length % 7) cells.push(null)
+  return cells
+}
+
+export function monthLabel(year, month) {
+  return new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
 export function formatPlanDate(iso) {
   const [year, month, day] = String(iso || '').split('-').map(Number)
   if (!year || !month || !day) return iso

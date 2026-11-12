@@ -1,16 +1,113 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteField, doc, setDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { openTutor, topicTutorContext } from './tutor'
 import {
+  calendarMonths,
   diffIsoDays,
   formatPlanDate,
   localISODate,
+  monthGrid,
+  monthLabel,
   normalizeTestPlan,
   normalizeTopicList,
   unitsForCourse,
 } from './testPlanModel'
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+function MonthCalendar({
+  months,
+  monthIndex,
+  onMonth,
+  selected,
+  onSelect,
+  today,
+  studyDates,
+  doneDates,
+  examDate,
+  min,
+  max,
+}) {
+  const page = months[monthIndex] || months[0]
+  if (!page) return null
+  const cells = monthGrid(page.year, page.month)
+  const study = studyDates || new Set()
+  const done = doneDates || new Set()
+
+  return (
+    <div className="plan-cal">
+      <div className="plan-cal-head">
+        <button type="button" className="plan-cal-nav" onClick={() => onMonth(monthIndex - 1)} disabled={monthIndex <= 0} aria-label="Previous month">
+          ‹
+        </button>
+        <strong>{monthLabel(page.year, page.month)}</strong>
+        <button
+          type="button"
+          className="plan-cal-nav"
+          onClick={() => onMonth(monthIndex + 1)}
+          disabled={monthIndex >= months.length - 1}
+          aria-label="Next month"
+        >
+          ›
+        </button>
+      </div>
+      <div className="plan-cal-week" aria-hidden="true">
+        {WEEKDAYS.map((day) => (
+          <span key={day}>{day}</span>
+        ))}
+      </div>
+      <div className="plan-cal-grid" aria-label={monthLabel(page.year, page.month)}>
+        {cells.map((iso, index) => {
+          if (!iso) return <span key={`empty-${index}`} className="plan-cal-empty" />
+          const isExam = iso === examDate
+          const isStudy = study.has(iso)
+          const isDone = isStudy && done.has(iso)
+          const disabled = (min && iso < min) || (max && iso > max)
+          const classes = [
+            'plan-cal-cell',
+            iso === today ? 'is-today' : '',
+            iso === selected ? 'is-selected' : '',
+            isStudy ? 'is-study' : '',
+            isDone ? 'is-done' : '',
+            isExam ? 'is-exam' : '',
+            study.size === 0 && !isExam && examDate && iso > (min || today) && iso < examDate ? 'is-span' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+          const kind = isExam ? 'test' : isStudy ? 'study' : 'day'
+          return (
+            <button
+              key={iso}
+              type="button"
+              className={classes}
+              disabled={disabled}
+              aria-pressed={iso === selected}
+              aria-label={`${formatPlanDate(iso)}, ${kind}`}
+              onClick={() => onSelect(iso)}
+            >
+              <span>{Number(iso.slice(-2))}</span>
+            </button>
+          )
+        })}
+      </div>
+      <ul className="plan-legend">
+        {study.size ? (
+          <li>
+            <i className="is-study" /> Study
+          </li>
+        ) : null}
+        <li>
+          <i className="is-exam" /> Test
+        </li>
+        <li>
+          <i className="is-today" /> Today
+        </li>
+      </ul>
+    </div>
+  )
+}
 
 function apiBase() {
   return String(import.meta.env.VITE_PAYMENT_API_BASE_URL || '/api').replace(/\/$/, '')
@@ -103,6 +200,9 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
   const [minutes, setMinutes] = useState(45)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [focusDate, setFocusDate] = useState('')
+  const [planMonth, setPlanMonth] = useState(0)
+  const [pickMonth, setPickMonth] = useState(0)
 
   const course = (courses || []).find((item) => item.slug === courseSlug) || courses?.[0] || null
   const units = useMemo(() => unitsForCourse(curricula, course?.curriculumId), [curricula, course?.curriculumId])
@@ -272,6 +372,41 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
     0,
   )
   const atTopicCap = selected.length >= 8
+  const pickMonths = useMemo(() => calendarMonths(today, maxDate), [today, maxDate])
+  const planMonths = useMemo(() => {
+    if (!plan) return []
+    const dates = [today, plan.examDate, ...plan.days.map((day) => day.date)].filter(Boolean).sort()
+    return calendarMonths(dates[0], dates[dates.length - 1])
+  }, [plan, today])
+  const studyDates = useMemo(() => new Set((plan?.days || []).map((day) => day.date)), [plan])
+  const doneDates = useMemo(() => {
+    const done = new Set()
+    for (const day of plan?.days || []) {
+      if (day.tasks.length && day.tasks.every((task) => plan.doneIds.includes(task.id))) done.add(day.date)
+    }
+    return done
+  }, [plan])
+  const focusDay = (plan?.days || []).find((day) => day.date === focusDate) || null
+  const syncedPlanId = useRef('')
+
+  useEffect(() => {
+    if (!plan?.id || syncedPlanId.current === plan.id) return
+    syncedPlanId.current = plan.id
+    const upcoming = plan.days.find((day) => day.date >= today)?.date || plan.days[plan.days.length - 1]?.date || plan.examDate
+    setFocusDate(upcoming || '')
+    const dates = [today, plan.examDate, ...plan.days.map((day) => day.date)].filter(Boolean).sort()
+    const months = calendarMonths(dates[0], dates[dates.length - 1])
+    const key = String(upcoming || '').slice(0, 7)
+    const index = months.findIndex((item) => `${item.year}-${String(item.month + 1).padStart(2, '0')}` === key)
+    setPlanMonth(index >= 0 ? index : 0)
+  }, [plan, today])
+
+  useEffect(() => {
+    if (!examDate) return
+    const key = examDate.slice(0, 7)
+    const index = pickMonths.findIndex((item) => `${item.year}-${String(item.month + 1).padStart(2, '0')}` === key)
+    if (index >= 0) setPickMonth(index)
+  }, [examDate, pickMonths])
 
   return (
     <section className="profile-panel" id="test-plan">
@@ -308,15 +443,28 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
           >
             <span style={{ width: totalTasks ? `${Math.round((doneTasks / totalTasks) * 100)}%` : '0%' }} />
           </div>
-          <div className="plan-days">
-            {plan.days.map((day) => (
-              <article key={day.date} className={`plan-day${day.date === today ? ' is-today' : ''}`}>
-                <header>
-                  <strong>{formatPlanDate(day.date)}</strong>
-                  <span>{day.title}</span>
-                </header>
+          <div className="plan-layout">
+            <MonthCalendar
+              months={planMonths}
+              monthIndex={planMonth}
+              onMonth={setPlanMonth}
+              selected={focusDate}
+              onSelect={setFocusDate}
+              today={today}
+              studyDates={studyDates}
+              doneDates={doneDates}
+              examDate={plan.examDate}
+            />
+            <article className="plan-detail">
+              <p className="plan-kicker">
+                {focusDate ? formatPlanDate(focusDate) : 'Pick a day'}
+                {focusDate === today ? ' · Today' : ''}
+                {focusDate === plan.examDate ? ' · Test' : ''}
+              </p>
+              <h3>{focusDay?.title || (focusDate === plan.examDate ? 'Test day' : 'Free day')}</h3>
+              {focusDay ? (
                 <ul>
-                  {day.tasks.map((task) => {
+                  {focusDay.tasks.map((task) => {
                     const href = topicHref(plan, task.topic)
                     const checked = plan.doneIds.includes(task.id)
                     return (
@@ -330,6 +478,10 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
                     )
                   })}
                 </ul>
+              ) : (
+                <p>{focusDate === plan.examDate ? 'The test is on this day.' : 'Nothing is set for this day.'}</p>
+              )}
+              {focusDay ? (
                 <button
                   type="button"
                   className="plan-ask"
@@ -338,16 +490,16 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
                       topicTutorContext({
                         courseTitle: plan.courseTitle,
                         courseSlug: plan.courseSlug,
-                        unitName: day.title,
-                        subunit: day.tasks.map((task) => task.topic).find(Boolean) || day.title,
+                        unitName: focusDay.title,
+                        subunit: focusDay.tasks.map((task) => task.topic).find(Boolean) || focusDay.title,
                       }),
                     )
                   }
                 >
                   Ask Laureate
                 </button>
-              </article>
-            ))}
+              ) : null}
+            </article>
           </div>
           <div className="plan-actions">
             <button type="button" className="btn ghost" onClick={() => setShowForm(true)}>
@@ -411,80 +563,89 @@ export default function TestPlanPanel({ user, curricula, courses, wrongQuestions
             </div>
           ) : null}
 
-          {units.length ? (
-            <div className="plan-field">
-              <span>From this course</span>
-              <input
-                value={query}
-                placeholder="Search the course outline"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              <div className="plan-topics">
-                {visibleUnits.length === 0 ? <p className="plan-empty">No topics match.</p> : null}
-                {visibleUnits.map((unit) => (
-                  <div key={unit.id}>
-                    <p className="plan-unit">{unit.name}</p>
-                    {unit.subunits.map((subunit) => {
-                      const key = topicKey(unit.id, subunit)
-                      const on = selected.some((item) => item.key === key)
-                      return (
-                        <label key={key} className={`plan-topic${on ? ' is-on' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            disabled={!on && atTopicCap}
-                            onChange={() =>
-                              toggleTopic({
-                                key,
-                                label: subunit,
-                                unitId: unit.id,
-                                subunit,
-                                unitName: unit.name,
-                                custom: false,
-                              })
-                            }
-                          />
-                          <span>{subunit}</span>
-                        </label>
-                      )
-                    })}
+          <div className={`plan-setup${units.length ? '' : ' is-calendar-only'}`}>
+            {units.length ? (
+            <div className="plan-setup-main">
+                <div className="plan-field">
+                  <span>From this course</span>
+                  <input
+                    value={query}
+                    placeholder="Search the course outline"
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                  <div className="plan-topics">
+                    {visibleUnits.length === 0 ? <p className="plan-empty">No topics match.</p> : null}
+                    {visibleUnits.map((unit) => (
+                      <div key={unit.id}>
+                        <p className="plan-unit">{unit.name}</p>
+                        {unit.subunits.map((subunit) => {
+                          const key = topicKey(unit.id, subunit)
+                          const on = selected.some((item) => item.key === key)
+                          return (
+                            <label key={key} className={`plan-topic${on ? ' is-on' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={!on && atTopicCap}
+                                onChange={() =>
+                                  toggleTopic({
+                                    key,
+                                    label: subunit,
+                                    unitId: unit.id,
+                                    subunit,
+                                    unitName: unit.name,
+                                    custom: false,
+                                  })
+                                }
+                              />
+                              <span>{subunit}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+            </div>
+            ) : null}
+            <div className="plan-setup-side">
+              <MonthCalendar
+                months={pickMonths}
+                monthIndex={pickMonth}
+                onMonth={setPickMonth}
+                selected={examDate}
+                onSelect={setExamDate}
+                today={today}
+                examDate={examDate}
+                min={today}
+                max={maxDate}
+              />
+              <label className="plan-field">
+                <span>Minutes a day</span>
+                <select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>
+                  <option value={30}>30</option>
+                  <option value={45}>45</option>
+                  <option value={60}>60</option>
+                </select>
+              </label>
+              <p className="plan-note">
+                {examDate ? `Test on ${formatPlanDate(examDate)}.` : 'Pick the test date on the calendar.'} Up to 8 topics.
+                {weakTopicsFor(wrongQuestions, course?.curriculumId).length
+                  ? ' Missed questions in this course are weighed more heavily.'
+                  : ''}
+              </p>
+              {error ? <p className="error-text">{error}</p> : null}
+              <div className="plan-actions">
+                <button className="btn primary" type="submit" disabled={busy || !selected.length || !examDate}>
+                  {busy ? 'Building the plan…' : 'Build my plan'}
+                </button>
+                {plan ? (
+                  <button type="button" className="plan-ask" onClick={() => setShowForm(false)}>
+                    Back to plan
+                  </button>
+                ) : null}
               </div>
             </div>
-          ) : null}
-
-          <div className="plan-row">
-            <label className="plan-field">
-              <span>Test date</span>
-              <input type="date" value={examDate} min={today} max={maxDate} onChange={(event) => setExamDate(event.target.value)} />
-            </label>
-            <label className="plan-field">
-              <span>Minutes a day</span>
-              <select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>
-                <option value={30}>30</option>
-                <option value={45}>45</option>
-                <option value={60}>60</option>
-              </select>
-            </label>
-          </div>
-
-          <p className="plan-note">
-            Up to 8 topics.
-            {weakTopicsFor(wrongQuestions, course?.curriculumId).length
-              ? ' Missed questions in this course are weighed more heavily.'
-              : ''}
-          </p>
-          {error ? <p className="error-text">{error}</p> : null}
-          <div className="plan-actions">
-            <button className="btn primary" type="submit" disabled={busy || !selected.length || !examDate}>
-              {busy ? 'Building the plan…' : 'Build my plan'}
-            </button>
-            {plan ? (
-              <button type="button" className="plan-ask" onClick={() => setShowForm(false)}>
-                Back to plan
-              </button>
-            ) : null}
           </div>
         </form>
       ) : null}
