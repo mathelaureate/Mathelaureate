@@ -6943,7 +6943,6 @@ function AdminPage({ mode = 'admin' }) {
   const [itemType, setItemType] = useState('lesson')
   const [title, setTitle] = useState('')
   const [descriptionBlocks, setDescriptionBlocks] = useState(() => [createTextContentBlock('')])
-  const [solution, setSolution] = useState('')
   const [solutionBlocks, setSolutionBlocks] = useState([])
   const [solutionVideoLink, setSolutionVideoLink] = useState('')
   const [questionDifficulty, setQuestionDifficulty] = useState('medium')
@@ -7026,11 +7025,13 @@ function AdminPage({ mode = 'admin' }) {
   const [isTeachersResourcesSaving, setIsTeachersResourcesSaving] = useState(false)
   const [newTopicName, setNewTopicName] = useState('')
   const [newSubtopicName, setNewSubtopicName] = useState('')
+  const [renameTopicName, setRenameTopicName] = useState('')
   const [renameSubtopicName, setRenameSubtopicName] = useState('')
   const [dragTopicIndex, setDragTopicIndex] = useState(null)
   const [dragSubtopicIndex, setDragSubtopicIndex] = useState(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
   const [isDeletingSubtopic, setIsDeletingSubtopic] = useState(false)
+  const [isRenamingTopic, setIsRenamingTopic] = useState(false)
   const [isRenamingSubtopic, setIsRenamingSubtopic] = useState(false)
   const [storedItemsTab, setStoredItemsTab] = useState('lesson')
   const [dragRecordIndex, setDragRecordIndex] = useState(null)
@@ -7038,7 +7039,6 @@ function AdminPage({ mode = 'admin' }) {
   const [editingRecordType, setEditingRecordType] = useState('')
   const [editTitle, setEditTitle] = useState('')
   const [editDescriptionBlocks, setEditDescriptionBlocks] = useState([])
-  const [editSolution, setEditSolution] = useState('')
   const [editSolutionBlocks, setEditSolutionBlocks] = useState([])
   const [editSolutionVideoLink, setEditSolutionVideoLink] = useState('')
   const [editDifficulty, setEditDifficulty] = useState('medium')
@@ -7087,7 +7087,7 @@ function AdminPage({ mode = 'admin' }) {
     setEditingRecordType('')
     setEditTitle('')
     setEditDescriptionBlocks([])
-    setEditSolution('')
+    setEditSolutionBlocks([])
     setEditSolutionVideoLink('')
     setEditDifficulty('medium')
     setEditMarks(1)
@@ -7097,6 +7097,10 @@ function AdminPage({ mode = 'admin' }) {
     setEditImageWidthPercent(100)
     setDragRecordIndex(null)
   }, [curriculumId, unitId, subunit, storedItemsTab])
+
+  useEffect(() => {
+    setRenameTopicName(selectedUnit?.name || '')
+  }, [selectedUnit?.name])
 
   useEffect(() => {
     setRenameSubtopicName(subunit || '')
@@ -7408,6 +7412,43 @@ function AdminPage({ mode = 'admin' }) {
     setUnitId(newUnit.id)
     setSubunit('')
     setNewTopicName('')
+  }
+
+  async function renameSelectedTopic(event) {
+    event.preventDefault()
+    if (isEditorMode) {
+      setDataError('Content editors cannot change course structure.')
+      return
+    }
+    if (!selectedUnit || !unitId) return
+    const nextName = String(renameTopicName || '').trim()
+    if (!nextName) {
+      setDataError('Enter a topic name.')
+      return
+    }
+    if (nextName === selectedUnit.name) return
+    if ((selectedCurriculum?.units || []).some((unit) => unit.id !== unitId && unit.name === nextName)) {
+      setDataError('A topic with this name already exists in this course.')
+      return
+    }
+
+    setIsRenamingTopic(true)
+    setDataError('')
+    try {
+      const updated = curricula.map((curriculum) => {
+        if (curriculum.id !== curriculumId) return curriculum
+        return {
+          ...curriculum,
+          units: curriculum.units.map((unit) => (unit.id === unitId ? { ...unit, name: nextName } : unit)),
+        }
+      })
+      await persistCurricula(updated)
+      setRenameTopicName('')
+    } catch (error) {
+      setDataError(error?.message || 'Unable to rename topic.')
+    } finally {
+      setIsRenamingTopic(false)
+    }
   }
 
   function addSubtopic(event) {
@@ -7859,7 +7900,7 @@ function AdminPage({ mode = 'admin' }) {
     event.preventDefault()
     const descriptionBlocksEnabled = contentBlocksHaveMediaOrText(descriptionBlocks)
     const solutionBlocksEnabled = itemType === 'question' && contentBlocksHaveMediaOrText(solutionBlocks)
-    const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : String(solution || '').trim()
+    const preparedSolution = solutionBlocksEnabled ? contentBlocksToPlainText(solutionBlocks) : ''
     if (!descriptionBlocksEnabled) {
       setDataError(itemType === 'question' ? 'Add description blocks.' : 'Add lesson description blocks.')
       return
@@ -7953,7 +7994,7 @@ function AdminPage({ mode = 'admin' }) {
       description: contentBlocksToPlainText(normalizedDescriptionBlocks),
       descriptionBlocks: normalizedDescriptionBlocks,
       learningObjectives: [],
-      solution: itemType === 'question' ? (solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : solution) : '',
+      solution: itemType === 'question' && solutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : '',
       solutionBlocks: itemType === 'question' && solutionBlocksEnabled ? normalizedSolutionBlocks : [],
       solutionVideoLink: itemType === 'question' ? solutionVideoLink.trim() : '',
       solutionImageUrl: itemType === 'question' ? solutionImageUrl : '',
@@ -7986,7 +8027,6 @@ function AdminPage({ mode = 'admin' }) {
     setIsImageUploading(false)
     setTitle('')
     setDescriptionBlocks([createTextContentBlock('')])
-    setSolution('')
     setSolutionBlocks([])
     setSolutionVideoLink('')
     setQuestionDifficulty('medium')
@@ -8318,7 +8358,6 @@ function AdminPage({ mode = 'admin' }) {
     setEditingRecordType(record.itemType)
     setEditTitle(String(record.title || ''))
     setEditDescriptionBlocks(normalizeContentBlocks(record.descriptionBlocks, record.description))
-    setEditSolution(String(record.solution || ''))
     setEditSolutionBlocks(normalizeContentBlocks(record.solutionBlocks, record.solution))
     setEditSolutionVideoLink(String(record.solutionVideoLink || ''))
     setEditDifficulty(String(record.difficulty || 'medium'))
@@ -8335,7 +8374,6 @@ function AdminPage({ mode = 'admin' }) {
     setEditingRecordType('')
     setEditTitle('')
     setEditDescriptionBlocks([])
-    setEditSolution('')
     setEditSolutionBlocks([])
     setEditSolutionVideoLink('')
     setEditDifficulty('medium')
@@ -8356,7 +8394,7 @@ function AdminPage({ mode = 'admin' }) {
     const editingRecord = records.find((item) => item.id === editingRecordId) || null
     const editDescriptionBlocksEnabled = contentBlocksHaveMediaOrText(editDescriptionBlocks)
     const editSolutionBlocksEnabled = editingRecordType === 'question' && contentBlocksHaveMediaOrText(editSolutionBlocks)
-    const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : editSolution.trim()
+    const nextSolutionText = editSolutionBlocksEnabled ? contentBlocksToPlainText(editSolutionBlocks) : ''
 
     if (editingRecordType !== 'question' && !editTitle.trim()) {
       setDataError('Title is required for lessons.')
@@ -8406,7 +8444,7 @@ function AdminPage({ mode = 'admin' }) {
         ? {
             description: contentBlocksToPlainText(normalizedDescriptionBlocks),
             descriptionBlocks: normalizedDescriptionBlocks,
-            solution: editSolutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : editSolution.trim(),
+            solution: editSolutionBlocksEnabled ? contentBlocksToPlainText(normalizedSolutionBlocks) : '',
             solutionBlocks: editSolutionBlocksEnabled ? normalizedSolutionBlocks : [],
             solutionVideoLink: editSolutionVideoLink.trim(),
             questionLevel:
@@ -8881,9 +8919,24 @@ function AdminPage({ mode = 'admin' }) {
             </select>
           </label>
           {!isEditorMode ? (
+          <>
+          <form onSubmit={renameSelectedTopic}>
+            <label>
+              Rename Selected Topic
+              <input
+                value={renameTopicName}
+                onChange={(event) => setRenameTopicName(event.target.value)}
+                placeholder="New topic name"
+              />
+            </label>
+            <button className="btn ghost" type="submit" disabled={isRenamingTopic || !unitId}>
+              {isRenamingTopic ? 'Renaming...' : 'Rename Topic'}
+            </button>
+          </form>
           <button className="btn danger" type="button" onClick={deleteSelectedTopic} disabled={isDeletingTopic || !(selectedCurriculum?.units?.length > 1)}>
             {isDeletingTopic ? 'Deleting topic...' : 'Delete Selected Topic'}
           </button>
+          </>
           ) : null}
           <label>
             Subtopic
@@ -9501,15 +9554,11 @@ function AdminPage({ mode = 'admin' }) {
                     </select>
                   </label>
                 ) : null}
-                <label>
-                  Solution (supports LaTeX)
-                  <RichTextEditor
-                    rows={6}
-                    value={solution}
-                    onChange={setSolution}
-                    placeholder="Example: $$x^2 - 4 = 0 \\Rightarrow (x-2)(x+2)=0$$"
-                  />
-                </label>
+                {renderAdminBlocksEditor({
+                  blocks: solutionBlocks,
+                  setter: setSolutionBlocks,
+                  label: 'Solution',
+                })}
                 <label>
                   YouTube Video Solution Link (optional)
                   <input
@@ -9531,11 +9580,6 @@ function AdminPage({ mode = 'admin' }) {
                     <img src={solutionImagePreviewUrl} alt="Question solution preview" />
                   </div>
                 ) : null}
-                {renderAdminBlocksEditor({
-                  blocks: solutionBlocks,
-                  setter: setSolutionBlocks,
-                  label: 'Solution blocks (optional advanced layout)',
-                })}
                 <section className="latex-preview">
                   <h3>Live Preview</h3>
                   <article className="lesson-card lesson-card-question">
@@ -9555,7 +9599,15 @@ function AdminPage({ mode = 'admin' }) {
                       <LatexText value={contentBlocksToPlainText(descriptionBlocks) || 'Question statement preview'} className="latex-text" />
                     </div>
                     <div className="solution-box">
-                      <LatexText value={solution || 'Solution preview'} className="latex-text" />
+                      {contentBlocksHaveMediaOrText(solutionBlocks) ? (
+                        <div className="content-blocks-render">
+                          {normalizeContentBlocks(solutionBlocks).map((block, index) =>
+                            renderNormalizedContentBlock(block, 'admin-sol-preview', index),
+                          )}
+                        </div>
+                      ) : (
+                        <p>Solution preview</p>
+                      )}
                     </div>
                   </article>
                   <small>
@@ -9970,14 +10022,10 @@ function AdminPage({ mode = 'admin' }) {
                                   </select>
                                 </label>
                               ) : null}
-                              <label>
-                                Solution (supports LaTeX)
-                                <RichTextEditor rows={6} value={editSolution} onChange={setEditSolution} />
-                              </label>
                               {renderAdminBlocksEditor({
                                 blocks: editSolutionBlocks,
                                 setter: setEditSolutionBlocks,
-                                label: 'Solution blocks (optional advanced layout)',
+                                label: 'Solution',
                               })}
                               <label>
                                 YouTube Video Solution Link
