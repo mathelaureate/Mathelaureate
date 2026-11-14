@@ -390,21 +390,143 @@ const defaultCurricula = [
   {
     id: 'ibmyp',
     name: 'IB MYP Mathematics',
-    units: [],
+    units: [
+      {
+        id: 'myp-1',
+        name: 'Number Systems, Accuracy and Surds',
+        subunits: [
+          '1.1 Number Sets, Irrational Numbers and Notation',
+          '1.2 Surds, Roots and Radicals',
+          '1.3 Scientific Notation and Numerical Accuracy',
+          '1.4 Absolute Value and Inequalities',
+          '1.5 Upper and Lower Bounds',
+        ],
+      },
+      {
+        id: 'myp-2',
+        name: 'Exponents and Logarithms',
+        subunits: [
+          '2.1 Laws of Exponents — Integer and Negative Powers',
+          '2.2 Fractional and Rational Exponents',
+          '2.3 Logarithms — Meaning, Laws and Technology',
+        ],
+      },
+      {
+        id: 'unit-1793334221799',
+        name: 'Quadratic Equations and Functions',
+        subunits: [
+          '3.1 Introduction to Quadratic Functions and Equations',
+          '3.2 Solving Quadratic Equations by Factorisation',
+          '3.3 Solving Quadratic Equations Using the Quadratic Formula',
+          '3.4 Solving Quadratic Equations by Completing the Square',
+          '3.5 Graphical Representation and Solving Quadratic Equations',
+          '3.6 Investigating Patterns in Quadratic Equations',
+          '3.7 Applications of Quadratic Equations in Real-Life Contexts',
+          '3.8 Choosing Methods, Connecting Representations and Reflection',
+        ],
+      },
+      {
+        id: 'myp-4',
+        name: 'Algebra and Equations',
+        subunits: [
+          '4.1 Algebraic Expressions — Simplifying and Expanding',
+          '4.2 Changing the Subject of Formulae',
+          '4.3 Linear Equations and Algebraic Modelling',
+          '4.4 Algebraic Reasoning and Problem-Solving',
+        ],
+      },
+      {
+        id: 'myp-5',
+        name: 'Sequences and Proportional Reasoning',
+        subunits: [
+          '5.1 Number Patterns, Sequences and General Rules',
+          '5.2 Direct and Inverse Proportion',
+          '5.3 Applications of Proportional Relationships',
+          '5.4 Arithmetic Sequences',
+          '5.5 Geometric Sequences',
+        ],
+      },
+      {
+        id: 'myp-6',
+        name: 'Functions, Linear Models and Simultaneous Equations',
+        subunits: [
+          '6.1 Mappings, Relations and Function Notation',
+          '6.2 Linear Functions — Graphs, Gradient and Intercepts',
+          '6.3 Straight-Line Equations and Parallel Lines',
+          '6.4 Simultaneous Equations — Algebraic and Graphical Methods',
+          '6.5 Algorithms and Mathematical Modelling',
+        ],
+      },
+      {
+        id: 'myp-7',
+        name: 'Advanced Functions and Networks',
+        subunits: [
+          '7.1 Advanced Function Graphs, Domain and Range',
+          '7.2 Trigonometric Function Graphs',
+          '7.3 Linear Programming and Feasible Regions',
+          '7.4 Networks — Vertices, Edges, Arcs and Paths',
+          '7.5 Weighted Networks and Shortest Paths',
+        ],
+      },
+      {
+        id: 'myp-8',
+        name: 'Coordinate Geometry and Transformations',
+        subunits: [
+          '8.1 Distance, Midpoint and Gradient',
+          '8.2 Similarity, Congruence and Scale Factors',
+          '8.3 Translations, Reflections and Rotations',
+          '8.4 Enlargements, Tessellations and Combined Transformations',
+          '8.5 Geometric Reasoning with Coordinate Representations',
+          '8.6 Extended Transformations and Perpendicular Gradients',
+        ],
+      },
+      {
+        id: 'myp-9',
+        name: 'Circle Geometry and Mensuration',
+        subunits: [
+          '9.1 Metric Measures, Polyhedra and Volume',
+          '9.2 Circle Properties and Angle Theorems',
+          '9.3 Chords, Tangents and Circle Problems',
+          '9.4 Additional Solids, Volume and Capacity',
+        ],
+      },
+      {
+        id: 'myp-10',
+        name: 'Pythagoras and Trigonometry',
+        subunits: [
+          '10.1 Triangles and Pythagoras\' Theorem',
+          '10.2 Trigonometric Ratios and Right-Triangle Problems',
+          '10.3 Bearings and Trigonometry in Context',
+          '10.4 Sine Rule, Cosine Rule and Applications',
+          '10.5 Radians and Angular Measure',
+        ],
+      },
+      {
+        id: 'myp-11',
+        name: 'Statistics and Data Interpretation',
+        subunits: [
+          '11.1 Sampling, Surveys and Response Rates',
+          '11.2 Misleading Graphs and Statistical Claims',
+          '11.3 Scatter Plots, Box Plots and Cumulative Frequency',
+          '11.4 Quartiles, Percentiles and Interquartile Range',
+          '11.5 Correlation, Lines of Best Fit and Predictions',
+          '11.6 Extended Statistics — Standard Deviation, Histograms and Correlation',
+        ],
+      },
+      {
+        id: 'myp-12',
+        name: 'Sets and Probability',
+        subunits: [
+          '12.1 Sets, Operations and Venn Diagrams',
+          '12.2 Relative Frequency and Experimental Probability',
+          '12.3 Sample Spaces, Tree Diagrams and Probability Models',
+          '12.4 Combined and Mutually Exclusive Events',
+          '12.5 Independent, Dependent and Conditional Probability',
+        ],
+      },
+    ],
   },
 ]
-
-{
-  const intlCourse = defaultCurricula.find((course) => course.id === 'igcse-intl-maths')
-  const mypCourse = defaultCurricula.find((course) => course.id === 'ibmyp')
-  if (intlCourse && mypCourse) {
-    mypCourse.units = intlCourse.units.map((unit) => ({
-      id: unit.id,
-      name: unit.name,
-      subunits: [...unit.subunits],
-    }))
-  }
-}
 
 const adminPasscode = (import.meta.env.VITE_ADMIN_PASSCODE || '').trim()
 const adminPasscodeKey = 'mathelaureate-admin-passcode-ok'
@@ -1365,14 +1487,20 @@ function ensureRequiredCurricula(cachedCurricula) {
     }
   }
 
+  function savedMypHasSheetOutline(units) {
+    const ids = new Set((units || []).map((unit) => unit?.id))
+    return ids.has('myp-1') && ids.has('myp-12') && ids.has('unit-1793334221799')
+  }
+
   const savedById = new Map(cachedCurricula.map((course) => [course.id, course]))
   const merged = defaultCurricula.map((defaultCourse) => {
     const savedCourse = savedById.get(defaultCourse.id)
     if (!savedCourse) return normalizeCourseOrdering(defaultCourse)
+    const useSheetOutline = defaultCourse.id === 'ibmyp' && !savedMypHasSheetOutline(savedCourse.units)
     return normalizeCourseOrdering({
       ...savedCourse,
       name: savedCourse.name || defaultCourse.name,
-      units: Array.isArray(savedCourse.units) ? savedCourse.units : [],
+      units: useSheetOutline ? defaultCourse.units : Array.isArray(savedCourse.units) ? savedCourse.units : [],
     })
   })
 
