@@ -1304,7 +1304,6 @@ const courseCatalog = [
     description: 'Applications pathway with modelling, statistics, and technology-led problem solving.',
     highlights: ['Modelling in context', 'Statistics and probability', 'Technology-led exam practice'],
     icon: 'ai',
-    listedWhenContent: true,
   },
   {
     slug: 'ibmyp',
